@@ -1,17 +1,22 @@
 {
-	"name":"LeKoala/K",
+	"name":"lekoala/k",
+	"description":"K framework",
+	"license":"MIT",
 	"keywords":[
 	"php",
 	"framework"
 	],
+	"authors": [
+		{
+			'name' : 'Thomas Portelange',
+			'email' : 'thomas@lekoala.be',
+			'homepage' : 'http://www.lekoala.be'
+		}
+	],
+	"autoload": {
+        "psr-0": { "Composer": "src/" }
+    },
 	"require":{
 		"php":">=5.3.2"
-	},
-	"repositories": [
-	{
-		"type": "composer",
-		"url": "http://packages.zendframework.com/"
 	}
-	],
-	"minimum-stability": "beta"
 }
