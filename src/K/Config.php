@@ -3,6 +3,9 @@
 namespace K;
 
 use \Exception;
+use \ArrayAccess;
+use \Iterator;
+use \Countable;
 
 /**
  * Simple config wrapper
@@ -10,7 +13,8 @@ use \Exception;
  * Load a .php file that returns an array.
  * Override values if you have a .local.php files.
  */
-class Config {
+class Config implements ArrayAccess, Iterator, Countable {
+
 	const ENV_DEV = 'dev';
 	const ENV_TEST = 'test';
 	const ENV_PROD = 'prod';
@@ -68,11 +72,11 @@ class Config {
 		}
 
 		$this->data = array_replace_recursive($this->data, $config);
-		
-		if(isset($this->data['config'])) {
+
+		if (isset($this->data['config'])) {
 			$this->configure($this->data['config']);
 		}
-		
+
 		return $this->data;
 	}
 
@@ -84,15 +88,7 @@ class Config {
 	function toArray() {
 		return $this->data;
 	}
-	
-	function configure($data) {
-		foreach($data as $k => $v) {
-			if(isset($this->$k)) {
-				$this->$k = $v;
-			}
-		}
-	}
-	
+
 	/**
 	 * Get a value from config, allowing dot notation, for instance db.host
 	 * 
@@ -110,6 +106,52 @@ class Config {
 			}
 		}
 		return $loc;
+	}
+
+	// --- implementation --- //
+
+	public function offsetSet($offset, $value) {
+		if (is_null($offset)) {
+			$this->container[] = $value;
+		} else {
+			$this->container[$offset] = $value;
+		}
+	}
+
+	public function offsetExists($offset) {
+		return isset($this->data[$offset]);
+	}
+
+	public function offsetUnset($offset) {
+		unset($this->data[$offset]);
+	}
+
+	public function offsetGet($offset) {
+		return isset($this->data[$offset]) ? $this->data[$offset] : null;
+	}
+
+	public function rewind() {
+		reset($this->data);
+	}
+
+	public function current() {
+		return current($this->data);
+	}
+
+	public function key() {
+		return key($this->data);
+	}
+
+	public function next() {
+		return next($this->data);
+	}
+
+	public function valid() {
+		return $this->current() !== false;
+	}
+
+	public function count() {
+		return count($this->data);
 	}
 
 }

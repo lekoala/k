@@ -1,5 +1,5 @@
 <?php
-namespace k;
+namespace K;
 
 use \Exception;
 

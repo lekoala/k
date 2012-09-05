@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace K;
 
 class template {
 	static protected $global_vars = array();

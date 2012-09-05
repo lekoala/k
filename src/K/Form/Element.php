@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace K;
 
 class form_element {
 	protected $name;

@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace K;
 
 /**
  * Read and write to config file

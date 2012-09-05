@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace K;
 
 /**
  * Description of Response
