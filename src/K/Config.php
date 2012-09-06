@@ -6,6 +6,7 @@ use \Exception;
 use \ArrayAccess;
 use \Iterator;
 use \Countable;
+use \Traversable;
 
 /**
  * Simple config wrapper
@@ -13,19 +14,31 @@ use \Countable;
  * Load a .php file that returns an array.
  * Override values if you have a .local.php files.
  */
-class Config implements ArrayAccess, Iterator, Countable {
-
-	const ENV_DEV = 'dev';
-	const ENV_TEST = 'test';
-	const ENV_PROD = 'prod';
+class Config implements ArrayAccess, Iterator, Countable, Traversable {
 
 	/**
 	 * Internal config array
-	 * 
 	 * @var array
 	 */
 	protected $data = array();
 
+	/**
+	 * Local data array
+	 * @var array 
+	 */
+	protected $localData;
+
+	/**
+	 * Original data array
+	 * @var array
+	 */
+	protected $originalData = array();
+
+	/**
+	 * Create a new config object. You can pass a file or an array
+	 * to load into the config object.
+	 * @param string|array $file
+	 */
 	function __construct($file = null) {
 		if ($file) {
 			$this->load($file);
@@ -34,7 +47,6 @@ class Config implements ArrayAccess, Iterator, Countable {
 
 	/**
 	 * Load	a config file or array into the wrapper
-	 * 
 	 * @param string|array $file
 	 */
 	function load($file) {
@@ -56,18 +68,21 @@ class Config implements ArrayAccess, Iterator, Countable {
 			$filename = str_replace('.php', '', $file);
 
 			// Check for local config file
-			$local_file = $filename . '.local' . '.php';
+			$localFile = $filename . '.local' . '.php';
 			$config = require $file;
 			if (!is_array($config)) {
 				throw new Exception('Config file does not return an array');
 			}
+			$this->originalData = $config;
 
-			if (is_file($local_file)) {
-				$local_config = require $local_file;
-				if (!is_array($local_config)) {
+			if (is_file($localFile)) {
+				$this->hasLocal = true;
+				$localConfig = require $localFile;
+				if (!is_array($localConfig)) {
 					throw new Exception('Config file does not return an array');
 				}
-				$config = array_replace_recursive($config, $local_config);
+				$this->localData = $localConfig;
+				$config = array_replace_recursive($config, $localConfig);
 			}
 		}
 
@@ -82,7 +97,6 @@ class Config implements ArrayAccess, Iterator, Countable {
 
 	/**
 	 * Dump data as array
-	 * 
 	 * @return array
 	 */
 	function toArray() {
@@ -90,8 +104,34 @@ class Config implements ArrayAccess, Iterator, Countable {
 	}
 
 	/**
+	 * Does the config object loaded a .local file
+	 * @return bool
+	 */
+	function hasLocal() {
+		return isset($this->localData);
+	}
+	
+	/**
+	 * Get local config data
+	 * @return array
+	 */
+	function getLocalData() {
+		if(!$this->hasLocal()) {
+			return array();
+		}
+		return $this->localData;
+	}
+	
+	/**
+	 * Get original config data
+	 * @return array
+	 */
+	function getOriginalData() {
+		return $this->originalData;
+	}
+	
+	/**
 	 * Get a value from config, allowing dot notation, for instance db.host
-	 * 
 	 * @param string $key
 	 * @param mixed $default
 	 * @return mixed 
@@ -108,7 +148,7 @@ class Config implements ArrayAccess, Iterator, Countable {
 		return $loc;
 	}
 
-	// --- implementation --- //
+	// --- Implements ArrayAccess, Iterator and Countable --- //
 
 	public function offsetSet($offset, $value) {
 		if (is_null($offset)) {

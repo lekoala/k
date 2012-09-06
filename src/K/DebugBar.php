@@ -5,10 +5,11 @@ namespace K;
 use \Exception;
 
 class DebugBar {
+
 	protected static $trackedStats = array();
 	protected static $trackedObjects = array();
 	protected static $enabled = true;
-	
+
 	/**
 	 * Init debug bar (rendering time and memory usage)
 	 * 
@@ -19,23 +20,23 @@ class DebugBar {
 	 * Register objects with stats() method to trackedObjects array for 
 	 * more information (eg : db object)
 	 * 
-	 * @param bool $registerOnShutdown (optional)
+	 * @param bool|array $registerOnShutdown Should register on shutdown or config array
 	 */
 	public function __construct($registerOnShutdown = true) {
-		if(is_array($registerOnShutdown)) {
-			$this->configure($registerOnShutdown);
-		}
-		
 		self::$trackedStats['start_time'] = (defined('START_TIME')) ? START_TIME : microtime(true);
 		self::$trackedStats['start_memory_usage'] = (defined('START_MEMORY_USAGE')) ? START_MEMORY_USAGE : memory_get_usage(true);
-
+		
 		if ($registerOnShutdown) {
 			register_shutdown_function(array(__CLASS__, 'callback'));
 		}
+
+		if (is_array($registerOnShutdown)) {
+			$this->configure($registerOnShutdown);
+		}
 	}
-	
+
 	public function configure($options) {
-		foreach($options as $opt => $v) {
+		foreach ($options as $opt => $v) {
 			self::$$opt = $v;
 		}
 	}
@@ -46,7 +47,7 @@ class DebugBar {
 	 * @param bool $return (optional)
 	 */
 	static function callback($return = false) {
-		if(!self::$enabled) {
+		if (!self::$enabled) {
 			return;
 		}
 		$colors = array('330000', '333300', '003300', '003333', '000033');
@@ -111,17 +112,17 @@ function debugBarToggle(target) {
 
 		// Tracked objects
 		foreach (self::$trackedObjects as $obj) {
-			if(!method_exists($obj, 'debugBarCallback')) {
+			if (!method_exists($obj, 'debugBarCallback')) {
 				throw new Exception('Callback ' . $callback . ' does not exist on ' . $obj);
 			}
 			$data = call_user_func(array($obj, $callback));
 			$class = $obj;
-			if(is_object($obj)) {
+			if (is_object($obj)) {
 				$class = get_class($obj);
 			}
-			$name = explode('\\',strtolower($class));
+			$name = explode('\\', strtolower($class));
 			$name = end($name);
-			$elements[] = self::createPanel($name,$data);
+			$elements[] = self::createPanel($name, $data);
 		}
 
 		$html .= implode(' | ', $elements);
@@ -133,24 +134,24 @@ function debugBarToggle(target) {
 		}
 		echo $html;
 	}
-	
-	public static function createPanel($name,$data) {
+
+	public static function createPanel($name, $data) {
 		$id = 'debug-bar-' . strtolower($name);
-		if(is_array($data)) {
+		if (is_array($data)) {
 			$data = implode('', $data);
 		}
-		return '<a href="#'.$id.'" onclick="debugBarToggle(\''.$id.'\');return false;" style="color:#fff;">'. $name.'</a>
-			<div id="'.$id.'" style="display:none;position:fixed;background:#222;bottom:16px;right:0;height:400px;overflow:auto;width:400px;white-space:pre;padding:5px 20px 5px 5px;">' . $data . '</div>';
+		return '<a href="#' . $id . '" onclick="debugBarToggle(\'' . $id . '\');return false;" style="color:#fff;">' . $name . '</a>
+			<div id="' . $id . '" style="display:none;position:fixed;background:#222;bottom:16px;right:0;height:400px;overflow:auto;width:400px;white-space:pre;padding:5px 20px 5px 5px;">' . $data . '</div>';
 	}
-	
+
 	public static function track($o) {
 		self::$trackedObjects[] = $o;
 	}
-	
+
 	public static function enable($flag = true) {
 		self::$enabled = $flag;
 	}
-	
+
 	protected static function size($size, $precision = 2) {
 		if ($size <= 0) {
 			return '0B';

@@ -4,7 +4,7 @@ namespace K;
 /**
  * Class to configure php settings.
  * 
- * Typically, this is mostly an helper to which you pass a config array
+ * Typically, this is mostly an helper to which you pass a config array.
  *
  * @author tportelange
  */
@@ -28,6 +28,14 @@ class System {
 	
 	public function setTimezone($value) {
 		return date_default_timezone_set($value);
+	}
+	
+	public function getErrorReporting() {
+		return error_reporting();
+	}
+	
+	public function setErrorReporting($value) {
+		return error_reporting($value);
 	}
 	
 	public function __get($name) {

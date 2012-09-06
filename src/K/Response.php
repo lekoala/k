@@ -3,7 +3,7 @@
 namespace K;
 
 /**
- * Description of Response
+ * Response object
  *
  * @author Thomas
  */
@@ -87,19 +87,55 @@ class Response {
 	protected $compress = false;
 	protected $cache = true;
 
+	/**
+	 * Create a Response object
+	 * @param string|array $content The content or a config array
+	 * @param type $status
+	 * @param type $contentType
+	 * @param type $charset
+	 */
 	public function __construct($content = '', $status = 200, $contentType = 'html', $charset = 'UTF-8') {
-		$this->setContent($content);
-		$this->setStatusCode($status);
-		$this->setContentType($contentType, $charset);
+		if (is_array($content)) {
+			$this->configure($content);
+		} else {
+			$this->setContent($content);
+			$this->setStatusCode($status);
+			$this->setContentType($contentType, $charset);
+		}
+	}
+
+	/**
+	 * Configure the object
+	 * @param array $options
+	 */
+	public function configure(array $options = array()) {
+		foreach ($options as $k => $v) {
+			$property = $k;
+			$method = 'set' . ucfirst($property);
+			if (method_exists($this, $method)) {
+				$this->$method($v);
+			} elseif (property_exists($this, $property)) {
+				$this->property = $property;
+			}
+		}
 	}
 
 	public function outputFilter($filter) {
 		$this->outputFilter = $filter;
 	}
 
-	public function safeHeader($header) {
+	/**
+	 * Set a header if not already send
+	 * @param string $header
+	 * @param string $value
+	 */
+	public function safeHeader($header, $value = null) {
 		if (!headers_sent()) {
-			header($header);
+			if (!$value) {
+				header($header);
+			} else {
+				header($header . ': ' . $value);
+			}
 		}
 	}
 
@@ -111,16 +147,23 @@ class Response {
 		return $this;
 	}
 
-	public function redirect($location, $statusCode = 302, $force = false) {
+	public function redirect($location, $statusCode = null, $force = false) {
+		if (!$statusCode) {
+			$statusCode = 302;
+		}
 		$this->status($statusCode);
-		$this->safeHeader('Location: ' . $location);
+		$this->safeHeader('Location', $location);
 		if ($force) {
-			echo '<meta http-equiv="refresh" content="1;url=' . $location . '" />';
-			echo '<script type="text/javascript">setTimeout(function() { window.location.href = \'' . $location . '\' ; }, 1000);</script>';
+			$this->forceRedirect($location);
 		}
 		exit();
 	}
-	
+
+	public function forceRedirect($location, $time = 1) {
+		echo '<meta http-equiv="refresh" content="' . $time . ';url=' . $location . '" />';
+		echo '<script type="text/javascript">setTimeout(function() { window.location.href = \'' . $location . '\' ; }, ' . ($time * 1000) . ');</script>';
+	}
+
 	public function getBufferSize() {
 		return $this->bufferSize;
 	}
@@ -129,7 +172,7 @@ class Response {
 		$this->bufferSize = $bufferSize;
 		return $this->bufferSize;
 	}
-	
+
 	public function getContent() {
 		return $this->content;
 	}
@@ -172,7 +215,7 @@ class Response {
 		if (!$this->contentType) {
 			$this->setContentType();
 		}
-		$this->safeHeader('Content-type: ' . $this->contentType . '; charset=' . $this->charset);
+		$this->safeHeader('Content-type', $this->contentType . '; charset=' . $this->charset);
 
 		// Send status code
 		$protocol = isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.1';
@@ -185,8 +228,9 @@ class Response {
 
 		// Cache
 		if (!$this->cache) {
-			$this->safeHeader('Cache-Control: no-cache, must-revalidate');
-			$this->safeHeader('Expires: Wed, 16 Jan 1985 03:00:00 GMT');
+			$this->safeHeader('Cache-Control', 'no-cache, must-revalidate');
+			// Well, my birthday is a good day :-)
+			$this->safeHeader('Expires', 'Wed, 16 Jan 1985 03:00:00 GMT');
 		}
 
 		// Compress ?
