@@ -2,34 +2,105 @@
 
 namespace K;
 
-class template {
-	static protected $global_vars = array();
+use InvalidArgumentException;
+use Exception;
+
+/**
+ * Simple template
+ */
+class Template {
+
+	static protected $globalVars = array();
+	static protected $defaultExtension = 'phtml';
+	static protected $defaultPath;
 	protected $filename;
 	protected $vars;
-	
+
 	function __construct($filename, $vars) {
+		if (is_array($filename)) {
+			while (count($filename) > 1) {
+				$template = array_shift($filename);
+				$vars = array('content' => new Template($template, $vars));
+			}
+			$filename = array_shift($filename);
+		}
+		if (strpos($filename, '/') === 0) {
+			$filename = self::$defaultPath . $filename;
+		}
+		$ext = pathinfo($filename, PATHINFO_EXTENSION);
+		if (!$ext) {
+			$filename .= '.' . self::$defaultExtension;
+		}
 		if (!is_file($filename)) {
-			throw new exception($filename . ' does not exist');
+			throw new InvalidArgumentException($filename . ' does not exist');
 		}
 		if (!is_array($vars)) {
 			$vars = array('content' => $vars);
 		}
-		
+
 		$this->filename = $filename;
 		$this->vars = $vars;
 	}
-	
+
 	/**
-	 * Render a view file or multiple view file (eg : inner_view, layout)
-	 * When rendering multiple view file, the embedded view is always placed
-	 * in $content variable
-	 * 
-	 * @param string|array $filename
-	 * @param array $vars (optional)
+	 * Configure the class
+	 * @param array $options
+	 */
+	public static function configure($config) {
+		if ($config instanceof Config) {
+			$config = $config->get('Template', array());
+		}
+		if (is_array($config)) {
+			foreach ($config as $k => $v) {
+				self::$$v = $v;
+			}
+		}
+	}
+
+	/**
+	 * Get a global value or all global value
+	 * @param string $k
+	 * @return mixed
+	 */
+	public static function getGlobals($k = null) {
+		if ($k === null) {
+			return self::$globalVars;
+		}
+		return isset(self::$globalVars[$k]) ? self::$globalVars[$k] : null;
+	}
+
+	/**
+	 * Set a global value or add an array of global values
+	 * @param string|array $k
+	 * @param mixed $v
 	 * @return string
 	 */
-	function render() {
-		extract(array_merge($this->vars, self::$global_vars), EXTR_REFS);
+	public static function setGlobals($k, $v = null) {
+		if (!$v) {
+			return self::$globalVars = array_merge(self::$globalVars, $k);
+		}
+		return self::$globalVars[$k] = $v;
+	}
+
+	/**
+	 * Unset a global value or reset all global values
+	 * @param string $k
+	 * @return boolean
+	 */
+	public static function unsetGlobals($k = null) {
+		if ($k) {
+			unset(self::$globalVars[$k]);
+			return true;
+		}
+		self::$globalVars = array();
+	}
+
+	/**
+	 * Render the template
+	 * @return string
+	 */
+	public function render() {
+		extract(array_merge($this->vars, self::$globalVars), EXTR_REFS);
 
 		ob_start();
 		include($this->filename);
@@ -37,8 +108,17 @@ class template {
 
 		return $output;
 	}
-	
+
+	/**
+	 * Implement toString
+	 * @return string
+	 */
 	public function __toString() {
-		return $this->render();
+		try {
+			return $this->render();
+		} catch (Exception $e) {
+			return $e->getMessage();
+		}
 	}
+
 }

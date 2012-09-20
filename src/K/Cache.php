@@ -5,7 +5,7 @@ namespace K;
 /**
  * Simple multi modal cache provider
  */
-class cache {
+class Cache {
 	const APC = 'apc';
 	const REDIS = 'redis';
 	const XCACHE = 'xcache';

@@ -1,4 +1,5 @@
 <?php
+
 namespace K;
 
 /**
@@ -9,40 +10,44 @@ namespace K;
  * @author tportelange
  */
 class System {
-	public function __construct(array $config) {
-		foreach($config as $k => $v) {
-			//Uppercamel case
-			$method = 'set' . str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $k)));
-			if(method_exists($this, $method)) {
-				$this->$method($v);
-			}
-			else {
-				$this->$k = $v;
+
+	public static function configure($config) {
+		if ($config instanceof Config) {
+			$config = $config->get('System', array());
+		}
+		if (is_array($config)) {
+			foreach ($config as $k => $v) {
+				$method = 'set' . ucfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $k))));
+				//If we have a method like setThisProperty()
+				if (method_exists(__CLASS__, $method)) {
+					self::$method($v);
+				//Otherwise call self::this_property();
+				} else {
+					self::$k($v);
+				}
 			}
 		}
 	}
-	
-	public function getTimezone() {
+
+	public static function getTimezone() {
 		return date_default_timezone_get();
 	}
-	
-	public function setTimezone($value) {
+
+	public static function setTimezone($value) {
 		return date_default_timezone_set($value);
 	}
-	
-	public function getErrorReporting() {
+
+	public static function getErrorReporting() {
 		return error_reporting();
 	}
-	
-	public function setErrorReporting($value) {
+
+	public static function setErrorReporting($value) {
 		return error_reporting($value);
 	}
-	
-	public function __get($name) {
-		return ini_get($name);
+
+	public static function __callStatic($name, $arguments) {
+		array_unshift($arguments, $name);
+		call_user_func_array('ini_set', $arguments);
 	}
-	
-	public function __set($name, $value) {
-		return ini_set($name, $value);
-	}
+
 }

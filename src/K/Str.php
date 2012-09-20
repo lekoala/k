@@ -4,6 +4,52 @@ namespace K;
 
 class str {
 
+	protected static $pluralRules = array(
+		'([ml])ouse$' => '\1ice',
+		'(media|info(rmation)?|news)$' => '\1',
+		'(phot|log|vide)o$' => '\1os',
+		'^(q)uiz$' => '\1uizzes',
+		'(c)hild$' => '\1hildren',
+		'(p)erson$' => '\1eople',
+		'(m)an$' => '\1en',
+		'([ieu]s|[ieuo]x)$' => '\1es',
+		'([cs]h)$' => '\1es',
+		'(ss)$' => '\1es',
+		'([aeo]l)f$' => '\1ves',
+		'([^d]ea)f$' => '\1ves',
+		'(ar)f$' => '\1ves',
+		'([nlw]i)fe$' => '\1ves',
+		'([aeiou]y)$' => '\1s',
+		'([^aeiou])y$' => '\1ies',
+		'([^o])o$' => '\1oes',
+		's$' => 'ses',
+		'(.)$' => '\1s'
+	);
+	protected static $singularRules = array(
+		'([ml])ice$' => '\1ouse',
+		'(media|info(rmation)?|news)$' => '\1',
+		'(q)uizzes$' => '\1uiz',
+		'(c)hildren$' => '\1hild',
+		'(p)eople$' => '\1erson',
+		'(m)en$' => '\1an',
+		'((?!sh).)oes$' => '\1o',
+		'((?<!o)[ieu]s|[ieuo]x)es$' => '\1',
+		'([cs]h)es$' => '\1',
+		'(ss)es$' => '\1',
+		'([aeo]l)ves$' => '\1f',
+		'([^d]ea)ves$' => '\1f',
+		'(ar)ves$' => '\1f',
+		'([nlw]i)ves$' => '\1fe',
+		'([aeiou]y)s$' => '\1',
+		'([^aeiou])ies$' => '\1y',
+		'(la)ses$' => '\1s',
+		'(.)s$' => '\1'
+	);
+
+	private function __construct() {
+		
+	}
+
 	/**
 	 * Convert a var to a string
 	 * 
@@ -11,7 +57,7 @@ class str {
 	 * @param string $glue
 	 * @return string
 	 */
-	static function make($var, $glue = ',') {
+	public static function make($var, $glue = ',') {
 		if (empty($var)) {
 			return '';
 		}
@@ -38,41 +84,28 @@ class str {
 	}
 
 	/**
+	 * The opposite of nl2br
+	 * 
+	 * @param string $string
+	 * @return string
+	 */
+	public static function br2nl($string) {
+		return str_replace(array('<br>', '<br/>', '<br />'), "\n", $string);
+	}
+
+	/**
 	 * Pluralizes English nouns.
 	 *
 	 * @param    string    $word    English noun to pluralize
 	 * @return string Plural noun
 	 */
-	static function pluralize($word) {
-		$rules = array(
-			'([ml])ouse$' => '\1ice',
-			'(media|info(rmation)?|news)$' => '\1',
-			'(phot|log|vide)o$' => '\1os',
-			'^(q)uiz$' => '\1uizzes',
-			'(c)hild$' => '\1hildren',
-			'(p)erson$' => '\1eople',
-			'(m)an$' => '\1en',
-			'([ieu]s|[ieuo]x)$' => '\1es',
-			'([cs]h)$' => '\1es',
-			'(ss)$' => '\1es',
-			'([aeo]l)f$' => '\1ves',
-			'([^d]ea)f$' => '\1ves',
-			'(ar)f$' => '\1ves',
-			'([nlw]i)fe$' => '\1ves',
-			'([aeiou]y)$' => '\1s',
-			'([^aeiou])y$' => '\1ies',
-			'([^o])o$' => '\1oes',
-			's$' => 'ses',
-			'(.)$' => '\1s'
-		);
-
-		foreach ($rules as $from => $to) {
+	public static function pluralize($word) {
+		foreach (self::$pluralRules as $from => $to) {
 			if (preg_match('#' . $from . '#iD', $word)) {
 				$word = preg_replace('#' . $from . '#iD', $to, $word);
 				break;
 			}
 		}
-
 		return $word;
 	}
 
@@ -82,35 +115,13 @@ class str {
 	 * @param    string    $word    English noun to singularize
 	 * @return string Singular noun.
 	 */
-	static function singularize($word) {
-		$rules = array(
-			'([ml])ice$' => '\1ouse',
-			'(media|info(rmation)?|news)$' => '\1',
-			'(q)uizzes$' => '\1uiz',
-			'(c)hildren$' => '\1hild',
-			'(p)eople$' => '\1erson',
-			'(m)en$' => '\1an',
-			'((?!sh).)oes$' => '\1o',
-			'((?<!o)[ieu]s|[ieuo]x)es$' => '\1',
-			'([cs]h)es$' => '\1',
-			'(ss)es$' => '\1',
-			'([aeo]l)ves$' => '\1f',
-			'([^d]ea)ves$' => '\1f',
-			'(ar)ves$' => '\1f',
-			'([nlw]i)ves$' => '\1fe',
-			'([aeiou]y)s$' => '\1',
-			'([^aeiou])ies$' => '\1y',
-			'(la)ses$' => '\1s',
-			'(.)s$' => '\1'
-		);
-
-		foreach ($rules as $from => $to) {
+	public static function singularize($word) {
+		foreach (self::$singularRules as $from => $to) {
 			if (preg_match('#' . $from . '#iD', $word)) {
 				$word = preg_replace('#' . $from . '#iD', $to, $word);
 				break;
 			}
 		}
-
 		return $word;
 	}
 
@@ -122,12 +133,12 @@ class str {
 	 * "who's online" will be converted to "WhoSOnline"
 	 *
 	 * @param    string    $word    Word to convert to camel case
-	 * @param bool $upper_camel_case
+	 * @param bool $upper
 	 * @return string UpperCamelCasedWord
 	 */
-	static function camelize($word, $upper_camel_case = true) {
+	public static function camelize($word, $upper = true) {
 		$word = str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $word)));
-		if ($upper_camel_case) {
+		if ($upper) {
 			return $word;
 		}
 		return lcfirst($word);
@@ -145,7 +156,7 @@ class str {
 	 * @param    string    $word    Word to underscore
 	 * @return string Underscored word
 	 */
-	static function underscorize($word) {
+	public static function underscorize($word) {
 		return strtolower(preg_replace('/[^A-Z^a-z^0-9]+/', '_', preg_replace('/([a-zd])([A-Z])/', '1_2', preg_replace('/([A-Z]+)([A-Z][a-z])/', '1_2', $word))));
 	}
 
@@ -164,7 +175,7 @@ class str {
 	 * instead of just the first one.
 	 * @return string Human-readable word
 	 */
-	static function humanize($word, $uppercase = '') {
+	public static function humanize($word, $uppercase = '') {
 		$uppercase = $uppercase == 'all' ? 'ucwords' : 'ucfirst';
 		return $uppercase(str_replace('_', ' ', preg_replace('/_id$/', '', $word)));
 	}
@@ -177,7 +188,7 @@ class str {
 	 * @param    integer    $number    Number to get its ordinal value
 	 * @return string Ordinal representation of given string.
 	 */
-	static function ordinalize($number) {
+	public static function ordinalize($number) {
 		if (in_array(($number % 100), range(11, 13))) {
 			return $number . 'th';
 		} else {
@@ -198,6 +209,17 @@ class str {
 	}
 
 	/**
+	 * Strips all non-ASCII characters.
+	 *
+	 * @access  public
+	 * @param   string  $string  The input string
+	 * @return  string
+	 */
+	public static function ascii($string) {
+		return preg_replace('/[^\x0-\x7F]/', '', $string);
+	}
+
+	/**
 	 * Truncates text.
 	 *
 	 * Cuts a string to the length of $length and replaces the last characters
@@ -209,50 +231,50 @@ class str {
 	 * @param boolean $exact If false, $text will not be cut mid-word
 	 * @return string Trimmed string.
 	 */
-	static function truncate($text, $length = 100, $ending = '...', $exact = true) {
+	public static function truncate($text, $length = 100, $ending = '...', $exact = true) {
 
 		if (mb_strlen(preg_replace('/<.*?>/', '', $text)) <= $length) {
 			return $text;
 		}
-		$total_length = mb_strlen($ending);
-		$open_tags = array();
+		$totalLength = mb_strlen($ending);
+		$openTags = array();
 		$truncate = '';
 		preg_match_all('/(<\/?([\w+]+)[^>]*>)?([^<>]*)/', $text, $tags, PREG_SET_ORDER);
 		foreach ($tags as $tag) {
 			if (!preg_match('/img|br|input|hr|area|base|basefont|col|frame|isindex|link|meta|param/s', $tag[2])) {
 				if (preg_match('/<[\w]+[^>]*>/s', $tag[0])) {
-					array_unshift($open_tags, $tag[2]);
+					array_unshift($openTags, $tag[2]);
 				} else if (preg_match('/<\/([\w]+)[^>]*>/s', $tag[0], $close_tag)) {
-					$pos = array_search($close_tag[1], $open_tags);
+					$pos = array_search($close_tag[1], $openTags);
 					if ($pos !== false) {
-						array_splice($open_tags, $pos, 1);
+						array_splice($openTags, $pos, 1);
 					}
 				}
 			}
 			$truncate .= $tag[1];
 
-			$content_length = mb_strlen(preg_replace('/&[0-9a-z]{2,8};|&#[0-9]{1,7};|&#x[0-9a-f]{1,6};/i', ' ', $tag[3]));
-			if ($content_length + $total_length > $length) {
-				$left = $length - $total_length;
-				$entities_length = 0;
+			$contentLength = mb_strlen(preg_replace('/&[0-9a-z]{2,8};|&#[0-9]{1,7};|&#x[0-9a-f]{1,6};/i', ' ', $tag[3]));
+			if ($contentLength + $totalLength > $length) {
+				$left = $length - $totalLength;
+				$entititesLength = 0;
 				if (preg_match_all('/&[0-9a-z]{2,8};|&#[0-9]{1,7};|&#x[0-9a-f]{1,6};/i', $tag[3], $entities, PREG_OFFSET_CAPTURE)) {
 					foreach ($entities[0] as $entity) {
-						if ($entity[1] + 1 - $entities_length <= $left) {
+						if ($entity[1] + 1 - $entititesLength <= $left) {
 							$left--;
-							$entities_length += mb_strlen($entity[0]);
+							$entititesLength += mb_strlen($entity[0]);
 						} else {
 							break;
 						}
 					}
 				}
 
-				$truncate .= mb_substr($tag[3], 0, $left + $entities_length);
+				$truncate .= mb_substr($tag[3], 0, $left + $entititesLength);
 				break;
 			} else {
 				$truncate .= $tag[3];
-				$total_length += $content_length;
+				$totalLength += $contentLength;
 			}
-			if ($total_length >= $length) {
+			if ($totalLength >= $length) {
 				break;
 			}
 		}
@@ -264,8 +286,8 @@ class str {
 				preg_match_all('/<\/([a-z]+)>/', $bits, $droppedTags, PREG_SET_ORDER);
 				if (!empty($droppedTags)) {
 					foreach ($droppedTags as $closingTag) {
-						if (!in_array($closingTag[1], $open_tags)) {
-							array_unshift($open_tags, $closingTag[1]);
+						if (!in_array($closingTag[1], $openTags)) {
+							array_unshift($openTags, $closingTag[1]);
 						}
 					}
 				}
@@ -275,11 +297,26 @@ class str {
 
 		$truncate .= $ending;
 
-		foreach ($open_tags as $tag) {
+		foreach ($openTags as $tag) {
 			$truncate .= '</' . $tag . '>';
 		}
 
 		return $truncate;
+	}
+
+	/**
+	 * Returns a masked string where only the last n characters are visible.
+	 *
+	 * @access  public
+	 * @param   string  $string   String to mask
+	 * @param   int     $visible  (optional) Number of characters to show
+	 * @param   string  $mask     (optional) Character used to replace remaining characters
+	 * @return  string
+	 */
+	public static function mask($string, $visible = 3, $mask = '*') {
+		$substr = mb_substr($string, -$visible);
+
+		return str_pad($substr, (mb_strlen($string) + (strlen($substr) - mb_strlen($substr))), $mask, STR_PAD_LEFT);
 	}
 
 }

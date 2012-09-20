@@ -7,9 +7,11 @@ define('START_MEMORY_USAGE', memory_get_usage(true));
 // Define paths
 if (!defined('BASE_PATH'))
 	define('BASE_PATH', dirname($_SERVER['SCRIPT_FILENAME']));
+if (!defined('SRC_PATH'))
+	define('SRC_PATH', BASE_PATH . '/src');
 
-// Default autoloader - psr 0 in base path
-set_include_path(BASE_PATH . PATH_SEPARATOR . get_include_path());
+// Default autoloader - psr 0 in src path
+set_include_path(SRC_PATH . PATH_SEPARATOR . get_include_path());
 spl_autoload_extensions('.php');
 spl_autoload_register(function($classname) {
 			$classname = ltrim($classname, "\\");
@@ -17,17 +19,19 @@ spl_autoload_register(function($classname) {
 			$classname = str_replace("\\", "/", $match[1])
 					. str_replace(["\\", "_"], "/", $match[2])
 					. spl_autoload_extensions();
-			if (is_file($classname)) {
-				require $classname;
-				return true;
-			}
-			return false;
+			require_once $classname;
 		});
 
-// Default config - utf 8 and some basic stuff
+// Some initialization
 error_reporting(E_ALL);
+function exception_error_handler($errno, $errstr, $errfile, $errline ) {
+    throw new ErrorException($errstr, $errno, 0, $errfile, $errline);
+}
+set_error_handler("exception_error_handler");
 date_default_timezone_set(date_default_timezone_get());
 ini_set('variables_order', 'ECGPS');
+
+// Utf 8
 mb_internal_encoding('UTF-8');
 mb_http_output('UTF-8');
 mb_http_input('UTF-8');

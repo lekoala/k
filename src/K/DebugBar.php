@@ -4,10 +4,28 @@ namespace K;
 
 use \Exception;
 
+/**
+ * Debug bar that can be displayed at the bottom of a page or collect raw data
+ * to be sent through ajax
+ */
 class DebugBar {
 
+	/**
+	 * Store start time and memory usage
+	 * @var array
+	 */
 	protected static $trackedStats = array();
+
+	/**
+	 * Store class name or instances to introspect
+	 * @var array
+	 */
 	protected static $trackedObjects = array();
+
+	/**
+	 * Enable flag
+	 * @var bool
+	 */
 	protected static $enabled = true;
 
 	/**
@@ -22,38 +40,93 @@ class DebugBar {
 	 * 
 	 * @param bool|array $registerOnShutdown Should register on shutdown or config array
 	 */
-	public function __construct($registerOnShutdown = true) {
+	public static function init($registerOnShutdown = true) {
 		self::$trackedStats['start_time'] = (defined('START_TIME')) ? START_TIME : microtime(true);
 		self::$trackedStats['start_memory_usage'] = (defined('START_MEMORY_USAGE')) ? START_MEMORY_USAGE : memory_get_usage(true);
-		
+
 		if ($registerOnShutdown) {
 			register_shutdown_function(array(__CLASS__, 'callback'));
 		}
 
 		if (is_array($registerOnShutdown)) {
-			$this->configure($registerOnShutdown);
-		}
-	}
-
-	public function configure($options) {
-		foreach ($options as $opt => $v) {
-			self::$$opt = $v;
+			self::configure($registerOnShutdown);
 		}
 	}
 
 	/**
-	 * Echo or return the performances
-	 * 
-	 * @param bool $return (optional)
+	 * Configure the class
+	 * @param array $options
 	 */
-	static function callback($return = false) {
+	public static function configure($config) {
+		if ($config instanceof Config) {
+			$config = $config->get('DebugBar', array());
+		}
+		if (is_array($config)) {
+			foreach ($config as $k => $v) {
+				self::$$k = $v;
+			}
+		}
+	}
+
+	/**
+	 * Echo
+	 */
+	public static function callback() {
 		if (!self::$enabled) {
 			return;
 		}
+		$html = self::getHtml();
+		echo $html;
+	}
+
+	/**
+	 * Get raw data as an array. Useful for adding to ajax requests for instance
+	 * @return array
+	 * @throws Exception
+	 */
+	public static function getRawData() {
+		$stats = self::$trackedStats;
+		$elements = array();
+
+		// Time
+		if (isset($stats['start_time'])) {
+			$renderTime = sprintf('%0.6f', microtime(true) - $stats['start_time']);
+			$elements['Rendering time'] = $renderTime . ' s';
+		}
+
+		// Memory
+		if (isset($stats['start_memory_usage'])) {
+			$memoryUsage = self::size(memory_get_usage(true) - $stats['start_memory_usage']);
+			$memoryPeak = self::size(memory_get_peak_usage(true));
+			$elements['Memory usage'] = $memoryUsage;
+			$elements['Memory peak usage'] = $memoryPeak;
+		}
+
+		// Tracked objects
+		foreach (self::$trackedObjects as $obj) {
+			if (!method_exists($obj, 'debugBarCallback')) {
+				throw new Exception('Callback debugBarCallback does not exist on ' . $obj);
+			}
+			$data = call_user_func(array($obj, 'debugBarCallback'));
+			$class = $obj;
+			if (is_object($obj)) {
+				$class = get_class($obj);
+			}
+			$name = explode('\\', strtolower($class));
+			$name = end($name);
+			$elements[$name] = $data;
+		}
+
+		return $elements;
+	}
+
+	/**
+	 * Generate html for the toolbar
+	 * @return string
+	 */
+	public static function getHtml() {
 		$colors = array('330000', '333300', '003300', '003333', '000033');
 		$color = $colors[array_rand($colors)];
-
-		$stats = self::$trackedStats;
 
 		// Html
 		$html = '<div id="debug-bar" style="
@@ -94,64 +167,74 @@ function debugBarToggle(target) {
 	return false;
 }
 </script>';
-		$elements = array();
 
-		// Time
-		if (isset($stats['start_time'])) {
-			$renderTime = sprintf('%0.6f', microtime(true) - $stats['start_time']);
-			$elements[] = 'Rendering time : ' . $renderTime . ' s';
-		}
+		$elements = self::getRawData();
 
-		// Memory
-		if (isset($stats['start_memory_usage'])) {
-			$memoryUsage = self::size(memory_get_usage(true) - $stats['start_memory_usage']);
-			$memoryPeak = self::size(memory_get_peak_usage(true));
-			$elements[] = 'Memory usage : ' . $memoryUsage;
-			$elements[] = 'Memory peak usage : ' . $memoryPeak;
-		}
-
-		// Tracked objects
-		foreach (self::$trackedObjects as $obj) {
-			if (!method_exists($obj, 'debugBarCallback')) {
-				throw new Exception('Callback ' . $callback . ' does not exist on ' . $obj);
+		$htmlData = array();
+		foreach ($elements as $k => $v) {
+			if (is_array($v)) {
+				$v = self::createPanel($k, $v);
 			}
-			$data = call_user_func(array($obj, $callback));
-			$class = $obj;
-			if (is_object($obj)) {
-				$class = get_class($obj);
-			}
-			$name = explode('\\', strtolower($class));
-			$name = end($name);
-			$elements[] = self::createPanel($name, $data);
+			$htmlData[] = $k . ' : ' . $v;
 		}
 
-		$html .= implode(' | ', $elements);
+		$html .= implode(' | ', $htmlData);
 
 		$html .= '</div>';
-
-		if ($return) {
-			return $html;
-		}
-		echo $html;
+		return $html;
 	}
 
+	/**
+	 * Create a toggable html panel
+	 * @param string $name
+	 * @param array $data
+	 * @return string
+	 */
 	public static function createPanel($name, $data) {
 		$id = 'debug-bar-' . strtolower($name);
+		$title = array_shift($data);
 		if (is_array($data)) {
-			$data = implode('', $data);
+			$data = implode("<br/>", $data);
 		}
-		return '<a href="#' . $id . '" onclick="debugBarToggle(\'' . $id . '\');return false;" style="color:#fff;">' . $name . '</a>
-			<div id="' . $id . '" style="display:none;position:fixed;background:#222;bottom:16px;right:0;height:400px;overflow:auto;width:400px;white-space:pre;padding:5px 20px 5px 5px;">' . $data . '</div>';
+		return '<a href="#' . $id . '" onclick="debugBarToggle(\'' . $id . '\');return false;" style="color:#fff;">' . $title . '</a>
+			<div id="' . $id . '" style="
+				display:none;
+				position:fixed;
+				background:#222;
+				bottom:20px;
+				right:0;
+				height:400px;
+				overflow:auto;
+				width:400px;
+				white-space:pre;
+				padding:5px 20px 5px 5px;
+				-webkit-box-shadow:  -2px -2px 5px 0px #ccc;
+				box-shadow:  -2px -2px 5px 0px #ccc;
+			">' . $data . '</div>';
 	}
 
+	/**
+	 * Track an object
+	 * @param string|object $o
+	 */
 	public static function track($o) {
 		self::$trackedObjects[] = $o;
 	}
 
+	/**
+	 * Enable or disable 
+	 * @param type $flag
+	 */
 	public static function enable($flag = true) {
 		self::$enabled = $flag;
 	}
 
+	/**
+	 * Human readable size
+	 * @param string $size
+	 * @param init $precision
+	 * @return string
+	 */
 	protected static function size($size, $precision = 2) {
 		if ($size <= 0) {
 			return '0B';

@@ -14,7 +14,7 @@ use \Traversable;
  * Load a .php file that returns an array.
  * Override values if you have a .local.php files.
  */
-class Config implements ArrayAccess, Iterator, Countable, Traversable {
+class Config implements ArrayAccess, Iterator, Countable {
 
 	/**
 	 * Internal config array
@@ -50,7 +50,7 @@ class Config implements ArrayAccess, Iterator, Countable, Traversable {
 	 * @param string|array $file
 	 */
 	function load($file) {
-		if ($file instanceof config) {
+		if (is_object($file) && method_exists($file, 'toArray')) {
 			$file = $file->toArray();
 		}
 		if (is_array($file)) {
@@ -76,7 +76,6 @@ class Config implements ArrayAccess, Iterator, Countable, Traversable {
 			$this->originalData = $config;
 
 			if (is_file($localFile)) {
-				$this->hasLocal = true;
 				$localConfig = require $localFile;
 				if (!is_array($localConfig)) {
 					throw new Exception('Config file does not return an array');
