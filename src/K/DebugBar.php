@@ -2,13 +2,13 @@
 
 namespace K;
 
-use \Exception;
-
 /**
  * Debug bar that can be displayed at the bottom of a page or collect raw data
  * to be sent through ajax
  */
 class DebugBar {
+	
+	use TConfigure;
 
 	/**
 	 * Store start time and memory usage
@@ -50,21 +50,6 @@ class DebugBar {
 
 		if (is_array($registerOnShutdown)) {
 			self::configure($registerOnShutdown);
-		}
-	}
-
-	/**
-	 * Configure the class
-	 * @param array $options
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('DebugBar', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				self::$$k = $v;
-			}
 		}
 	}
 

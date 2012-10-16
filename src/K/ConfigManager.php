@@ -8,7 +8,7 @@ namespace K;
  * 
  * Html form use twitter bootstrap conventions
  */
-class config_manager {
+class ConfigManager {
 
 	/**
 	 * Config arrag
@@ -20,13 +20,13 @@ class config_manager {
 	 * Are we processing a fieldset
 	 * @var bool
 	 */
-	protected $in_fieldset = false;
+	protected $inFieldset = false;
 
 	/**
 	 * Are we processing a numeric array
 	 * @var bool
 	 */
-	protected $in_numeric_array = false;
+	protected $inNumericArray = false;
 
 	/**
 	 * Indent level
@@ -38,7 +38,7 @@ class config_manager {
 	 * Track keys
 	 * @var type 
 	 */
-	protected $key_stack = array();
+	protected $keyStack = array();
 
 	/**
 	 * Config file to load/write
@@ -58,6 +58,9 @@ class config_manager {
 	 * @param bool $write_post Use available data in post to write config file
 	 */
 	function __construct($file, $write_post = false) {
+		if($file instanceof Config) {
+			$file = $file->getFile();
+		}
 		$this->file = $file;
 		$this->data = require $file;
 
@@ -80,24 +83,24 @@ class config_manager {
 	 * @param int $indent
 	 * @return string 
 	 */
-	function array_writer($var, $indent = 0) {
+	function arrayWriter($var, $indent = 0) {
 		if (is_array($var)) {
 			$this->indent++;
 			$code = "array(\n";
-			$this->in_numeric_array = false;
+			$this->inNumericArray = false;
 			foreach ($var as $key => $value) {
 				$code .= str_repeat("\t", $this->indent);
-				if ($this->in_numeric_array || (is_int($key) && $key == 0)) {
-					$this->in_numeric_array = true;
-					$code .= $this->array_writer($value, $this->indent) . ",\n";
+				if ($this->inNumericArray || (is_int($key) && $key == 0)) {
+					$this->inNumericArray = true;
+					$code .= $this->arrayWriter($value, $this->indent) . ",\n";
 				} else {
 					if (is_string($key)) {
 						$key = "'$key'";
 					}
-					$code .= "$key => " . $this->array_writer($value, $this->indent) . ",\n";
+					$code .= "$key => " . $this->arrayWriter($value, $this->indent) . ",\n";
 				}
 			}
-			$this->in_numeric_array = false;
+			$this->inNumericArray = false;
 			$code = chop($code, ",\n");
 			$code .= "\n";
 			$this->indent--;
@@ -125,7 +128,7 @@ class config_manager {
 	 * @param array $data
 	 */
 	function write($data) {
-		$content = $this->array_writer($data);
+		$content = $this->arrayWriter($data);
 		$content = '<?php 
 return ' . $content . ';';
 
@@ -139,15 +142,15 @@ return ' . $content . ';';
 	 * @param string $key
 	 * @return string
 	 */
-	function render_item($val, $key = null) {
+	function renderItem($val, $key = null) {
 		$html = '';
 
 		//push key into stack to track input name value
-		array_push($this->key_stack, $key);
+		array_push($this->keyStack, $key);
 
 		if (is_array($val)) {
-			if (!$this->in_fieldset) {
-				$this->in_fieldset = true;
+			if (!$this->inFieldset) {
+				$this->inFieldset = true;
 				$html .= '<fieldset class="holder">';
 				if ($key) {
 					$html .= '<legend>' . $key . '</legend>';
@@ -160,53 +163,53 @@ return ' . $content . ';';
 				$margin = $this->indent * 10;
 				$html .= '<div class="holder" style="padding-left:' . $margin . 'px">';
 			}
-			$this->in_numeric_array = false;
+			$this->inNumericArray = false;
 			foreach ($val as $k => $v) {
 				if (is_int($k) && $k == 0) {
-					$this->in_numeric_array = true;
+					$this->inNumericArray = true;
 				}
-				$html .= $this->render_item($v, $k);
+				$html .= $this->renderItem($v, $k);
 			}
-			if ($this->in_numeric_array && $this->improve) {
+			if ($this->inNumericArray && $this->improve) {
 				$html .= '<a href="#add" class="btn btn-add" style="display:none"><i class="icon-plus-sign"></i> add</a>';
 			}
-			$this->in_numeric_array = false;
-			if ($this->in_fieldset && $this->indent == 0) {
+			$this->inNumericArray = false;
+			if ($this->inFieldset && $this->indent == 0) {
 				$html .= '</fieldset>';
-				$this->in_fieldset = false;
+				$this->inFieldset = false;
 			}
 			if ($this->indent > 0) {
 				$html .= '</div>';
 				$this->indent--;
 			}
 		} else {
-			if (!$this->in_fieldset) {
+			if (!$this->inFieldset) {
 				//standalone values
 				$html .= '<fieldset>';
 				$html .= '<legend>' . $key . '</legend>';
-				$html .= $this->render_field($key, $val);
+				$html .= $this->renderField($key, $val);
 				$html .= '</fieldset>';
 			} else {
-				$html .= $this->render_field($key, $val);
+				$html .= $this->renderField($key, $val);
 			}
 		}
 
-		array_pop($this->key_stack);
+		array_pop($this->keyStack);
 
 		return $html;
 	}
 
-	function render_field($key, $val) {
+	function renderField($key, $val) {
 		//make name array to string
 		$name = '';
-		$count = count($this->key_stack);
+		$count = count($this->keyStack);
 		$curr = 0;
-		foreach ($this->key_stack as $key_el) {
+		foreach ($this->keyStack as $key_el) {
 			$curr++;
 			if (empty($name)) {
 				$name .= $key_el;
 			} else {
-				if ($this->in_numeric_array && $curr == $count) {
+				if ($this->inNumericArray && $curr == $count) {
 					$name .= '[]';
 				} else {
 					$name .= '[' . $key_el . ']';
@@ -217,7 +220,7 @@ return ' . $content . ';';
 		//make html
 		$html = '';
 		$html .= '<div class="control-group">';
-		if (!$this->in_numeric_array) {
+		if (!$this->inNumericArray) {
 			$html .= '<label>' . $key . '</label>';
 		}
 		
@@ -229,7 +232,7 @@ return ' . $content . ';';
 			throw new Exception('Cannot use variables of type : ' . gettype($val));
 		}
 		
-		if($this->in_numeric_array && $this->improve) {
+		if($this->inNumericArray && $this->improve) {
 			$html .= ' <a href="" class="btn-minus"><i class="icon-minus-sign"></i></a>';
 		}
 
@@ -245,7 +248,7 @@ return ' . $content . ';';
 		$html = '<form id="config-manager" method="post">';
 
 		foreach ($this->data as $k => $v) {
-			$html .= $this->render_item($v, $k);
+			$html .= $this->renderItem($v, $k);
 		}
 
 		$html .= '<input type="submit" class="btn btn-primary" value="update config">';

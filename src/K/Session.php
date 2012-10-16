@@ -2,7 +2,7 @@
 
 namespace K;
 
-class session {
+class Session {
 
 	/**
 	 * Get a session value or the whole session array. Dot notation allowed

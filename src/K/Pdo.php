@@ -11,55 +11,51 @@ class Pdo extends \PDO {
 	const SQLITE_MEMORY = 'sqlite::memory:';
 
 	/**
-	 * All queries made
 	 * @var array 
 	 */
-	static $queries = array();
+	public static $queries = array();
 
 	/**
-	 * Total time
 	 * @var int
 	 */
-	static $time = 0;
+	public static $time = 0;
 
 	/**
-	 * The connection string
 	 * @var string
 	 */
 	protected $dsn;
 
 	/**
-	 * Db driver
 	 * @var string
 	 */
-	protected $driver;
+	protected $dbtype;
+	
+	/**
+	 * @var string
+	 */
+	protected $dbname;
 
 	/**
-	 * Username
 	 * @var string 
 	 */
-	protected $username;
+	protected $user;
 
 	/**
-	 * Password
 	 * @var string
 	 */
 	protected $password;
 
 	/**
-	 * Driver specific options
 	 * @var array
 	 */
 	protected $options;
-
+	
 	/**
-	 * Cache function
 	 * @var bool
 	 */
-	protected $supportsForeignKey;
+	protected $connected = false;
 
 	/**
-	 * Reserved names that should not be used
 	 * @var array
 	 */
 	protected static $reservedNames = array(
@@ -148,15 +144,18 @@ class Pdo extends \PDO {
 	 * A smarter constructor for PDO. You can pass everything in the first argument
 	 * as an array or use it as usual
 	 * 
-	 * @param string|array $dsn
-	 * @param string $username
+	 * @param string|array|object $dsn
+	 * @param string $user
 	 * @param string $password
 	 * @param array $options 
 	 */
-	function __construct($dsn, $username = null, $password = null, array $options = array()) {
+	function __construct($dsn, $user = null, $password = null, array $options = array()) {
+		if ($dsn instanceof Config) {
+			$dsn = $dsn->get('Pdo');
+		}
 		if (is_array($dsn)) {
 			//extract params
-			$params = array('username', 'password', 'options', 'driver');
+			$params = array('user', 'password', 'options', 'dbtype');
 			foreach ($params as $param) {
 				if (isset($dsn[$param])) {
 					$$param = $dsn[$param];
@@ -171,217 +170,106 @@ class Pdo extends \PDO {
 			}
 
 			//{dbtype}:dbname={dbname};host={host};port={port}
-			$dsn = $driver . ':' . implode(';', array_values($dsn));
+			$dsn = $dbtype . ':' . implode(';', array_values($dsn));
 		} else {
-			$params = $this->parseDsn($dsn);
+			$params = self::parseDsn($dsn);
 			extract($params);
 		}
 
 		$this->dsn = $dsn;
-		$this->driver = $driver;
-		$this->username = $username;
+		$this->dbtype = $dbtype;
+		if(isset($dbname)) $this->dbname = $dbname;
+		$this->user = $user;
 		$this->password = $password;
 		$this->options = $options;
-
+	}
+	
+	/**
+	 * Connect
+	 * @throws PdoException
+	 */
+	public function connect() {
 		try {
-			parent::__construct($dsn, $username, $password, $options);
+			parent::__construct($this->dsn, $this->user, $this->password, $this->options);
+			$this->connected = true;
 		} catch (\PDOException $e) {
 			throw new PdoException($e);
 		}
 
 		//always throw exception
 		$this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		
+		//don't emulate prepare
+		$this->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 		//use custom pdo statement class
 		$this->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('\K\PdoStatement', array($this)));
 	}
 
 	/**
-	 * Parse a dsn
+	 * Parse a dsn like {dbtype}:dbname={dbname};host={dbhost};port={dbport}
 	 * 
-	 * @param string $dsn
+	 * Here are the valid parameters per dbtype
+	 * mysql for MySQL (host, port, dbname, unix_socket)
+	 * pgsql for Postgres (host, port, dbname,user, password)
+	 * sqlite for SQLite (dbname, could be a file path or :memory:)
+	 * mssql or sybase or dblib for SQL Server and Sybase (host, dbname, charset, appname, secure)
+	 * firebird for Firebird and Interbase (dbname, charset, role)
+	 * informix for Informix (requires an odbc.ini file; refer to the manual)
+	 * OCI for Oracle (dbname, charset)
+	 * odbc for ODBC (DSN, UID, PWD)
+	 * ibm for IBM DB2 (DSN or DRIVER, DATABASE, HOSTNAME, PORT, PROTOCOL)
+	 * 
+	 * @param string|array $dsn
 	 * @return array
 	 */
-	protected static function parseDsn($dsn) {
-		if (strpos($dsn, 'sqlite') === 0) {
-			$driver = 'sqlite';
-			$database = substr($dsn, strpos($dsn, ':') + 1, strlen($dsn));
-			return compact('driver', 'database');
+	public static function parseDsn($dsn) {
+		if (is_array($dsn)) {
+			return $dsn;
 		}
 
-		preg_match('%^([^/]+)?://?(?:([^/@]*?)(?::([^/@:]+?)@)?([^/@:]+?)(?::([^/@:]+?))?)?/(.+)$%', $dsn, $matches);
-		return array(
-			'driver' => isset($matches[1]) ? $matches[1] : null,
-			'username' => isset($matches[2]) ? $matches[2] : null,
-			'password' => isset($matches[3]) ? $matches[3] : null,
-			'host' => isset($matches[4]) ? $matches[4] : null,
-			'port' => isset($matches[5]) ? $matches[5] : null,
-			'database' => isset($matches[6]) ? $matches[6] : null
-		);
-	}
+		//extract dbtype
+		$dbtypeDelimiter = strpos($dsn, ':');
+		$paramsDelimiter = strpos($dsn, ';');
+		$dbtype = substr($dsn, 0, $dbtypeDelimiter);
+		$dbname = substr($dsn, $dbtypeDelimiter + 1, strlen($dsn));
 
-	/* Overriden methods */
-
-	/**
-	 * Exec wrapper for stats
-	 * 
-	 * @param string $statement
-	 * @return int
-	 */
-	function exec($statement) {
-		try {
-			$time = microtime(true);
-			$result = parent::exec($statement);
-			$time = microtime(true) - $time;
-			self::logQuery($statement, $time);
-		} catch (\PDOException $e) {
-			self::logQuery($statement);
-			throw new PdoException($e);
-		}
-		return $result;
-	}
-
-	/**
-	 * Query wrapper for stats
-	 * 
-	 * @param string $statement
-	 * @return PdoStatement
-	 */
-	function query($statement) {
-		try {
-			$time = microtime(true);
-			$result = parent::query($statement);
-			$time = microtime(true) - $time;
-			self::logQuery($statement, $time);
-		} catch (\PDOException $e) {
-			self::logQuery($statement);
-			throw new PdoException($e);
+		//stop there for sqlite
+		if ($dbtype === 'sqlite') {
+			//dbname could be a file path or :memory:
+			return compact('dbtype', 'dbname');
 		}
 
-		return $result;
-	}
-
-	/**
-	 * More advanced quote (quote arrays, return NULL properly, quotes INT properly...)
-	 * 
-	 * @param string $value
-	 * @param int $parameter_type
-	 * @return string 
-	 */
-	function quote($value, $parameter_type = null) {
-		if (is_array($value)) {
-			$value = implode(',', array_map(array($this, 'quote'), $value));
-			return $value;
-		} elseif (is_null($value)) {
-			return "NULL";
-		} elseif (($value !== true) && ((string) (int) $value) === ((string) $value)) {
-			//otherwise int will be quoted, also see @https://bugs.php.net/bug.php?id=44639
-			return parent::quote(intval($value), PDO::PARAM_INT);
+		//keep parsing dbname to extract params
+		preg_match_all('/([a-zA-Z0-9]+)=([a-zA-Z0-9_]+)/', $dsn, $matches);
+		$params = compact('dbtype');
+		$matches = array_combine($matches[1], $matches[2]);
+		foreach ($matches as $k => $v) {
+			$params[$k] = $v;
 		}
-		$parameter_type = PDO::PARAM_STR;
-		return parent::quote($value, $parameter_type);
-	}
 
-	/* Helper methods */
-
-	/**
-	 * Get db type
-	 * 
-	 * @return string
-	 */
-	function getDriver() {
-		return $this->driver;
-	}
-
-	/**
-	 * Check if the engine supports foreign key
-	 * @return bool
-	 */
-	function getForeignKeySupport() {
-		if ($this->supportsForeignKey !== null) {
-			return $this->supportsForeignKey;
+		//parse username:password@host
+		$url = substr($dsn, $dbtypeDelimiter + 1, $paramsDelimiter - $dbtypeDelimiter - 1);
+		$hostSeparator = strrpos($url, '@');
+		$passwordSeparator = strpos($url, ':');
+		$end = strlen($url);
+		if ($hostSeparator !== false) {
+			$host = substr($url, $hostSeparator + 1, $end);
+			$portSeparator = strpos($host, ':');
+			if ($portSeparator !== false) {
+				$params['port'] = substr($host, $portSeparator + 1, strlen($host));
+				$host = substr($host, 0, $portSeparator);
+			}
+			$params['host'] = $host;
+			$params['user'] = substr($url, 0, $hostSeparator);
+			$end = $hostSeparator;
 		}
-		switch ($this->getDriver()) {
-			case 'mysql':
-				$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
-				if (!$res) {
-					return false;
-				}
-				$rows = $res->fetchAll();
-				$this->supportsForeignKey = false;
-				if (isset($rows['Engine']) && $rows['Engine'] != 'InnoDb') {
-					$this->supportsForeignKey = true;
-				}
-				break;
-			case 'sqlite' :
-				$this->supportsForeignKey = true;
-				break;
-			default:
-				$this->supportsForeignKey = false;
+		if ($passwordSeparator !== false) {
+			$params['user'] = substr($url, 0, $passwordSeparator);
+			$params['password'] = substr($url, $passwordSeparator + 1, $end - $passwordSeparator - 1);
 		}
-		return $this->supportsForeignKey;
-	}
 
-	/**
-	 * Cross database now string
-	 * 
-	 * @return string
-	 */
-	function now() {
-		$driver = $this->getDriver();
-		switch ($driver) {
-			case 'sqlite' :
-				return "datetime('now')";
-			case 'mssql' :
-				return 'GETDATE()';
-			default :
-				return 'NOW()';
-		}
-	}
-
-	/**
-	 * Enable or disable foreign key support
-	 * 
-	 * @param bool $enable
-	 * @return bool 
-	 */
-	function foreignKeys($enable = true) {
-		$driver = $this->getDriver();
-		switch ($driver) {
-			case 'sqlite' :
-				if ($enable) {
-					return $this->exec('PRAGMA foreign_keys = ON');
-				} else {
-					return $this->exec('PRAGMA foreign_keys = OFF');
-				}
-			case 'mysql':
-				if ($enable) {
-					return $this->exec('SET FOREIGN_KEY_CHECKS = 1');
-				} else {
-					return $this->exec('SET FOREIGN_KEY_CHECKS = 0');
-				}
-			case 'mssql' :
-				if ($enable) {
-					return $this->exec('ALTER TABLE ? NOCHECK CONSTRAINT ALL');
-				} else {
-					return $this->exec('ALTER TABLE ? CHECK CONSTRAINT ALL');
-				}
-			default :
-				throw new PdoException('Unsupported database : ' . $driver);
-		}
-	}
-
-	/**
-	 * Check if the table or the field is reserved
-	 * 
-	 * @param string $name
-	 * @return bool
-	 */
-	static function isReservedName($name) {
-		if (in_array(strtoupper($name), self::$reservedNames)) {
-			return true;
-		}
-		return false;
+		return $params;
 	}
 
 	/**
@@ -437,15 +325,13 @@ class Pdo extends \PDO {
 	 * @param string $name
 	 * @return string 
 	 */
-	function nameToType($name) {
-		$driver = $this->getDriver();
-
+	public function nameToType($name) {
 		//default type
 		$type = 'VARCHAR(255)';
 
 		//guess by name, latest rule override previous ones
 		if ($name == 'id') {
-			if ($driver == 'sqlite') {
+			if ($this->getDbType('sqlite')) {
 				$type = 'INTEGER PRIMARY KEY AUTOINCREMENT';
 			} else {
 				$type = 'INT AUTO_INCREMENT';
@@ -529,83 +415,312 @@ class Pdo extends \PDO {
 	}
 
 	/**
+	 * Check if the table or the field is reserved.
+	 * We take as much reserved words as possible, to make sure everything
+	 * will work on any system (for instance, testing something on sqlite and
+	 * then using mysql in production)
+	 * 
+	 * @param string $name
+	 * @return bool
+	 */
+	public static function isReservedName($name) {
+		if (in_array(strtoupper($name), self::$reservedNames)) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Log query
+	 * 
+	 * @param string $statement
+	 * @param int $time 
+	 */
+	public static function logQuery($statement, $time = 0) {
+		$statement = self::highlight($statement);
+		if ($time == 0) {
+			self::$queries[] = '<span style="color:#ff9292">[ERROR]</span> ' . $statement;
+		} else {
+			self::$queries[] = '[' . sprintf('%0.6f', $time) . '] ' . $statement;
+			self::$time += $time;
+		}
+	}
+
+	/**
+	 * Callback for DebugBar
+	 * 
+	 * @return array 
+	 */
+	public static function debugBarCallback() {
+		$totalQueries = count(self::$queries);
+		$time = self::$time;
+		$firstLine = $totalQueries . ' queries in ' . sprintf('%0.6f', $time) . ' s';
+
+		$limit = 100;
+		$length = count(self::$queries);
+		$queries = array($firstLine);
+		for ($i = 0; $i < $limit && $i < $length; $i++) {
+			$queries[] = self::$queries[$i];
+			if ($i == $limit) {
+				$queries[] = 'Only showing 100 first queries';
+			}
+		}
+
+		return $queries;
+	}
+
+	/**
+	 * Create the name of the foreign key
+	 * 
+	 * @param string $table
+	 * @param string $column
+	 * @param string $reference
+	 * @return string
+	 */
+	public static function getFkName($table, $column, $reference) {
+		return 'fk_' . $table . '_' . $column . '_' . preg_replace('/[^a-z]/', '', $reference);
+	}
+
+	/* Overriden methods */
+
+	/**
+	 * Exec wrapper for stats
+	 * 
+	 * @param string $statement
+	 * @return int
+	 */
+	function exec($statement) {
+		if(!$this->connected) $this->connect();
+		try {
+			$time = microtime(true);
+			$result = parent::exec($statement);
+			$time = microtime(true) - $time;
+			self::logQuery($statement, $time);
+		} catch (\PDOException $e) {
+			self::logQuery($statement);
+			throw new PdoException($e);
+		}
+		return $result;
+	}
+
+	/**
+	 * Query wrapper for stats
+	 * 
+	 * @param string $statement
+	 * @return PdoStatement
+	 */
+	function query($statement) {
+		if(!$this->connected) $this->connect();
+		try {
+			$time = microtime(true);
+			$result = parent::query($statement);
+			$time = microtime(true) - $time;
+			self::logQuery($statement, $time);
+		} catch (\PDOException $e) {
+			self::logQuery($statement);
+			throw new PdoException($e);
+		}
+
+		return $result;
+	}
+	
+	/**
+	 * Prepare wrapper
+	 * 
+	 * @param string $statement
+	 * @param array $driver_options
+	 * @return K\PdoStatement
+	 */
+	function prepare($statement, $driver_options = array()) {
+		if(!$this->connected) $this->connect();
+		try {
+			return parent::prepare($statement, $driver_options);
+		}
+		catch(\PDOException $e) {
+			self::logQuery($statement);
+			throw new PdoException($e);
+		}
+	}
+
+	/**
+	 * More advanced quote (quote arrays, return NULL properly, quotes INT properly...)
+	 * 
+	 * @param string $value
+	 * @param int $parameter_type
+	 * @return string 
+	 */
+	function quote($value, $parameter_type = null) {
+		if (is_array($value)) {
+			$value = implode(',', array_map(array($this, 'quote'), $value));
+			return $value;
+		} elseif (is_null($value)) {
+			return "NULL";
+		} elseif (($value !== true) && ((string) (int) $value) === ((string) $value)) {
+			//otherwise int will be quoted, also see @https://bugs.php.net/bug.php?id=44639
+			return parent::quote(intval($value), PDO::PARAM_INT);
+		}
+		$parameter_type = PDO::PARAM_STR;
+		return parent::quote($value, $parameter_type);
+	}
+
+	/* Helper methods delegated to the driver */
+
+	/**
+	 * Get db type
+	 * 
+	 * @param string $type
+	 * @return string|bool
+	 */
+	public function getDbtype($type = null) {
+		if ($type) {
+			return $this->dbtype === $type;
+		}
+		return $this->dbtype;
+	}
+	
+	/**
+	 * Get current db
+	 * @return string
+	 */
+	public function getDbname() {
+		return $this->dbname;
+	}
+	
+	/**
+	 * Get current db name
+	 * @param string $db
+	 * @return bool
+	 */
+	public function useDb($db) {
+		$this->dbname = $db;
+		return $this->exec('USE ' . $db);
+	}
+
+	/**
+	 * Cross database now string
+	 * 
+	 * @return string
+	 */
+	public function now() {
+		switch ($this->getDbtype()) {
+			case 'sqlite' :
+				return "datetime('now')";
+			case 'mssql' :
+				return 'GETDATE()';
+			default :
+				return 'NOW()';
+		}
+	}
+
+	/**
+	 * Enable or disable foreign key support
+	 * 
+	 * @param bool $enable
+	 * @return bool 
+	 */
+	public function foreignKeys($enable = true) {
+		switch ($this->getDbtype()) {
+			case 'sqlite' :
+				if ($enable) {
+					return $this->exec('PRAGMA foreign_keys = ON');
+				} else {
+					return $this->exec('PRAGMA foreign_keys = OFF');
+				}
+			case 'mysql':
+				if ($enable) {
+					return $this->exec('SET FOREIGN_KEY_CHECKS = 1');
+				} else {
+					return $this->exec('SET FOREIGN_KEY_CHECKS = 0');
+				}
+			case 'mssql' :
+				if ($enable) {
+					return $this->exec('ALTER TABLE ? NOCHECK CONSTRAINT ALL');
+				} else {
+					return $this->exec('ALTER TABLE ? CHECK CONSTRAINT ALL');
+				}
+			default :
+		}
+	}
+
+	/**
 	 * All columns from a table + meta infos
 	 * 
 	 * @param string $table
 	 * @return array
 	 */
-	function listColumns($table) {
-		$driver = $this->getDriver();
+	public function listColumns($table) {
+		if ($this->getDbtype('sqlite')) {
+			$result = $this->query("PRAGMA table_info($table)");
+			$infos = $result->fetchAll();
+			$result = $this->query("PRAGMA index_info($table)");
+			$index = $result->fetchAll();
+			$result = $this->query("PRAGMA foreign_key_list($table)");
+			$fks = $result->fetchAll();
 
-		switch ($driver) {
-			case 'sqlite':
-				$result = $this->query("PRAGMA table_info($table)");
-				$infos = $result->fetchAll();
-				$result = $this->query("PRAGMA index_info($table)");
-				$index = $result->fetchAll();
-				$result = $this->query("PRAGMA foreign_key_list($table)");
-				$fks = $result->fetchAll();
-
-				$meta = array();
-				foreach ($infos as $info) {
-					$data = array(
-						'name' => $info['name'],
-						'type' => $info['type'],
-						'not_null' => $info['notnull'],
-						'default' => $info['dflt_value'],
-						'pk' => $info['pk'],
-						'extra' => null,
-						'index' => 0,
-						'fk' => array()
-					);
-					foreach ($index as $i) {
-						if ($i['name'] == $info['name']) {
-							$data['index'] = 1;
-						}
+			$meta = array();
+			foreach ($infos as $info) {
+				$data = array(
+					'name' => $info['name'],
+					'type' => $info['type'],
+					'not_null' => $info['notnull'] ? 1 : 0,
+					'default' => $info['dflt_value'],
+					'pk' => $info['pk'],
+					'extra' => null,
+					'index' => 0,
+					'fk' => array()
+				);
+				foreach ($index as $i) {
+					if ($i['name'] == $info['name']) {
+						$data['index'] = 1;
 					}
-					foreach ($fks as $fk) {
-						if ($fk['from'] == $info['name']) {
-							$data['fk'] = array(
-								'table' => $fk['table'],
-								'column' => $fk['to'],
-								'on_update' => $fk['on_update'],
-								'on_delete' => $fk['on_delete'],
-								'match' => $fk['match']
-							);
-						}
+				}
+				foreach ($fks as $fk) {
+					if ($fk['from'] == $info['name']) {
+						$data['fk'] = array(
+							'table' => $fk['table'],
+							'column' => $fk['to'],
+							'on_update' => $fk['on_update'],
+							'on_delete' => $fk['on_delete'],
+							'match' => $fk['match']
+						);
 					}
-					$meta[] = $data;
 				}
-				break;
-			default:
-				$result = $this->query("DESCRIBE $table");
-				$infos = $result->fetchAll();
-				$result = $this->query("select 
-    concat(table_name, '.', column_name) as 'foreign key',  
-    concat(referenced_table_name, '.', referenced_column_name) as 'references'
-FROM
-    information_schema.key_column_usage
-WHERE
-    referenced_table_name is not null;");
-				
-				$meta = array();
-				foreach ($infos as $info) {
-					$data = array(
-						'name' => $info['Field'],
-						'type' => $info['Type'],
-						'not_null' => ($info['Null'] === 'NO') ? 1 : 0,
-						'default' => $info['Default'],
-						'pk' => (strpos($info['Key'], 'PRI') !== false) ? 1 : 0,
-						'extra' => $info['Extra'],
-						'index' => (strpos($info['Key'], 'UNI') !== false) ? 1 : 0,
-						'fk' => array()
-					);
-					$meta[] = $data;
-				}
-				break;
+				$meta[] = $data;
+			}
+			return $meta;
 		}
 
-		return $meta_list;
+		$result = $this->query("DESCRIBE $table");
+		$infos = $result->fetchAll();
+		$fks = $this->listForeignKeys($table);
+
+		$meta = array();
+		foreach ($infos as $info) {
+			$data = array(
+				'name' => $info['Field'],
+				'type' => $info['Type'],
+				'not_null' => ($info['Null'] === 'NO') ? 1 : 0,
+				'default' => $info['Default'],
+				'pk' => (strpos($info['Key'], 'PRI') !== false) ? 1 : 0,
+				'extra' => $info['Extra'],
+				'index' => (strpos($info['Key'], 'UNI') !== false) ? 1 : 0,
+				'fk' => array()
+			);
+			foreach ($fks as $fk) {
+				if ($fk['column_name'] == $data['name']) {
+					$data['fk'] = array(
+						'table' => $fk['foreign_table'],
+						'column' => $fk['foreign_column'],
+						'on_update' => $fk['on_update'],
+						'on_delete' => $fk['on_delete'],
+						'match' => $fk['match']
+					);
+				}
+			}
+			$meta[] = $data;
+		}
+
+		return $meta;
 	}
 
 	/**
@@ -613,38 +728,37 @@ WHERE
 	 * 
 	 * @return array 
 	 */
-	function listTables() {
-		// use database specific statement to get the list of tables
-		$mysql = 'SHOW FULL TABLES';
-		$pgsql = 'SELECT * FROM pg_tables';
-		$mssql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
-		$sqlite = "SELECT * FROM sqlite_master WHERE type='table'";
-		$oracle = "SELECT * FROM dba_tables";
-
-		$type = $this->getDriver();
-
-		$result = $this->query($$type);
-		$table_list = $result->fetchAll();
-		$table_count = count($table_list);
-
-		//normalize results
-		switch ($type) {
-			case 'mysql':
-				$tables = array();
-				for ($i = 0; $i < $table_count; $i++) {
-					$tables[] = $table_list[$i][0];
-				}
-				$table_list = $tables;
+	public function listTables() {
+		switch ($this->getDbtype()) {
+			case 'mssql' :
+				$sql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
 				break;
-			case 'sqlite' :
-				$tables = array();
-				for ($i = 0; $i < $table_count; $i++) {
-					$tables[] = $table_list[$i]['name'];
-				}
-				$table_list = $tables;
+			case 'pgsql' :
+				$sql = "'SELECT * FROM pg_tables'";
+				break;
+			case 'mysql':
+				$sql = 'SHOW FULL TABLES';
+				break;
+			case 'sqlite':
+				$sql = "SELECT * FROM sqlite_master WHERE type='table'";
+				break;
+			default :
+				throw new PdoException('Not implemented');
 		}
 
-		return $table_list;
+		$result = $this->query($sql);
+		$list = $result->fetchAll();
+		$count = count($list);
+		$tables = array();
+		for ($i = 0; $i < $count; $i++) {
+			if(isset($list[$i]['name'])) {
+				$tables[] = $list[$i]['name'];
+			}
+			else {
+				$tables[] = $list[$i][0];
+			}
+		}
+		return $tables;
 	}
 
 	/**
@@ -661,11 +775,11 @@ WHERE
 	 * )
 	 * @return array
 	 */
-	function listForeignKeys($table) {
+	public function listForeignKeys($table) {
 		$query = "SELECT
     `column_name`, 
     `referenced_table_schema` AS foreign_db, 
-    `referenced_table_name` AS foreign_table, 
+    `referenced_table_name`   AS foreign_table, 
     `referenced_column_name`  AS foreign_column 
 FROM
     `information_schema`.`KEY_COLUMN_USAGE`
@@ -677,47 +791,8 @@ AND
     `referenced_column_name` IS NOT NULL
 ORDER BY
     `column_name`";
-		$res = $this->query($query);
+		$res = $pdo->query($query);
 		return $res->fetchAll(PDO::FETCH_ASSOC);
-	}
-
-	/**
-	 * Log query
-	 * 
-	 * @param string $statement
-	 * @param int $time 
-	 */
-	static function logQuery($statement, $time = 0) {
-		$statement = self::highlight($statement);
-		if ($time == 0) {
-			self::$queries[] = '<span style="color:#ff9292">[ERROR]</span> ' . $statement;
-		} else {
-			self::$queries[] = '[' . sprintf('%0.6f', $time) . '] ' . $statement;
-			self::$time += $time;
-		}
-	}
-
-	/**
-	 * Callback for DebugBar
-	 * 
-	 * @return array 
-	 */
-	static function debugBarCallback() {
-		$totalQueries = count(self::$queries);
-		$time = self::$time;
-		$firstLine = $totalQueries . ' queries in ' . sprintf('%0.6f', $time) . ' s';
-
-		$limit = 100;
-		$length = count(self::$queries);
-		$queries = array($firstLine);
-		for ($i = 0; $i < $limit && $i < $length; $i++) {
-			$queries[] = self::$queries[$i];
-			if ($i == $limit) {
-				$queries[] = 'Only showing 100 first queries';
-			}
-		}
-
-		return $queries;
 	}
 
 	/* sql helpers */
@@ -812,11 +887,11 @@ ORDER BY
 	 * @return array 
 	 */
 	function explain($sql) {
-		if ($this->getDriver() == 'mssql') {
+		if ($this->dbtype == 'mssql') {
 			$this->query('SET SHOWPLAN_ALL ON');
 		}
 		$results = $this->query('EXPLAIN ' . $sql);
-		if ($this->getDriver() == 'mssql') {
+		if ($this->dbtype == 'mssql') {
 			$this->query('SET SHOWPLAN_ALL OFF');
 		}
 		return $results->fetch(PDO::FETCH_ASSOC);
@@ -878,7 +953,7 @@ SELECT $field
 			$fields = implode(',', $fields);
 		}
 		$sql = 'SELECT ' . $fields . ' FROM ' . $table . '';
-		$this->inject_where($sql, $where, $params);
+		$this->injectWhere($sql, $where, $params);
 		if (!empty($order_by)) {
 			if (is_array($order_by)) {
 				$order_by = implode(',', $order_by);
@@ -959,18 +1034,6 @@ SELECT $field
 		return $sql;
 	}
 
-	/**
-	 * Create the name of the foreign key
-	 * 
-	 * @param string $table
-	 * @param string $column
-	 * @param string $reference
-	 * @return string
-	 */
-	public static function getFkName($table, $column, $reference) {
-		return 'fk_' . $table . '_' . $column . '_' . preg_replace('/[^a-z]/', '', $reference);
-	}
-
 	/* Table operations */
 
 	/**
@@ -995,7 +1058,7 @@ SELECT $field
 	 * @return int
 	 */
 	function dropTable($table) {
-		$sql = 'DROP TABLE ' . $table . '';
+		$sql = 'DROP TABLE IF EXISTS ' . $table . '';
 		return $this->exec($sql);
 	}
 
@@ -1023,11 +1086,33 @@ SELECT $field
 		}
 		foreach ($fields as $field => $value) {
 			if (self::isReservedName($field)) {
-				throw new PdoException($field . ' is a reserved name in table ' . $table);
+				throw new PdoException($field . ' is a reserved name in table ' . $table . '. Use ` to escape if needed.');
 			}
 		}
 
-		$driver = $this->getDriver();
+		//if no pk is defined and id is a field
+		if (empty($pkFields) && in_array('id', array_keys($fields))) {
+			$pkFields = array('id');
+		}
+		//do nothing, since primary key is already defined in the field type
+		if ($this->getDbtype('sqlite') && in_array('id', $pkFields)) {
+			$pkFields = null;
+		}
+
+		if (is_string($pkFields) && !empty($pkFields)) {
+			$pkFields = array($pkFields);
+		}
+
+		$fields = $this->addFieldType($fields, $pkFields);
+
+		if (Pdo::isReservedName($table)) {
+			throw new PdoException($table . ' is a reserved name');
+		}
+		foreach ($fields as $field => $value) {
+			if (Pdo::isReservedName($field)) {
+				throw new PdoException($field . ' is a reserved name in table ' . $table . '. Use ` to escape if needed.');
+			}
+		}
 
 		$sql = 'CREATE TABLE IF NOT EXISTS ' . $table . "(\n";
 		foreach ($fields as $field => $type) {
@@ -1035,20 +1120,15 @@ SELECT $field
 		}
 
 		//primary key
-		if (empty($pkFields) && in_array('id', array_keys($fields))) {
-			$pkFields = array('id');
-		}
-		if (!empty($pkFields)) {
-			if ($this->driver == 'sqlite' && in_array('id', $pkFields)) {
-				//do nothing, since primary key is already defined in the field type
-			} else {
+		if ($pkFields !== null) {
+			if (!empty($pkFields)) {
 				$pkName = 'pk_' . $table;
 				$sql .= "\t" . 'CONSTRAINT ' . $pkName . ' PRIMARY KEY (' . implode(',', $pkFields) . ')' . ",\n";
 			}
 		}
 
 		//foreign keys
-		if ($this->getForeignKeySupport()) {
+		if ($fkFields !== null) {
 			foreach ($fkFields as $column => $reference) {
 				$fkName = self::getFkName($table, $column, $reference);
 				$sql .= "\t" . 'CONSTRAINT ' . $fkName . ' FOREIGN KEY (' . $column . ') REFERENCES ' . $reference . ",\n";
@@ -1056,8 +1136,11 @@ SELECT $field
 		}
 
 		$sql = rtrim($sql, ",\n");
-
 		$sql .= "\n)";
+		
+		if($this->getDbtype('mysql')) {
+			$sql .= ' ENGINE=InnoDB';
+		}
 
 		if ($execute) {
 			$this->exec($sql);
@@ -1066,32 +1149,55 @@ SELECT $field
 		return $sql;
 	}
 
+	/**
+	 * Create a table like another table
+	 * 
+	 * @param string $from
+	 * @param string $to
+	 * @param bool $records
+	 */
 	function createTableLike($from, $to = null, $records = true) {
 		if ($to === null) {
 			$to = $from . '_copy';
 		}
-		switch ($this->getDriver()) {
+		switch ($this->getDbtype()) {
 			case 'mysql':
-				$sql = 'CREATE TABLE ' . $to . ' LIKE ' . $from . ';
-INSERT INTO ' . $to . ' SELECT * FROM ' . $from;
-
+				$sql = 'CREATE TABLE ' . $to . ' LIKE ' . $from . ';';
 				break;
 			case 'sqlite':
-				$columns = $this->listColumns($from, false);
-				echo '<pre>' . __LINE__ . "\n";
-				print_r($columns);
-				exit();
-				$sql = 'CREATE TABLE ' . $to . '(' . $fieldsDefinition . ');
-INSERT INTO ' . $to . ' SELECT ' . $fields . ' FROM ' . $from . ';';
+				$cols = $this->listColumns($from, false);
+				$fieldsDefinition = '';
+
+				foreach ($cols as $infos) {
+					$notnull = $infos['not_null'] ? ' NOT NULL' : '';
+					$pk = $infos['pk'] ? ' PRIMARY KEY' : '';
+					if ($infos['name'] == 'id') {
+						$pk .= ' AUTOINCREMENT'; //auto increment does not appear in the meta info :-(
+					}
+					$fieldsDefinition .= $infos['name'] . " " . $infos['type'] . $pk . $notnull . ",\n";
+				}
+				$fieldsDefinition = rtrim($fieldsDefinition, ",\n");
+
+				$sql = 'CREATE TABLE ' . $to . '(' . $fieldsDefinition . ');';
 				break;
 			default :
 				throw new PdoException('Not implemented');
 		}
 		$this->exec($sql);
+		if($records) {
+			$sql = 'INSERT INTO ' . $to . ' SELECT * FROM ' . $from . ';';
+			$this->exec($sql);
+		}
 	}
 
+	/**
+	 * Rename a table
+	 * @param string $from
+	 * @param string $to
+	 * @return bool
+	 */
 	function renameTable($from, $to) {
-		switch ($this->getDriver()) {
+		switch ($this->getDbtype()) {
 			case 'mysql':
 				$sql = 'RENAME TABLE ' . $from . ' TO ' . $to;
 				break;
@@ -1116,21 +1222,20 @@ INSERT INTO ' . $to . ' SELECT ' . $fields . ' FROM ' . $from . ';';
 	 * @return string 
 	 */
 	function alterTable($table, array $addFields = array(), array $removeFields = array(), $execute = true) {
-		$driver = $this->getDriver();
 		$addFields = $this->addFieldType($addFields);
 
-		if ($driver == 'sqlite') {
+		foreach ($addFields as $field => $value) {
+			if (self::isReservedName($field)) {
+				throw new PdoException($field . ' is a reserved name in table ' . $table . '. Use ` to escape if needed.');
+			}
+		}
+
+		if ($this->getDbtype('sqlite')) {
 			$allSql = '';
 			//can only add columns, one by one, see @link http://www.sqlite.org/lang_altertable.html
 			foreach ($addFields as $field => $type) {
 				$sql = 'ALTER TABLE ' . $table;
-				if (self::isReservedName($field)) {
-					throw new PdoException($field . ' is a reserved name');
-				}
 				$sql .= " ADD COLUMN " . $field . " " . $type;
-				if ($execute) {
-					$this->exec($sql);
-				}
 				$allSql .= $sql . ";\n";
 			}
 			//drop need this, see @link http://www.sqlite.org/faq.html#q11
@@ -1145,7 +1250,7 @@ INSERT INTO ' . $to . ' SELECT ' . $fields . ' FROM ' . $from . ';';
 					if (in_array($infos['name'], $removeFields)) {
 						continue;
 					}
-					$notnull = $infos['notnull'] ? ' NOT NULL' : '';
+					$notnull = $infos['not_null'] ? ' NOT NULL' : '';
 					$pk = $infos['pk'] ? ' PRIMARY KEY' : '';
 					if ($infos['name'] == 'id') {
 						$pk .= ' AUTOINCREMENT'; //auto increment does not appear in the meta info :-(
@@ -1163,9 +1268,6 @@ INSERT INTO ' . $table . ' SELECT ' . $fields . ' FROM ' . $table . '_backup;
 DROP TABLE ' . $table . '_backup;
 COMMIT;';
 				$allSql .= $sql;
-				if ($execute) {
-					$this->exec($sql);
-				}
 			}
 			$sql = $allSql;
 		} else {
@@ -1173,7 +1275,7 @@ COMMIT;';
 
 			foreach ($addFields as $field => $type) {
 				if (self::isReservedName($field)) {
-					throw PdoException($field . ' is a reserved name');
+					throw new PdoException($field . ' is a reserved name in table ' . $table . '. Use ` to escape if needed.');
 				}
 				$sql .= "ADD COLUMN " . $field . " " . $type . ",\n";
 			}
@@ -1183,10 +1285,10 @@ COMMIT;';
 			}
 
 			$sql = rtrim($sql, ",\n");
+		}
 
-			if ($execute) {
-				$this->exec($sql);
-			}
+		if ($execute) {
+			$this->exec($sql);
 		}
 
 		return $sql;
@@ -1204,22 +1306,18 @@ COMMIT;';
 		if (empty($keys)) {
 			return false;
 		}
-		if (!$this->getForeignKeySupport()) {
-			return false;
-		}
-		if ($this->getDriver() == 'sqlite') {
-			// you need to drop and recreate the table to alter constraints :(
-			return false;
+		if ($this->getDbtype('sqlite')) {
+			throw new PdoException('Not implemented');
 		}
 		$allSql = '';
 		foreach ($keys as $column => $reference) {
 			$sql = 'ALTER TABLE ' . $table . "\n";
 			$fkName = self::getFkName($table, $column, $reference);
 			$sql .= 'ADD CONSTRAINT ' . $fkName . ' FOREIGN KEY (' . $column . ') REFERENCES ' . $reference;
-			$allSql .= $sql . "\n";
-			if ($execute) {
-				$this->exec($sql);
-			}
+			$allSql .= $sql . ";\n";
+		}
+		if ($execute) {
+			$this->exec($allSql);
 		}
 		return $allSql;
 	}
@@ -1233,22 +1331,19 @@ COMMIT;';
 	 * @return string
 	 */
 	function dropForeignKeys($table, array $keys, $execute = true) {
-		if (!$this->getForeignKeySupport()) {
-			return false;
-		}
-		if ($this->getDriver() == 'sqlite') {
-			throw new PdoException('drop foreign key not implemented for sqlite');
+		if ($this->getDbtype('sqlite')) {
+			throw new PdoException('Not implemented');
 		}
 		$allSql = '';
 		foreach ($keys as $column => $reference) {
 			$fkName = self::getFkName($name, $column, $reference);
 			$sql = 'DROP FOREIGN KEY ' . $fkName;
-			$allSql .= $sql . "\n";
-			if ($execute) {
-				$this->exec($sql);
-			}
+			$allSql .= $sql . ";\n";
 		}
-		return $allSql;
+		if ($execute) {
+			$this->exec($allSql);
+		}
+		return $sql;
 	}
 
 	/**
@@ -1258,16 +1353,14 @@ COMMIT;';
 	 * @param array $pkFields
 	 * @return array 
 	 */
-	function addFieldType(array $fields, array $pkFields = array()) {
+	function addFieldType(array $fields, $pkFields = array()) {
 		//do not type already typed fields
 		foreach ($fields as $k => $v) {
 			if (!is_int($k)) {
 				return $fields;
 			}
 		}
-
 		$fields_type = array();
-		$driver = $this->getDriver();
 		foreach ($fields as $field) {
 			$type = $this->nameToType($field);
 			$fields_type[$field] = $type;
@@ -1286,19 +1379,20 @@ COMMIT;';
 	 */
 	function createView($view, $select, $execute = true) {
 		$name = 'v_' . $view;
-		$driver = $this->getDriver();
 
 		$select = str_replace('SELECT ', '', $select);
 
-		if ($driver == 'mysql') {
-			$sql = 'CREATE OR REPLACE VIEW ' . $name . " AS SELECT \n";
-		} else if ($driver == 'sqlite') {
-			$sql = 'CREATE VIEW ' . $name . " IF NOT EXISTS AS SELECT \n";
-		} else {
-			$sql = 'CREATE VIEW ' . $name . " AS SELECT \n";
+		switch ($this->getDbtype()) {
+			case 'mysql':
+				$sql = 'CREATE OR REPLACE VIEW ' . $name . " AS SELECT \n" . $select;
+				break;
+			case 'sqlite':
+				$sql = 'CREATE VIEW ' . $name . " IF NOT EXISTS AS SELECT \n" . $select;
+				break;
+			default:
+				$sql = 'CREATE VIEW ' . $name . " AS SELECT \n" . $select;
+				break;
 		}
-
-		$sql .= $select;
 
 		if ($execute) {
 			$this->exec($sql);
@@ -1346,10 +1440,10 @@ class PdoStatement extends \PDOStatement {
 				if (!is_numeric($v)) {
 					$v = "'$v'";
 				}
-				$niceSql = preg_replace('/' . $k . '/', $v, $niceSql);
+				$niceSql = preg_replace('/:' . $k . '/', $v, $niceSql);
 			}
 		}
-
+		
 		try {
 			$time = microtime(true);
 			$result = parent::execute($params);
@@ -1370,15 +1464,21 @@ class PdoStatement extends \PDOStatement {
  */
 class PdoException extends \PDOException {
 
-	public function __construct(\PDOException $e) {
-		//make the code/message more consistent
-		if (strstr($e->getMessage(), 'SQLSTATE[')) {
-			preg_match('/SQLSTATE\[(\w+)\]\: (.*)/', $e->getMessage(), $matches);
-			if (!empty($matches)) {
-				$this->code = $matches[1];
-				$this->message = $matches[2];
+	public function __construct($e) {
+		if (is_string($e)) {
+			$this->code = 0;
+			$this->message = $e;
+		} else {
+			//make the code/message more consistent
+			if (strstr($e->getMessage(), 'SQLSTATE[')) {
+				preg_match('/SQLSTATE\[(\w+)\]\: (.*)/', $e->getMessage(), $matches);
+				if (!empty($matches)) {
+					$this->code = $matches[1];
+					$this->message = $matches[2];
+				}
 			}
 		}
 	}
 
 }
+

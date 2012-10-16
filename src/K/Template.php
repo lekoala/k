@@ -2,9 +2,6 @@
 
 namespace K;
 
-use InvalidArgumentException;
-use Exception;
-
 /**
  * Simple template
  */
@@ -32,7 +29,7 @@ class Template {
 			$filename .= '.' . self::$defaultExtension;
 		}
 		if (!is_file($filename)) {
-			throw new InvalidArgumentException($filename . ' does not exist');
+			throw new Exception($filename . ' does not exist');
 		}
 		if (!is_array($vars)) {
 			$vars = array('content' => $vars);

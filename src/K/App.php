@@ -2,8 +2,6 @@
 
 namespace K;
 
-use \Exception;
-
 class App {
 
 	protected $request;

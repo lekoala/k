@@ -10,7 +10,11 @@ namespace K;
  * @author tportelange
  */
 class System {
-
+	
+	/**
+	 * Configure the class
+	 * @param array|object $config
+	 */
 	public static function configure($config) {
 		if ($config instanceof Config) {
 			$config = $config->get('System', array());
@@ -43,6 +47,14 @@ class System {
 
 	public static function setErrorReporting($value) {
 		return error_reporting($value);
+	}
+	
+	public static function getTimeLimit() {
+		return ini_get('max_execution_time');
+	}
+	
+	public static function setTimeLimit($value) {
+		return set_time_limit($value);
 	}
 
 	public static function __callStatic($name, $arguments) {

@@ -2,11 +2,9 @@
 
 namespace K;
 
-use \Exception;
 use \ArrayAccess;
 use \Iterator;
 use \Countable;
-use \Traversable;
 
 /**
  * Simple config wrapper
@@ -15,6 +13,12 @@ use \Traversable;
  * Override values if you have a .local.php files.
  */
 class Config implements ArrayAccess, Iterator, Countable {
+	
+	/**
+	 * Path to file
+	 * @var string
+	 */
+	protected $file;
 
 	/**
 	 * Internal config array
@@ -59,12 +63,13 @@ class Config implements ArrayAccess, Iterator, Countable {
 			if (!is_file($file)) {
 				throw new Exception('File does not exist : ' . $file);
 			}
-
+			
 			$ext = pathinfo($file, PATHINFO_EXTENSION);
 			if ($ext != 'php') {
 				throw new Exception('Invalid config file');
 			}
-
+			$this->file = $file;
+			
 			$filename = str_replace('.php', '', $file);
 
 			// Check for local config file
@@ -127,6 +132,14 @@ class Config implements ArrayAccess, Iterator, Countable {
 	 */
 	function getOriginalData() {
 		return $this->originalData;
+	}
+	
+	/**
+	 * Get file path
+	 * @return string
+	 */
+	function getFile() {
+		return $this->file;
 	}
 	
 	/**

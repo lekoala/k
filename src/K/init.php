@@ -1,16 +1,15 @@
 <?php
+/* Bootstrap the framework with some sensible defaults */
 
 // Define constants
 define('START_TIME', microtime(true));
 define('START_MEMORY_USAGE', memory_get_usage(true));
 
 // Define paths
-if (!defined('BASE_PATH'))
-	define('BASE_PATH', dirname($_SERVER['SCRIPT_FILENAME']));
 if (!defined('SRC_PATH'))
-	define('SRC_PATH', BASE_PATH . '/src');
+	define('SRC_PATH', dirname(__DIR__));
 
-// Default autoloader - psr 0 in src path
+// Default psr-0 autoloader
 set_include_path(SRC_PATH . PATH_SEPARATOR . get_include_path());
 spl_autoload_extensions('.php');
 spl_autoload_register(function($classname) {

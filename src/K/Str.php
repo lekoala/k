@@ -2,7 +2,7 @@
 
 namespace K;
 
-class str {
+class Str {
 
 	protected static $pluralRules = array(
 		'([ml])ouse$' => '\1ice',

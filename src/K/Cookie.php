@@ -5,7 +5,7 @@ namespace K;
 /**
  * Cookie wrapper class
  */
-class cookie {
+class Cookie {
 
 	/**
 	 * Get a cookie
@@ -46,7 +46,7 @@ class cookie {
 			$expire = strtotime($expire);
 		}
 
-		//m Mke sure domain is set correctly
+		// Make sure domain is set correctly
 		if (!empty($domain)) {
 			// Fix the domain to accept domains with and without 'www.'. 
 			if (strtolower(substr($domain, 0, 4)) == 'www.') {
@@ -74,5 +74,15 @@ class cookie {
 				. (!$secure ? '' : '; Secure')
 				. (!$httponly ? '' : '; HttpOnly'), false);
 		return $value;
+	}
+	
+	/**
+	 * Delete a cookie
+	 * @param string $name
+	 * @return bool
+	 */
+	static function delete($name) {
+		unset($_COOKIE[$name]);
+		return setcookie($name, NULL, -1);	
 	}
 }

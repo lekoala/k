@@ -1,4 +1,6 @@
 <?php
+/* This utility builds a class map of classes in a directory */
+
 function glob_recursive($pattern, $flags = 0) {
 	$files = glob($pattern, $flags);
 

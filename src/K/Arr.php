@@ -75,7 +75,7 @@ class Arr {
 	}
 	
 	/**
-	 * Does this array of the needle
+	 * Does this array has the needle
 	 * 
 	 * @param array $array
 	 * @param mixed $needle Pass a value or an array of values

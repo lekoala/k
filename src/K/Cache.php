@@ -10,15 +10,15 @@ class Cache {
 	const REDIS = 'redis';
 	const XCACHE = 'xcache';
 
-	protected static $cache;
+	protected $cache;
 
-	/**
-	 * Set the cache backend
-	 * 
-	 * @param type $backend 
-	 */
-	public function init($backend) {
-		self::$cache = $backend;
+	public function __construct($cache) {
+		if ($cache instanceof Config) {
+			$this->cache = $cache->get('Config');
+		}
+		else {
+			$this->cache = $cache;
+		}
 	}
 
 	/**
@@ -28,8 +28,9 @@ class Cache {
 	 * @return mixed
 	 */
 	public function get($key) {
-		$cache = self::$cache;
-
+		$cache = $this->cache;
+		$value = null;
+		
 		switch ($cache) {
 			case 'apc':
 				$value = apc_fetch($key);
@@ -79,8 +80,13 @@ class Cache {
 	 * @return bool 
 	 */
 	public function set($key, $value, $ttl = null) {
+		$cache = $this->cache;
+		if(is_string($ttl)) {
+			$ttl = strtotime($ttl);
+		}
 		$expire = (!$ttl) ? 0 : time() + $ttl;
-		switch ($case) {
+		
+		switch ($cache) {
 			case 'apc':
 				return apc_store($key, $value, $ttl);
 
@@ -88,11 +94,11 @@ class Cache {
 				$stmt = $cache->prepare("SELECT value FROM cache WHERE key = :key");
 				$stmt->execute(compact('key'));
 				$res = $stmt->fetch();
-				if ($res) {
+				if (!$res) {
 					$stmt = $cache->prepare("INSERT INTO cache(key, value, expire) VALUES (:key,:value,:expire)");
 					return $stmt->execute(compact('key', 'value', 'expire'));
 				} else {
-					$stmt = $cache->prepare("UPDATE cache SET key = :key, value = :value, expire = :expire)");
+					$stmt = $cache->prepare("UPDATE cache SET key = :key, value = :value, expire = :expire");
 					return $stmt->execute(compact('key', 'value', 'expire'));
 				}
 
