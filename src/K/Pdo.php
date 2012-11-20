@@ -6,7 +6,7 @@ namespace K;
  * Simple PDO wrapper used to provide more control over PDO and bundle some
  * helper functions
  */
-class Pdo extends \PDO {
+class Pdo extends \PDO implements IDebuggable {
 
 	const SQLITE_MEMORY = 'sqlite::memory:';
 
@@ -29,7 +29,7 @@ class Pdo extends \PDO {
 	 * @var string
 	 */
 	protected $dbtype;
-	
+
 	/**
 	 * @var string
 	 */
@@ -49,7 +49,7 @@ class Pdo extends \PDO {
 	 * @var array
 	 */
 	protected $options;
-	
+
 	/**
 	 * @var bool
 	 */
@@ -178,12 +178,13 @@ class Pdo extends \PDO {
 
 		$this->dsn = $dsn;
 		$this->dbtype = $dbtype;
-		if(isset($dbname)) $this->dbname = $dbname;
+		if (isset($dbname))
+			$this->dbname = $dbname;
 		$this->user = $user;
 		$this->password = $password;
 		$this->options = $options;
 	}
-	
+
 	/**
 	 * Connect
 	 * @throws PdoException
@@ -198,14 +199,14 @@ class Pdo extends \PDO {
 
 		//always throw exception
 		$this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		
+
 		//don't emulate prepare
 		$this->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 		//use custom pdo statement class
 		$this->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('\K\PdoStatement', array($this)));
 	}
-
+	
 	/**
 	 * Parse a dsn like {dbtype}:dbname={dbname};host={dbhost};port={dbport}
 	 * 
@@ -474,11 +475,10 @@ class Pdo extends \PDO {
 	 * 
 	 * @param string $table
 	 * @param string $column
-	 * @param string $reference
 	 * @return string
 	 */
-	public static function getFkName($table, $column, $reference) {
-		return 'fk_' . $table . '_' . $column . '_' . preg_replace('/[^a-z]/', '', $reference);
+	public static function getFkName($table, $column) {
+		return 'fk_' . $table . '_' . $column;
 	}
 
 	/* Overriden methods */
@@ -490,7 +490,8 @@ class Pdo extends \PDO {
 	 * @return int
 	 */
 	function exec($statement) {
-		if(!$this->connected) $this->connect();
+		if (!$this->connected)
+			$this->connect();
 		try {
 			$time = microtime(true);
 			$result = parent::exec($statement);
@@ -510,7 +511,8 @@ class Pdo extends \PDO {
 	 * @return PdoStatement
 	 */
 	function query($statement) {
-		if(!$this->connected) $this->connect();
+		if (!$this->connected)
+			$this->connect();
 		try {
 			$time = microtime(true);
 			$result = parent::query($statement);
@@ -523,7 +525,7 @@ class Pdo extends \PDO {
 
 		return $result;
 	}
-	
+
 	/**
 	 * Prepare wrapper
 	 * 
@@ -532,11 +534,11 @@ class Pdo extends \PDO {
 	 * @return K\PdoStatement
 	 */
 	function prepare($statement, $driver_options = array()) {
-		if(!$this->connected) $this->connect();
+		if (!$this->connected)
+			$this->connect();
 		try {
 			return parent::prepare($statement, $driver_options);
-		}
-		catch(\PDOException $e) {
+		} catch (\PDOException $e) {
 			self::logQuery($statement);
 			throw new PdoException($e);
 		}
@@ -577,7 +579,7 @@ class Pdo extends \PDO {
 		}
 		return $this->dbtype;
 	}
-	
+
 	/**
 	 * Get current db
 	 * @return string
@@ -585,7 +587,7 @@ class Pdo extends \PDO {
 	public function getDbname() {
 		return $this->dbname;
 	}
-	
+
 	/**
 	 * Get current db name
 	 * @param string $db
@@ -649,6 +651,7 @@ class Pdo extends \PDO {
 	 * @return array
 	 */
 	public function listColumns($table) {
+		//sqlite use pragma statements
 		if ($this->getDbtype('sqlite')) {
 			$result = $this->query("PRAGMA table_info($table)");
 			$infos = $result->fetchAll();
@@ -707,13 +710,13 @@ class Pdo extends \PDO {
 				'fk' => array()
 			);
 			foreach ($fks as $fk) {
-				if ($fk['column_name'] == $data['name']) {
+				if ($fk['name'] == $data['name']) {
 					$data['fk'] = array(
-						'table' => $fk['foreign_table'],
-						'column' => $fk['foreign_column'],
-						'on_update' => $fk['on_update'],
-						'on_delete' => $fk['on_delete'],
-						'match' => $fk['match']
+						'table' => $fk['table'],
+						'column' => $fk['to'],
+						'on_update' => null,
+						'on_delete' => null,
+						'match' => null
 					);
 				}
 			}
@@ -751,10 +754,9 @@ class Pdo extends \PDO {
 		$count = count($list);
 		$tables = array();
 		for ($i = 0; $i < $count; $i++) {
-			if(isset($list[$i]['name'])) {
+			if (isset($list[$i]['name'])) {
 				$tables[] = $list[$i]['name'];
-			}
-			else {
+			} else {
 				$tables[] = $list[$i][0];
 			}
 		}
@@ -767,31 +769,31 @@ class Pdo extends \PDO {
 	 * Return something like
 	 * Array(
 	 * 	[0] => Array(
-	 * 	[column_name] => 'name'
-	 *  [foreign_db] => 'db,
-	 *  [foreign_table] => 'company',
-	 *  [foreign_column] => 'id'
+	 * 	[name] => 'name'
+	 *  [db] => 'db,
+	 *  [table] => 'company',
+	 *  [to] => 'id'
 	 * 	)
 	 * )
 	 * @return array
 	 */
 	public function listForeignKeys($table) {
+		if ($this->getDbtype('sqlite')) {
+			$result = $this->query("PRAGMA foreign_key_list($table)");
+			return $result->fetchAll();
+		}
+		
 		$query = "SELECT
-    `column_name`, 
-    `referenced_table_schema` AS foreign_db, 
-    `referenced_table_name`   AS foreign_table, 
-    `referenced_column_name`  AS foreign_column 
-FROM
-    `information_schema`.`KEY_COLUMN_USAGE`
-WHERE
-    `constraint_schema` = SCHEMA()
-AND
-    `table_name` = '$table'
-AND
-    `referenced_column_name` IS NOT NULL
-ORDER BY
-    `column_name`";
-		$res = $pdo->query($query);
+    `column_name` AS `name`, 
+    `referenced_table_schema` AS `db`, 
+    `referenced_table_name`   AS `table`, 
+    `referenced_column_name`  AS `to`
+FROM `information_schema`.`KEY_COLUMN_USAGE`
+WHERE `constraint_schema` = SCHEMA()
+AND `referenced_table_name` = '$table'
+AND `referenced_column_name` IS NOT NULL
+ORDER BY `name`";
+		$res = $this->query($query);
 		return $res->fetchAll(PDO::FETCH_ASSOC);
 	}
 
@@ -834,12 +836,15 @@ ORDER BY
 		$sql = 'UPDATE ' . $table . " SET \n";
 		self::toNamedParams($where, $params);
 		foreach ($data as $k => $v) {
-			$sql .= $k . ' = :' . $k . ', ';
-			$params[':' . $k] = $v;
+			$placeholder = ':' . $k;
+			if(isset($data[$k])) {
+				$placeholder .= '2';
+			}
+			$sql .= $k . ' = ' . $placeholder . ', ';
+			$params[$placeholder] = $v;
 		}
 		$sql = rtrim($sql, ', ');
 		$this->injectWhere($sql, $where, $params);
-
 		$stmt = $this->prepare($sql);
 		$result = $stmt->execute($params);
 		return $result;
@@ -866,14 +871,14 @@ ORDER BY
 	 * 
 	 * @param string $table
 	 * @param array|string $where
-	 * @param array|string $order_by
+	 * @param array|string $orderBy
 	 * @param array|string $limit
 	 * @param array|string $fields
 	 * @param array $params
 	 * @return array 
 	 */
-	function select($table, $where = null, $order_by = null, $limit = null, $fields = '*', $params = array()) {
-		$stmt = $this->selectStmt($table, $where, $order_by, $limit, $fields, $params);
+	function select($table, $where = null, $orderBy = null, $limit = null, $fields = '*', $params = array()) {
+		$stmt = $this->selectStmt($table, $where, $orderBy, $limit, $fields, $params);
 		$stmt->execute($params);
 
 		$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -919,16 +924,41 @@ SELECT $field
 		}
 		return array();
 	}
-
+	
+	/**
+	 * Return the lowest value for given field. Id by default
+	 * 
+	 * @param string $table
+	 * @param string $field
+	 * @param string $where
+	 * @return int
+	 */
+	function min($table, $field = 'id', $where = null) {
+		$sql = "SELECT MIN($field) FROM $table";
+		if($where) {
+			$sql .= " WHERE " . $where;
+		}
+		$result = $this->query($sql);
+		if ($result) {
+			return $result->fetchColumn();
+		}
+		return false;
+	}
+	
 	/**
 	 * Return the highest value for given field. Id by default
 	 * 
 	 * @param string $table
 	 * @param string $field
+	 * @param string $where
 	 * @return int
 	 */
-	function max($table, $field = 'id') {
-		$result = $pdo->query("SELECT MAX($field) FROM $table");
+	function max($table, $field = 'id', $where = null) {
+		$sql = "SELECT MAX($field) FROM $table";
+		if($where) {
+			$sql .= " WHERE " . $where;
+		}
+		$result = $this->query($sql);
 		if ($result) {
 			return $result->fetchColumn();
 		}
@@ -942,23 +972,23 @@ SELECT $field
 	 * 
 	 * @param string $table
 	 * @param array|string $where
-	 * @param array|string $order_by
+	 * @param array|string $orderBy
 	 * @param array|string $limit
 	 * @param array|string $fields
 	 * @param array $params
 	 * @return PdoStatement 
 	 */
-	function selectStmt($table, $where = null, $order_by = null, $limit = null, $fields = '*', &$params = array()) {
+	function selectStmt($table, $where = null, $orderBy = null, $limit = null, $fields = '*', &$params = array()) {
 		if (is_array($fields)) {
 			$fields = implode(',', $fields);
 		}
 		$sql = 'SELECT ' . $fields . ' FROM ' . $table . '';
 		$this->injectWhere($sql, $where, $params);
-		if (!empty($order_by)) {
-			if (is_array($order_by)) {
-				$order_by = implode(',', $order_by);
+		if (!empty($orderBy)) {
+			if (is_array($orderBy)) {
+				$orderBy = implode(',', $orderBy);
 			}
-			$sql .= ' ORDER BY ' . $order_by;
+			$sql .= ' ORDER BY ' . $orderBy;
 		}
 		if (!empty($limit)) {
 			if (is_array($limit)) {
@@ -976,7 +1006,7 @@ SELECT $field
 	 * @param string $table
 	 * @param array|string $where
 	 * @param array $params
-	 * @return type 
+	 * @return int 
 	 */
 	function count($table, $where = null, $params = array()) {
 		$sql = 'SELECT COUNT(*) FROM ' . $table . '';
@@ -1130,15 +1160,19 @@ SELECT $field
 		//foreign keys
 		if ($fkFields !== null) {
 			foreach ($fkFields as $column => $reference) {
-				$fkName = self::getFkName($table, $column, $reference);
+				if(is_int($column)) {
+					$column = $reference;
+					$reference = $table . '(' . $column . ')';
+				}
+				$fkName = self::getFkName($table, $column);
 				$sql .= "\t" . 'CONSTRAINT ' . $fkName . ' FOREIGN KEY (' . $column . ') REFERENCES ' . $reference . ",\n";
 			}
 		}
 
 		$sql = rtrim($sql, ",\n");
 		$sql .= "\n)";
-		
-		if($this->getDbtype('mysql')) {
+
+		if ($this->getDbtype('mysql')) {
 			$sql .= ' ENGINE=InnoDB';
 		}
 
@@ -1184,7 +1218,7 @@ SELECT $field
 				throw new PdoException('Not implemented');
 		}
 		$this->exec($sql);
-		if($records) {
+		if ($records) {
 			$sql = 'INSERT INTO ' . $to . ' SELECT * FROM ' . $from . ';';
 			$this->exec($sql);
 		}
@@ -1240,11 +1274,11 @@ SELECT $field
 			}
 			//drop need this, see @link http://www.sqlite.org/faq.html#q11
 			if (!empty($removeFields)) {
-				$cols = $this->listColumns($table, false);
+				$cols = $this->listColumns($table);
 				$fields = array_diff(array_map(function($item) {
 									return $item['name'];
 								}, $cols), $removeFields);
-				$fieldsDefinition = '';
+				$fieldsDefinitionTemp = '';
 
 				foreach ($cols as $infos) {
 					if (in_array($infos['name'], $removeFields)) {
@@ -1255,12 +1289,20 @@ SELECT $field
 					if ($infos['name'] == 'id') {
 						$pk .= ' AUTOINCREMENT'; //auto increment does not appear in the meta info :-(
 					}
-					$fieldsDefinition .= $infos['name'] . " " . $infos['type'] . $pk . $notnull . ",\n";
+					$fieldsDefinitionTemp .= $infos['name'] . " " . $infos['type'] . $pk . $notnull . ",\n";
 				}
+				$fieldsDefinition = $fieldsDefinitionTemp;
+				foreach ($cols as $infos) {
+					if (!empty($infos['fk'])) {
+						$fkName = self::getFkName($table, $infos['name']);
+						$fieldsDefinition .= 'CONSTRAINT ' . $fkName . ' FOREIGN KEY (' . $infos['name'] . ') REFERENCES ' . $infos['fk']['table'] . '(' . $infos['fk']['column'] . ')' . ",\n";
+					}
+				}
+				$fieldsDefinitionTemp = rtrim($fieldsDefinitionTemp, ",\n");
 				$fieldsDefinition = rtrim($fieldsDefinition, ",\n");
 				$fields = implode(',', $fields);
 				$sql = 'BEGIN TRANSACTION;
-CREATE TEMPORARY TABLE ' . $table . '_backup(' . $fieldsDefinition . ');
+CREATE TEMPORARY TABLE ' . $table . '_backup(' . $fieldsDefinitionTemp . ');
 INSERT INTO ' . $table . '_backup SELECT ' . $fields . ' FROM ' . $table . ';
 DROP TABLE ' . $table . ';
 CREATE TABLE ' . $table . '(' . $fieldsDefinition . ');
@@ -1307,12 +1349,13 @@ COMMIT;';
 			return false;
 		}
 		if ($this->getDbtype('sqlite')) {
+			//This would require the same kind of tricks as alter table
 			throw new PdoException('Not implemented');
 		}
 		$allSql = '';
 		foreach ($keys as $column => $reference) {
 			$sql = 'ALTER TABLE ' . $table . "\n";
-			$fkName = self::getFkName($table, $column, $reference);
+			$fkName = self::getFkName($table, $column);
 			$sql .= 'ADD CONSTRAINT ' . $fkName . ' FOREIGN KEY (' . $column . ') REFERENCES ' . $reference;
 			$allSql .= $sql . ";\n";
 		}
@@ -1336,7 +1379,7 @@ COMMIT;';
 		}
 		$allSql = '';
 		foreach ($keys as $column => $reference) {
-			$fkName = self::getFkName($name, $column, $reference);
+			$fkName = self::getFkName($name, $column);
 			$sql = 'DROP FOREIGN KEY ' . $fkName;
 			$allSql .= $sql . ";\n";
 		}
@@ -1437,13 +1480,16 @@ class PdoStatement extends \PDOStatement {
 		$niceSql = $sql;
 		if (!empty($params)) {
 			foreach ($params as $k => $v) {
+				$k = ltrim($k,':');
 				if (!is_numeric($v)) {
 					$v = "'$v'";
 				}
-				$niceSql = preg_replace('/:' . $k . '/', $v, $niceSql);
+				//TODO : find a single regex that matches both cases
+				$niceSql = preg_replace('/:' . $k . '([,|\)|\s|$|\t|\n])/', $v . "$1", $niceSql);
+				$niceSql = preg_replace('/= :' . $k . '/', "= " . $v, $niceSql);
 			}
 		}
-		
+
 		try {
 			$time = microtime(true);
 			$result = parent::execute($params);

@@ -11,27 +11,7 @@ namespace K;
  */
 class System {
 	
-	/**
-	 * Configure the class
-	 * @param array|object $config
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('System', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				$method = 'set' . ucfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $k))));
-				//If we have a method like setThisProperty()
-				if (method_exists(__CLASS__, $method)) {
-					self::$method($v);
-				//Otherwise call self::this_property();
-				} else {
-					self::$k($v);
-				}
-			}
-		}
-	}
+	use TConfigure;
 
 	public static function getTimezone() {
 		return date_default_timezone_get();

@@ -10,26 +10,11 @@ namespace K;
  * @link https://github.com/ircmaxell/password_compat/blob/master/lib/password.php
  */
 class Password {
+	
+	use TConfigure;
 
 	protected static $cost = 10;
 	protected static $algorithm = 1;
-
-	/**
-	 * Configure the class
-	 * @param array|object $config
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('Password', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				if (property_exists(__CLASS__, $v)) {
-					self::$k = $v;
-				}
-			}
-		}
-	}
 
 	/**
 	 * The function which creates new password hashes.
@@ -38,14 +23,14 @@ class Password {
 	 * @param array $options
 	 * @return string
 	 */
-	static function hash($password, $algorithm = null, $options = null) {
+	public static function hash($password, $algorithm = null, $options = null) {
 		if (!$algorithm) {
 			$algorithm = self::$algorithm;
 		}
 		if (!$options) {
 			$options = array('cost' => self::$cost);
 		}
-		return password_hash($password, $algorithm, $options);
+		return \password_hash($password, $algorithm, $options);
 	}
 
 	/**
@@ -53,8 +38,8 @@ class Password {
 	 * @param string $hash
 	 * @return array
 	 */
-	static function get_info($hash) {
-		return password_get_info($hash);
+	public static function getInfo($hash) {
+		return \password_get_info($hash);
 	}
 
 	/**
@@ -64,8 +49,8 @@ class Password {
 	 * @param array $options
 	 * @return bool
 	 */
-	static function needs_rehash($hash, $algorithm, $options) {
-		return password_needs_rehash($hash, $algorithm, $options);
+	public static function needsRehash($hash, $algorithm, $options) {
+		return \password_needs_rehash($hash, $algorithm, $options);
 	}
 
 	/**
@@ -74,8 +59,8 @@ class Password {
 	 * @param string $hash
 	 * @return bool
 	 */
-	static function verify($password, $hash) {
-		return password_verify($password, $hash);
+	public static function verify($password, $hash) {
+		return \password_verify($password, $hash);
 	}
 
 }

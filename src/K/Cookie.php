@@ -14,7 +14,7 @@ class Cookie {
 	 * @param string $default
 	 * @return string 
 	 */
-	static function get($key, $default = null) {
+	public static function get($key, $default = null) {
 		if (isset($_COOKIE[$key])) {
 			return $_COOKIE[$key];
 		}
@@ -33,7 +33,7 @@ class Cookie {
 	 * @param bool $httponly (optional)
 	 * @return mixed
 	 */
-	static function set($key, $value = null, $expire = 0, $path = null, $domain = null, $secure = false, $httponly = true) {
+	public static function set($key, $value = null, $expire = 0, $path = null, $domain = null, $secure = false, $httponly = true) {
 		$ob = ini_get('output_buffering');
 
 		// Abort the method if headers have already been sent, except when output buffering has been enabled 
@@ -81,7 +81,7 @@ class Cookie {
 	 * @param string $name
 	 * @return bool
 	 */
-	static function delete($name) {
+	public static function delete($name) {
 		unset($_COOKIE[$name]);
 		return setcookie($name, NULL, -1);	
 	}

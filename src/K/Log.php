@@ -4,6 +4,8 @@ namespace K;
 
 class Log {
 	
+	use TConfigure;
+	
 	const DEBUG = 100;
 	const INFO = 200;
 	const WARNING = 300;
@@ -30,30 +32,11 @@ class Log {
 		'alert' => 550,
 	);
 	protected static $logs = array();
-
-	/**
-	 * Configure the class
-	 * @param array|object $config
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('Log', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				$method = 'set' . ucfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $k))));
-				//If we have a method like setThisProperty()
-				if (method_exists(__CLASS__, $method)) {
-					self::$method($v);
-				//Otherwise call self::this_property();
-				} elseif(property_exists(__CLASS__, $k)) {
-					self::$k = $v;
-				}
-			}
-		}
-	}
 	
-	static function add($message, $level = 'info', $context = array()) {
+	private function __construct() {
+	}
+
+	public static function add($message, $level = 'info', $context = array()) {
 		if (!self::$enabled) {
 			return false;
 		}
@@ -89,7 +72,7 @@ class Log {
 		return true;
 	}
 
-	static function setFile($file, $level = null) {
+	public static function setFile($file, $level = null) {
 		if (!is_file($file)) {
 			throw new Exception('Invalid file : ' . $file);
 		}
@@ -102,7 +85,7 @@ class Log {
 		self::$file = $file;
 	}
 
-	static function setThresold($level) {
+	public static function setThresold($level) {
 		$thresold = $level;
 		if (!is_numeric($level)) {
 			if (!in_array($level, array_keys(self::$levels))) {
@@ -114,7 +97,7 @@ class Log {
 		self::$thresold = $thresold;
 	}
 	
-	static function setEmail($email, $level = null) {
+	public static function setEmail($email, $level = null) {
 		if(filter_var($email, FILTER_VALIDATE_EMAIL)) {
 			throw new Exception($email . ' is not a valid email');
 		}
@@ -124,7 +107,7 @@ class Log {
 		self::$email = $email;
 	}
 	
-	static function setEmailThresold($level) {
+	public static function setEmailThresold($level) {
 		$thresold = $level;
 		if (!is_numeric($level)) {
 			if (!in_array($level, array_keys(self::$levels))) {
@@ -136,22 +119,22 @@ class Log {
 		self::$emailThresold = $thresold;
 	}
 	
-	static function setPdo($pdo) {
+	public static function setPdo($pdo) {
 		if(!$pdo instanceof \PDO) {
 			throw new Exception ($pdo . ' must be of type PDO');
 		}
 		self::$pdo = $pdo;
 	}
 
-	static function debug($msg) {
+	public static function debug($msg) {
 		return self::add($msg, 'debug');
 	}
 
-	static function info($msg) {
+	public static function info($msg) {
 		return self::add($msg, 'info');
 	}
 
-	static function warning($msg) {
+	public static function warning($msg) {
 		return self::add($msg, 'warning');
 	}
 
@@ -159,15 +142,15 @@ class Log {
 		return self::add($msg, 'error');
 	}
 
-	static function critical($msg) {
+	public static function critical($msg) {
 		return self::add($msg, 'critical');
 	}
 
-	static function alert($msg) {
+	public static function alert($msg) {
 		return self::add($msg, 'alert');
 	}
 
-	static function debugBarCallback() {
+	public static function debugBarCallback() {
 		$line = count(self::$logs) . ' logs';
 		$logs = self::$logs;
 		array_unshift($logs, $line);

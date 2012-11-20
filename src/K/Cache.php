@@ -126,12 +126,12 @@ class Cache {
 					throw new Exception($cache . ' is not a valid directory');
 				}
 
-				$cached_content = array(
+				$cached = array(
 					'expire' => $expire,
 					'value' => $value
 				);
-				$cached_content = serialize($cached_content);
-				return file_put_contents($cache . DIRECTORY_SEPARATOR . $key, $cached_content);
+				$cached = serialize($cached);
+				return file_put_contents($cache . DIRECTORY_SEPARATOR . $key, $cached);
 		}
 	}
 

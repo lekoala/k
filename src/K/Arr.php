@@ -14,7 +14,7 @@ class Arr {
 	 * @param string|array $index
 	 * @param mixed $default 
 	 */
-	static function index(array $array, $index, $default = null) {
+	public static function index(array $array, $index, $default = null) {
 		if(is_array($index)) {
 			$arr = $array;
 			$val = $default;
@@ -45,7 +45,7 @@ class Arr {
 	 * @param mixed $default
 	 * @return mixed 
 	 */
-	static function get(array $array, $index, $default = null) {
+	public static function get($array, $index, $default = null) {
 		$loc = &$array;
 		foreach (explode('.', $index) as $step) {
 			if (isset($loc[$step])) {
@@ -65,7 +65,7 @@ class Arr {
 	 * @param mixed $value
 	 * @return array 
 	 */
-	static function set(array &$array, $index, $value) {
+	public static function set(&$array, $index, $value) {
 		$loc = &$array;
 		foreach (explode('.', $index) as $step) {
 			$loc = &$loc[$step];
@@ -81,7 +81,7 @@ class Arr {
 	 * @param mixed $needle Pass a value or an array of values
 	 * @param bool $exact Should this method behave like in_array
 	 */
-	static function has(array $array, $needle, $exact = false) {
+	public static function has($array, $needle, $exact = false) {
 		if($exact) {
 			return in_array($needle, $array);
 		}
@@ -102,7 +102,7 @@ class Arr {
 	 * @param string $index
 	 * @return array
 	 */
-	static function delete(array &$array, $index) {
+	public static function delete(&$array, $index) {
 		$loc = &$array;
 		$parts = explode('.', $index);
 		while(count($parts) > 1) {
@@ -124,7 +124,7 @@ class Arr {
 	 * @param bool $trim (for string parameters)
 	 * @return array 
 	 */
-	static function make($var, $delimiter = ',', $trim = false) {
+	public static function make($var, $delimiter = ',', $trim = false) {
 		if (is_array($var)) {
 			return $var;
 		}
@@ -154,7 +154,7 @@ class Arr {
 	 * @param string $index
 	 * @return array 
 	 */
-	static function pluck(array $array, $index) {
+	public static function pluck(array $array, $index) {
 		$list = array();
 		foreach ($array as $row) {
 			if (is_array($row)) {
@@ -176,7 +176,7 @@ class Arr {
 	 * @param array $arr
 	 * @return bool
 	 */
-	static function isAssoc(array $array) {
+	public static function isAssoc(array $array) {
 		//don't use array_keys or array_values because it takes a lot of memory for large arrays
 		foreach ($array as $k => $v) {
 			if (!is_int($k)) {
@@ -187,11 +187,22 @@ class Arr {
 	}
 	
 	/**
+	 * Is multi dimensional array
+	 * 
+	 * @param array $array
+	 * @return bool
+	 */
+	public static function isMulti(array $array) {
+		$values = array_filter($arr, 'is_array');
+		return $all ? count($arr) === count($values) : count($values) > 0;
+	}
+	
+	/**
 	 * Get a random element of an array
 	 * @param array $array
 	 * @return mixed
 	 */
-	static function random(array $array) {
+	public static function random(array $array) {
 		return $array[array_rand($array)];
 	}
 

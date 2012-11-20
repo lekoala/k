@@ -12,7 +12,7 @@ use \Countable;
  * Load a .php file that returns an array.
  * Override values if you have a .local.php files.
  */
-class Config implements ArrayAccess, Iterator, Countable {
+class Config implements ArrayAccess, Iterator, Countable, IConfig {
 	
 	/**
 	 * Path to file

@@ -6,14 +6,16 @@ namespace K;
  * Simple template
  */
 class Template {
-
+	
+	use TConfigure;
+	
 	static protected $globalVars = array();
 	static protected $defaultExtension = 'phtml';
 	static protected $defaultPath;
 	protected $filename;
 	protected $vars;
 
-	function __construct($filename, $vars) {
+	public function __construct($filename, $vars) {
 		if (is_array($filename)) {
 			while (count($filename) > 1) {
 				$template = array_shift($filename);
@@ -38,20 +40,13 @@ class Template {
 		$this->filename = $filename;
 		$this->vars = $vars;
 	}
-
-	/**
-	 * Configure the class
-	 * @param array $options
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('Template', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				self::$$v = $v;
-			}
-		}
+	
+	public function e($name) {
+		echo $this->vars[$name];
+	}
+	
+	public function t($name) {
+		
 	}
 
 	/**

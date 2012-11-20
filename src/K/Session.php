@@ -11,7 +11,7 @@ class Session {
 	 * @param mixed $default
 	 * @return mixed
 	 */
-	static function get($key = null, $default=null) {
+	public static function get($key = null, $default=null) {
 		//Not started yet!
 		if(!isset($_SESSION)) {
 			session_start();
@@ -36,7 +36,7 @@ class Session {
 	 * @param string $key
 	 * @param mixed $default
 	 */
-	static function take($key, $default = null) {
+	public static function take($key, $default = null) {
 		$val = self::get($key, $default);
 		self::delete($key);
 		return $val;
@@ -49,7 +49,7 @@ class Session {
 	 * @param mixed $value
 	 * @return mixed 
 	 */
-	static function set($key, $value) {
+	public static function set($key, $value) {
 		//To write something, we need to make sure it's active
 		if (!self::isActive()) {
 			session_regenerate_id(); //because it's never too safe
@@ -69,7 +69,7 @@ class Session {
 	 * @param string $key
 	 * @return boolean
 	 */
-	static function delete($key) {
+	public static function delete($key) {
 		$loc = &$_SESSION;
 		$parts = explode('.', $key);
 		while(count($parts) > 1) {
@@ -89,7 +89,7 @@ class Session {
 	 * @link http://stackoverflow.com/questions/3788369/how-to-tell-if-a-session-is-active
 	 * @return bool 
 	 */
-	static function isActive() {
+	public static function isActive() {
 		if(function_exists('session_status')) {
 			return session_status() === PHP_SESSION_ACTIVE;
 		}

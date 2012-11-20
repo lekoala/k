@@ -8,12 +8,14 @@ require SRC_PATH . '/K/init.php';
 //$db = new \K\Pdo('mysql:user:psss@host:8888;dbname=mydb;param=value;otherparam=othervalue');
 $db = new \K\Pdo('mysql:root:root;host=localhost;dbname=framework');
 //$db = new \K\Pdo(\K\Pdo::SQLITE_MEMORY);
+//$db = new \K\Pdo('sqlite:' . __DIR__ . '/data/sqlitedb.db');
 //build schema
 echo '<pre>';
 echo $db->dropTable('user');
 echo $db->dropTable('user_copy');
 echo $db->dropTable('lang');
 echo $db->dropTable('usertype');
+echo '<hr/>';
 
 echo $db->createTable('usertype',array('id','name'));
 echo '<br/>';
@@ -66,6 +68,9 @@ $db->createTableLike('user');
 
 echo 'Table list<br/>';
 print_r($db->listTables());
+
+echo 'List user column<br/>';
+print_r($db->listColumns('user'));
 
 echo 'List users<br/>';
 print_r($db->select('user'));

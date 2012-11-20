@@ -19,7 +19,9 @@
 		}
 	},
 	"require":{
-		"php":">=5.4.*",
-		"symfony/http-foundation": "2.1.*"
-	}
+		"php":"5.4.*",
+		"symfony/http-foundation": "*",
+		"ircmaxell/password-compat": "dev-master"
+	},
+	"min-stability":"dev"
 }

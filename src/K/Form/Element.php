@@ -1,88 +1,99 @@
 <?php
+namespace K\Form;
+/**
+ * Base element that can contain any html
+ * 
+ * @method Element content()
+ * @method \K\Form input()
+ * @method \K\Form button()
+ * @method \K\Form checkbox()
+ * @method \K\Form radio()
+ * @method \K\Form add()
+ * @method \K\Form address()
+ * @method \K\Form email()
+ * @method \K\Form file()
+ * @method \K\Form openFieldset()
+ * @method \K\Form closeFieldset()
+ * @method \K\Form openActions()
+ * @method \K\Form closeActions()
+ * @method \K\Form openGroup()
+ * @method \K\Form closeGroup()
+ * @method Input class()
+ * @method Input type()
+ * @method Input label()
+ * @method Input value()
+ * @method Input defaultValue()
+ * @method Input size()
+ * @method Input append()
+ * @method Input prepend()
+ * @method Input placeholder()
+ * @method Input disabled()
+ * @method Input options()
+ * @method File multiple()
+ * @method File accept()
+ * @method Textarea rows()
+ * @method Textarea cols()
+ * @method Textarea readonly()
+ */
+class Element {
 
-namespace K;
+	/**
+	 * @var Form
+	 */
+	protected $form;
+	protected $text;
 
-class form_element {
-	protected $name;
-	protected $label;
-	protected $id;
-	protected $value;
-	protected $help;
-	protected $type = 'text';
+	public static function makeTag($name, $attributes = array(), $close = false) {
+		return \K\Form::makeTag($name, $attributes, $close);
+	}
 	
-	function __construct($name, $type = null, $label = null, $help = null, $value = null, $id = null) {
-		if(empty($type)) {
-			$type = $this->name_to_type($name);
+	public function __construct($text = null, Form $form = null) {
+		$this->text = $text;
+		if ($form) {
+			$this->form = $form;
 		}
-		if(empty($label)) {
-			$label = $this->name_to_label($name);
+	}
+	
+	public function getForm() {
+		return $this->form;
+	}
+
+	public function setForm($form) {
+		$this->form = $form;
+		return $this;
+	}
+
+	public function renderElement() {
+		return $this->text;
+	}
+
+	public function __toString() {
+		try {
+			return $this->renderElement();
+		} catch (Exception $e) {
+			return $e->getMessage();
 		}
-		if(empty($id)) {
-			$id = 'input-' . $name;
-		}
-		if(empty($value)) {
-			if(isset($_GET[$name])) {
-				$value = $_GET[$name];
+	}
+
+	/**
+	 * @return FormElement
+	 */
+	public function __call($name, $arguments) {
+		if (property_exists($this, $name)) {
+			if (count($arguments) == 0) {
+				return $this->$name;
 			}
-			elseif(isset($_POST[$name])) {
-				$value = $_POST[$name];
+			$this->$name = $arguments[0];
+			return $this;
+		} else {
+			if (!$this->form) {
+				throw new \Exception('Element not linked to a form');
 			}
+			if (!method_exists($this->form, $name)) {
+				throw new \Exception('Invalid method called : ' . $name);
+			}
+			return call_user_func_array(array($this->form, $name), $arguments);
 		}
-		$this->name = $name;
-		$this->type = $type;
-		$this->value = $value;
-		$this->help = $help;
-		$this->label = $label;
-		$this->id = $id;
 	}
-	
-	function name_to_label($name) {
-		$name = str_replace('_', '', $name);
-		$name = str_replace('-', '', $name);
-		$name = ucwords($name);
-		return $name;
-	}
-	
-	function render() {
-		switch($this->type) {
-			case 'submit':
-				$html = '<div class="control-group">
-	<input type="'.$this->type.'" name="'.$this->name.'" id="'.$this->id.'" value="'.$this->value.'">
-</div>';
-				break;
-			default : 
-				$html = '<div class="control-group">
-	<label for="'.$this->id.'">'.$this->label.'</label>
-	<input type="'.$this->type.'" name="'.$this->name.'" id="'.$this->id.'" value="'.$this->value.'">
-	<span class="help-inline">'.$this->help.'</span>
-</div>';
-		}
-		
-		return $html;
-	}
-	
-	function name_to_type($name) {
-		$type = 'text';
-		
-		if($name == 'password'
-				|| strpos($name, '_password') !== false) {
-			$type = 'password';
-		}
-		if($name == 'submit'
-				|| strpos($name, 'submit_') !== false) {
-			$type = 'submit';
-		}
-		elseif(strpos($name, 'is_') !== false) {
-			$type = 'checkbox';
-		}
-		elseif(strpos($name, '_list') !== false) {
-			$type = 'select';
-		}
-		
-		return $type;
-	}
-	
-	function __toString() {
-		return $this->render();
-	}
+
 }

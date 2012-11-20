@@ -42,10 +42,10 @@ trait TConfigure {
 		$method = 'set' . ucfirst(str_replace(' ', '', ucwords(str_replace('_', ' ', $key))));
 		$class = get_called_class();
 		if (method_exists($class, $method)) {
-			self::$method($v);
+			self::$method($value);
 			return true;
-		} elseif (property_exists($class, $k)) {
-			self::$$k = $v;
+		} elseif (property_exists($class, $key)) {
+			self::$$key = $value;
 			return true;
 		}
 		return false;
