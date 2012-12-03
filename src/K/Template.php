@@ -14,8 +14,14 @@ class Template {
 	static protected $defaultPath;
 	protected $filename;
 	protected $vars;
-
-	public function __construct($filename, $vars) {
+	
+	/**
+	 * Create a new template. You can pass multiple filenames like array('page','layout')
+	 * @param string|array $filename
+	 * @param array $vars
+	 * @throws Exception
+	 */
+	public function __construct($filename, $vars = array()) {
 		if (is_array($filename)) {
 			while (count($filename) > 1) {
 				$template = array_shift($filename);
