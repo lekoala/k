@@ -21,6 +21,7 @@
 	"require":{
 		"php":"5.4.*",
 		"symfony/http-foundation": "*",
+		"swiftmailer/swiftmailer" : "*",
 		"ircmaxell/password-compat": "dev-master"
 	},
 	"min-stability":"dev"

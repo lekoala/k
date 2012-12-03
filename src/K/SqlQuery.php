@@ -5,6 +5,7 @@ namespace K;
 use Iterator;
 use Countable;
 use K\Pdo;
+use \Exception;
 
 /**
  * Smart query builder 
@@ -291,8 +292,12 @@ class SqlQuery implements Iterator, Countable {
 	 * @return K\SqlQuery 
 	 */
 	function where($key = null, $value = '', $operator = null) {
+		//pass null to reset where
 		if ($key === null) {
 			$this->where = array();
+			return $this;
+		}
+		if (empty($key)) {
 			return $this;
 		}
 		$pdo = $this->getPdo();
@@ -304,11 +309,11 @@ class SqlQuery implements Iterator, Countable {
 		}
 
 		$key = $this->detectForeignKey($key);
-		$quotedValue = $pdo->quote($value);
 
 		//placeholders
 		if (strpos($key, '?') !== false) {
-			$key = str_replace('?', $quotedValue, $key);
+			$key = str_replace('?', $this->getPlaceholder(), $key);
+			$this->params[$this->getPlaceholder()] = $value;
 			$this->where[] = $key;
 			return $this;
 		}
@@ -316,24 +321,31 @@ class SqlQuery implements Iterator, Countable {
 			if ($value === null) {
 				$this->where[] = $key . ' IS NULL';
 			} elseif (is_array($value)) {
-				$this->where[] = $key . ' IN (' . $quotedValue . ')';
+				$this->where[] = $key . ' IN (' . $pdo->quote($value) . ')';
 			} elseif (strpos($value, '%') !== false) {
-				$this->where[] = $key . ' LIKE ' . $quotedValue;
+				$this->where[] = $key . ' LIKE ' . $this->getPlaceholder();
+				$this->params[$this->getPlaceholder()] = $value;
 			} else {
-				$this->where[] = $key . ' = ' . $quotedValue;
+				$this->where[] = $key . ' = ' . $this->getPlaceholder();
+				$this->params[$this->getPlaceholder()] = $value;
 			}
 		} else {
 			if ($operator == 'BETWEEN') {
 				$this->where[] = $key . ' BETWEEN ' . $pdo->quote($value[0]) . ' AND ' . $pdo->quote($value[1]);
 			} else {
 				if (strpos($operator, 'IN') !== false) {
-					$this->where[] = $key . ' ' . $operator . ' (' . $quotedValue . ')';
+					$this->where[] = $key . ' ' . $operator . ' (' . $pdo->quote($value) . ')';
 				} else {
-					$this->where[] = $key . ' ' . $operator . ' ' . $quotedValue;
+					$this->where[] = $key . ' ' . $operator . ' ' . $this->getPlaceholder();
+					$this->params[$this->getPlaceholder()] = $value;
 				}
 			}
 		}
 		return $this;
+	}
+	
+	protected function getPlaceholder() {
+		return ':p' . count($this->params);
 	}
 
 	/**
@@ -700,11 +712,13 @@ class SqlQuery implements Iterator, Countable {
 	/**
 	 * Do the query
 	 * 
-	 * @return _pdo_statement
+	 * @return PdoStatement
 	 */
 	function query() {
 		$pdo = $this->getPdo();
-		$results = $pdo->query($this->build());
+//		$results = $pdo->query($this->build());
+		$results = $pdo->prepare($this->build());
+		$results->execute($this->params);
 		return $results;
 	}
 
@@ -932,7 +946,7 @@ class SqlQuery implements Iterator, Countable {
 			$pdo = Orm::getPdo();
 		}
 		if ($pdo === null) {
-			throw Exception('You must define a Pdo instance to use the query builder');
+			throw new Exception('You must define a Pdo instance to use the query builder');
 		}
 		self::$pdo = $pdo;
 		return $pdo;

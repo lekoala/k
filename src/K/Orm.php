@@ -28,6 +28,19 @@ class Orm {
 	 */
 	protected static $manyMany = array();
 
+	/**
+	 * @var string
+	 */
+	protected static $storage;
+
+	/**
+	 * Define validation rules. You can also define custom methods like validateFieldName()
+	 * @var array
+	 */
+	protected static $validation = array(
+		'id' => 'int'
+	);
+
 	public function __construct($where = null) {
 		if ($where) {
 			$where = static::detectPrimaryKeys($where);
@@ -135,7 +148,7 @@ class Orm {
 		}
 		return '';
 	}
-	
+
 	/**
 	 * Get a property as a class that has a create method
 	 * @param string $name
@@ -143,7 +156,11 @@ class Orm {
 	 * @return Object
 	 */
 	public function getAs($name, $class) {
-		return $class::create($this->getProperty($name));
+		if(isset($this->_cache[$name])) {
+			return $this->_cache[$name];
+		}
+		$this->_cache[$name] = $class::create($this->getProperty($name));
+		return $this->_cache[$name];
 	}
 
 	/**
@@ -152,9 +169,71 @@ class Orm {
 	 * @return K\Date
 	 */
 	public function getAsDate($name) {
-		return Date::create($this->getProperty($name));
+		return static::getAs($name, 'Date');
 	}
-	
+
+	/**
+	 * Get a property as file. File is stored in base_folder/property_value
+	 * @param string $name
+	 * @return K\File
+	 */
+	public function getAsFile($name) {
+		$path = static::getBaseFolder() . '/' . $this->getProperty($name);
+		return static::getAs($path, 'File');
+	}
+
+	/**
+	 * Get base storage folder
+	 * @param bool $create
+	 * @return string
+	 */
+	public static function getBaseFolder($create = true) {
+		$folder = static::$storage . '/' . static::getTable();
+		if ($create && !is_dir($folder)) {
+			mkdir($folder);
+		}
+		return $folder;
+	}
+
+	/**
+	 * Get instance storage folder
+	 * @param bool $create
+	 * @return string
+	 */
+	public function getFolder($create = true) {
+		$folder = static::getBaseFolder() . '/' . $this->getId();
+		if ($create && !is_dir($folder)) {
+			mkdir($folder);
+		}
+		return $folder;
+	}
+
+	/**
+	 * Validate a value for a given field
+	 * @param string $name
+	 * @param mixed $value
+	 */
+	public static function validate($name, $value) {
+		if (isset(static::$validation[$name])) {
+			switch (static::$validation[$name]) {
+				case 'int' :
+					if (is_numeric($value) || ctype_digit($value)) {
+						return true;
+					}
+					break;
+				default :
+					throw new Exception('Undefined validation rule ' . $name);
+			}
+			throw new Exception('Value ' . $value . ' must validate rule ' . $name);
+		}
+		$method = 'validate' . str_replace(' ', '', ucwords(str_replace('_', ' ', $name)));
+		if (method_exists(get_called_class(), $method)) {
+			if (!static::$method($value)) {
+				throw new Exception('Value ' . $value . ' must validate rule ' . $method);
+			}
+		}
+	}
+
 	/**
 	 * Set a property or a virtual property
 	 * @param string $name
@@ -165,13 +244,30 @@ class Orm {
 		if (is_object($value)) {
 			if (is_subclass_of($value, 'K\Orm')) {
 				$object = $value;
-				$value = $value->getId();
+				if($object->exists()) {
+					$value = $value->getId();
+				}
 			} else {
-				$value = (string) $value;
+				switch (get_class($value)) {
+					case 'K\File':
+						$folder = static::getBaseFolder();
+						while (true) {
+							$filename = uniqid($name) . '.' . $value->getExtension(); 
+							if (!file_exists($folder . '/' . $filename))
+								break;
+						}
+						$value->rename($folder . '/' . $filename);
+						$value = $filename;
+						break;
+					default:
+						$value = (string) $value;
+						break;
+				}
 			}
 		} elseif (is_array($value)) {
 			$value = implode(',', $value);
 		}
+		static::validate($name, $value);
 		$method = '_' . $name;
 		if (property_exists($this, $name)) {
 			$this->$name = $value;
@@ -225,11 +321,11 @@ class Orm {
 		$fk = $injectClass::getForForeignKey($relation);
 		$classFk = $recordColumn = $column = static::getForForeignKey($relation);
 
-		if($type == 'has-many' || $type == 'many-many') {
+		if ($type == 'has-many' || $type == 'many-many') {
 			$recordColumn = $pk;
 			$column = $injectClass::getForForeignKey($relation);
 		}
-		
+
 		$ids = array();
 		foreach ($array as $record) {
 			$key = $record->$recordColumn;
@@ -264,11 +360,11 @@ class Orm {
 				break;
 			case 'has-many':
 				$injected = static::get()->where($fk, $ids)->orderBy($pk . ' ASC')->fetchAll();
-				foreach($array as $record) {
+				foreach ($array as $record) {
 					$id = $record->getId();
 					$arr = array();
-					foreach($injected as $i) {
-						if($i->$column == $record->getId()) {
+					foreach ($injected as $i) {
+						if ($i->$column == $record->getId()) {
 							$arr[] = $i;
 						}
 					}
@@ -277,32 +373,32 @@ class Orm {
 				break;
 			case 'many-many':
 				$manyTable = static::getManyTable($injectClass);
-				if(empty($manyTable)) {
+				if (empty($manyTable)) {
 					$manyTable = $injectClass::getManyTable($class);
 				}
 				$injectTable = $injectClass::getTable();
 				$injectPk = $injectClass::getPrimaryKey();
 				$injected = static::get()
-					->fields($table . '.*')
-					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-					->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
-					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
+								->fields($table . '.*')
+								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+								->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
+								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
 				$byId = array();
 				foreach ($injected as $record) {
 					$byId[$record->$pk] = $record;
 				}
 				$map = $injectClass::get()
-						->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
-						->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-						->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
-				
-				foreach($array as $record) {
+								->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
+								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
+
+				foreach ($array as $record) {
 					$id = $record->getId();
 					$arr = array();
-					foreach($map as $row) {
+					foreach ($map as $row) {
 						$recordId = $row[$fk];
 						$injectedId = $row[$classFk];
-						if($recordId == $id && isset($byId[$injectedId])) {
+						if ($recordId == $id && isset($byId[$injectedId])) {
 							$arr[] = $byId[$injectedId];
 						}
 					}
@@ -492,7 +588,7 @@ class Orm {
 		$this->_cache = array();
 		return $this;
 	}
-
+	
 	/**
 	 * Does the record exist
 	 * @param bool $db Check if it really exists in the db
@@ -754,7 +850,7 @@ class Orm {
 	 * @return string
 	 */
 	public static function getManyTable($class) {
-		if(in_array($class, static::getManyRelations(true))) {
+		if (in_array($class, static::getManyRelations(true))) {
 			return static::getTable() . '_' . $class::getTable();
 		}
 		return false;
@@ -855,9 +951,13 @@ class Orm {
 		return $fieldstype;
 	}
 
-	public function getId() {
+	public function getId($mustExist = false) {
 		$pkField = static::getPrimaryKey();
-		return $this->$pkField;
+		$value = $this->$pkField;
+		if (empty($value) && $mustExist) {
+			throw new Exception('This record does not have an id yet');
+		}
+		return $value;
 	}
 
 	public static function getPrimaryKey() {
@@ -981,6 +1081,14 @@ class Orm {
 		}
 		return $sort;
 	}
+	
+	/**
+	 * Default filtering options
+	 * @return string
+	 */
+	public static function getDefaultWhere() {
+		return array();
+	}
 
 	/**
 	 * Get the fluent query builder
@@ -989,10 +1097,21 @@ class Orm {
 	public static function get() {
 		return SqlQuery::create(static::getTable())
 						->fetchAs(get_called_class())
+		;
+	}
+	
+	/**
+	 * Get the fluent query builder with class defaults
+	 * @return K\SqlQuery
+	 */
+	public static function getDefault() {
+		return SqlQuery::create(static::getTable())
+						->fetchAs(get_called_class())
+						->where(static::getDefaultWhere())
 						->orderBy(static::getDefaultSort())
 		;
 	}
-
+	
 	/**
 	 * Handle direct primary keys as params in where
 	 * @param int|array $where
@@ -1022,7 +1141,7 @@ class Orm {
 		}
 		return $where;
 	}
-	
+
 	/**
 	 * Enum list values based on class constants. Constants MUST_LOOK_LIKE_THIS
 	 * @staticvar array $constants
@@ -1031,17 +1150,17 @@ class Orm {
 	 */
 	public static function enum($name) {
 		static $constants;
-		
+
 		$name = strtoupper($name);
-		
-		if($constants === null) {
+
+		if ($constants === null) {
 			$ref = new ReflectionClass(get_called_class());
 			$constants = $ref->getConstants();
 		}
-		
+
 		$enum = array();
-		foreach($constants as $key => $value) {
-			if(strpos($key,$name) === 0) {
+		foreach ($constants as $key => $value) {
+			if (strpos($key, $name) === 0) {
 				$key = strtolower(str_replace($name . '_', '', $key));
 				$enum[$key] = $value;
 			}

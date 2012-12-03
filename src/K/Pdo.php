@@ -9,6 +9,7 @@ namespace K;
 class Pdo extends \PDO implements IDebuggable {
 
 	const SQLITE_MEMORY = 'sqlite::memory:';
+	const BACKTICK = '`';
 
 	/**
 	 * @var array 

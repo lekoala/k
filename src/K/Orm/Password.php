@@ -12,4 +12,10 @@ trait Password {
 		$this->password = \K\Password::hash($password);
 		return $this;
 	}
+	
+	public function generatePassword($length = 10, $chars = 'abcdefghjkpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXY3456789') {
+		$password = substr( str_shuffle( $chars ), 0, $length );
+		$this->setPassword($password);
+		return $password;
+	}
 }

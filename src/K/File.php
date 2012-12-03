@@ -211,10 +211,14 @@ class File {
 		}
 		$this->path = $path;
 	}
-	
+
+	public static function create($path) {
+		return new static($path);
+	}
+
 	public static function createFromUpload($name, $destination) {
-		if(isset($_FILES[$name])) {
-			if(is_dir($destination)) {
+		if (isset($_FILES[$name])) {
+			if (is_dir($destination)) {
 				$destination .= DIRECTORY_SEPARATOR . '/' . $_FILES[$name]['name'];
 			}
 			move_uploaded_file($_FILES[$name]['tmp_name'], $destination);
@@ -304,7 +308,7 @@ class File {
 		copy($this->getPath(), $filename);
 		chmod($filename, fileperms($this->getPath()));
 
-		return $filename;
+		return new static($filename);
 	}
 
 	public function getSize($format = true) {
@@ -347,8 +351,9 @@ class File {
 	public function rename($name) {
 		$this->checkIfDeleted();
 		$dir = $this->getDirectory();
-		if (strpos($name, DIRECTORY_SEPARATOR) !== false) {
+		if (strpos($name, DIRECTORY_SEPARATOR) === 0) {
 			$dir = pathinfo($name, PATHINFO_DIRNAME);
+			$name = pathinfo($name, PATHINFO_BASENAME);
 		}
 		$ext = pathinfo($name, PATHINFO_EXTENSION);
 		if (!$ext) {
@@ -378,7 +383,7 @@ class File {
 		header('Expires: 0');
 		ob_clean();
 		flush();
-		echo readfile($file);
+		echo readfile($this->getPath());
 		exit();
 	}
 
@@ -415,6 +420,36 @@ class File {
 		} catch (Exception $e) {
 			return $e->getMessage();
 		}
+	}
+
+	public static function emptyDir($dir, $selfDelete = false) {
+		if (!is_dir($dir)) {
+			throw new Exception($dir . ' is not a directory');
+		}
+		if (is_dir($dir))
+			$handle = opendir($dir);
+		if (!$handle)
+			return false;
+		while ($file = readdir($handle)) {
+			if ($file != "." && $file != "..") {
+				if (!is_dir($dir . "/" . $file))
+					@unlink($dir . "/" . $file);
+				else
+					static::emptyDir($dir . '/' . $file, true);
+			}
+		}
+		closedir($handle);
+		if ($selfDelete) {
+			@rmdir($dir);
+		}
+		return true;
+	}
+
+	public static function getMaxUploadSize() {
+		$maxUpload = (int) (ini_get('upload_max_filesize'));
+		$maxPost = (int) (ini_get('post_max_size'));
+		$memoryLimit = (int) (ini_get('memory_limit'));
+		return min($maxUpload, $maxPost, $memoryLimit);
 	}
 
 }

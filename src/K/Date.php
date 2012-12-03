@@ -2,7 +2,8 @@
 
 namespace K;
 
-use \Datetime;
+use \DateTime;
+use \DateTimeZone;
 
 /**
  * Extend datetime to allow to use it as a string
@@ -52,7 +53,7 @@ class Date extends DateTime {
 		if (empty($time) || $time == '0000-00-00') {
 			return null;
 		}
-		$dt = self::createFromFormat('Y-m-d', $time);
+		$dt = self::createFromFormat('Y-m-d', $time . ' 00:00:00');
 		if (!$dt) {
 			return null;
 		}

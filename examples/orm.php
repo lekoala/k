@@ -9,7 +9,8 @@ require SRC_PATH . '/K/init.php';
 
 $pdo = new K\Pdo(K\Pdo::SQLITE_MEMORY);
 K\Orm::configure(array(
-	'pdo' => $pdo
+	'pdo' => $pdo,
+	'storage' => __DIR__ . '/data'
 ));
 
 /**
@@ -39,10 +40,12 @@ class Profilepic extends K\Orm {
  * 	@property $firstname
  * 	@property $lastname
  * 	@property $password
- *  @property $created_at;
- *	@property $updated_at;
- *	@property $lat;
- *	@property $lng;
+ *  @property $picture
+ *  @property $birthday
+ *  @property $created_at
+ *	@property $updated_at
+ *	@property $lat
+ *	@property $lng
  */
 class User extends K\Orm {
 	
@@ -56,12 +59,26 @@ class User extends K\Orm {
 	protected $usertype_requested_id; //or protected static $hasOne = array('Usertype' => 'requested');
 	protected $firstname;
 	protected $lastname;
+	protected $picture;
 	protected $password;
+	protected $birthday;
 	
-	protected static $manyMany = array('Tag');
+	//sample validator
+	public static function validateFirstname($v) {
+		if(strlen($v) > 3) {
+			return true;
+		}
+	}
 	
 	public function fullname() {
 		return $this->firstname . ' ' . $this->lastname;
+	}
+	
+	//setter
+	public function _fullname($value) {
+		$parts = explode(' ', $value);
+		$this->firstname = $parts[0];
+		$this->lastname = $parts[1];
 	}
 	
 	public static function createTable($execute = true, $foreignKeys = true) {
@@ -91,9 +108,17 @@ User::createTable();
 Tag::createTable();
 ProfilePic::createTable();
 
+$file = new K\File(__DIR__ . '/data/pic.jpg');
+$file = $file->duplicate();
+
+$birthday = K\Date::createFromDate('1985-01-16');
+
 $user = new User();
-$user->firstname = 'Thomas';
+$user->firstname = 'koala';
 $user->lastname = 'Portelange';
+$user->fullname = 'Thomas Portelange';
+$user->picture = $file;
+$user->birthday = $birthday;
 $id = $user->save();
 
 //var_dump(User::select());
@@ -207,3 +232,5 @@ foreach($users as $user) {
 
 echo '<pre>' . __LINE__ . "\n";
 print_r(User::enum('role'));
+
+K\File::emptyDir(User::getBaseFolder());
