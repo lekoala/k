@@ -92,6 +92,10 @@ class Template {
 		}
 		self::$globalVars = array();
 	}
+	
+	public static function errorHandler($errno , $errstr, $errfile, $errline, $errcontext) {
+		echo $errstr;
+	}
 
 	/**
 	 * Render the template
@@ -100,9 +104,13 @@ class Template {
 	public function render() {
 		extract(array_merge($this->vars, self::$globalVars), EXTR_REFS);
 
+		set_error_handler(array(__CLASS__, 'errorHandler'));
+		
 		ob_start();
 		include($this->filename);
 		$output = ob_get_clean();
+		
+		restore_error_handler();
 
 		return $output;
 	}
@@ -114,7 +122,7 @@ class Template {
 	public function __toString() {
 		try {
 			return $this->render();
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			return $e->getMessage();
 		}
 	}

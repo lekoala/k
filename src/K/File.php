@@ -445,6 +445,22 @@ class File {
 		return true;
 	}
 
+	/**
+	 * Recursive glob
+	 * @param string $pattern Masque à vérifier
+	 * @param string $path Répertoire initial
+	 * @param integer $flags Drapeaux
+	 * @return array list of files
+	 */
+	public static function rglob($pattern = '*', $path = '', $flags = 0) {
+		$paths = glob($path . '*', GLOB_MARK | GLOB_ONLYDIR | GLOB_NOSORT);
+		$files = glob($path . $pattern, $flags);
+		foreach ($paths as $path) {
+			$files = array_merge($files, self::rglob($pattern, $path, $flags));
+		}
+		return $files;
+	}
+
 	public static function getMaxUploadSize() {
 		$maxUpload = (int) (ini_get('upload_max_filesize'));
 		$maxPost = (int) (ini_get('post_max_size'));
