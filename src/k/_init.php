@@ -4,6 +4,9 @@
 // Define constants
 define('START_TIME', microtime(true));
 define('START_MEMORY_USAGE', memory_get_usage(true));
+define('DS', DIRECTORY_SEPARATOR);
+define('PS', PATH_SEPARATOR);
+define('NS', '\\');
 
 // Define paths
 if (!defined('SRC_PATH'))
