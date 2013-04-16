@@ -1,6 +1,7 @@
 {
 	"name": "lekoala/k",
 	"description": "K framework",
+	"version":"1",
 	"license": "MIT",
 	"keywords": [
 		"php",
