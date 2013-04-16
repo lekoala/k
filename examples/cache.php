@@ -15,27 +15,27 @@ $pdo->createTable('cache',array(
 $filecache = new K\Cache(__DIR__ . '/cache');
 $dbcache = new K\Cache($pdo);
 
-$key = $filecache->get('key');
-$lkey = $filecache->get('lkey');
+$key = $filecache->getProperty('key');
+$lkey = $filecache->getProperty('lkey');
 
-$db_key = $dbcache->get('key');
+$db_key = $dbcache->getProperty('key');
 
 $key++;
 $lkey++;
 
 $db_key++;
 
-$filecache->set('key', $key);
-$dbcache->set('key',$db_key); //this is always empty since it's in memory :-)
-$filecache->set('lkey', $lkey,1);
+$filecache->setProperty('key', $key);
+$dbcache->setProperty('key',$db_key); //this is always empty since it's in memory :-)
+$filecache->setProperty('lkey', $lkey,1);
 //$dbcache->set('lkey','db value',0);
 
-echo 'key : ' . $filecache->get('key');
-echo '<br/>db : ' . $dbcache->get('key');
-echo '<br/>lkey : ' . $filecache->get('lkey');
+echo 'key : ' . $filecache->getProperty('key');
+echo '<br/>db : ' . $dbcache->getProperty('key');
+echo '<br/>lkey : ' . $filecache->getProperty('lkey');
 //echo 'db : ' . $dbcache->get('lkey');
 
-echo '<br/>db get : ' . $dbcache->get('key') ;
+echo '<br/>db get : ' . $dbcache->getProperty('key') ;
 
 echo '<pre>';
 $rows = $pdo->select('cache');

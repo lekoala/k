@@ -6,14 +6,22 @@ namespace k;
  * Simple template
  */
 class Template {
-
+	
+	use TConfigure;
+	
 	static protected $globalVars = array();
 	static protected $defaultExtension = 'phtml';
 	static protected $defaultPath;
 	protected $filename;
 	protected $vars;
-
-	function __construct($filename, $vars) {
+	
+	/**
+	 * Create a new template. You can pass multiple filenames like array('page','layout')
+	 * @param string|array $filename
+	 * @param array $vars
+	 * @throws Exception
+	 */
+	public function __construct($filename, $vars = array()) {
 		if (is_array($filename)) {
 			while (count($filename) > 1) {
 				$template = array_shift($filename);
@@ -38,20 +46,13 @@ class Template {
 		$this->filename = $filename;
 		$this->vars = $vars;
 	}
-
-	/**
-	 * Configure the class
-	 * @param array $options
-	 */
-	public static function configure($config) {
-		if ($config instanceof Config) {
-			$config = $config->get('Template', array());
-		}
-		if (is_array($config)) {
-			foreach ($config as $k => $v) {
-				self::$$v = $v;
-			}
-		}
+	
+	public function e($name) {
+		echo $this->vars[$name];
+	}
+	
+	public function t($name) {
+		
 	}
 
 	/**
@@ -91,6 +92,10 @@ class Template {
 		}
 		self::$globalVars = array();
 	}
+	
+	public static function errorHandler($errno , $errstr, $errfile, $errline, $errcontext) {
+		echo $errstr;
+	}
 
 	/**
 	 * Render the template
@@ -99,9 +104,13 @@ class Template {
 	public function render() {
 		extract(array_merge($this->vars, self::$globalVars), EXTR_REFS);
 
+		set_error_handler(array(__CLASS__, 'errorHandler'));
+		
 		ob_start();
 		include($this->filename);
 		$output = ob_get_clean();
+		
+		restore_error_handler();
 
 		return $output;
 	}
@@ -113,7 +122,7 @@ class Template {
 	public function __toString() {
 		try {
 			return $this->render();
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			return $e->getMessage();
 		}
 	}

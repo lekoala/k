@@ -176,7 +176,7 @@ class Arr {
 	 * @param array $arr
 	 * @return bool
 	 */
-	static function isAssoc(array $array) {
+	public static function isAssoc(array $array) {
 		//don't use array_keys or array_values because it takes a lot of memory for large arrays
 		foreach ($array as $k => $v) {
 			if (!is_int($k)) {
