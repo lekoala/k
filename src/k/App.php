@@ -2,40 +2,85 @@
 
 namespace k;
 
-class App {
+use \RuntimeException;
 
+class App {
+	
+	protected $dir;
+
+	/**
+	 * @var k\Config
+	 */
+	protected $config;
+
+	/**
+	 * @var k\Request
+	 */
 	protected $request;
+
+	/**
+	 * @var k\response
+	 */
 	protected $response;
 	protected $user;
 	protected $router;
 	protected $db;
 	protected $debugBar;
+	protected $modules = array();
 
-	public function __construct($config = null) {
-		if ($config) {
-			$this->applyConfig($config);
+	public function __construct($dir) {
+		if (!is_dir($dir)) {
+			throw new InvalidArgumentException($dir);
 		}
+		$this->dir = $dir;
 		
-		$this->request = new Request();
-		$this->response = new Response();
-	}
+		if(is_file($dir . '/config.php')) {
+			$this->config = new Config($dir . '/config.php');
+		}
+		else {
+			$this->config = new Config();
+		}
 
-	public function applyConfig($config) {
-		foreach ($config->toArray() as $obj => $opts) {
-			if (property_exists($this, $obj)) {
-				if (is_object($this->$obj) && method_exists($this->$obj, 'configure')) {
-					$this->$obj->configure($opts);
-				} else {
-					$class = 'K\\' . ucfirst($obj);
-					$this->$obj = new $class($opts);
+		$this->initModules();
+	}
+	
+	protected function initModules() {
+		$modules = $this->config->get('modules',array());
+		$defaultModule = $this->config->get('default_module','main');
+		if(empty($modules)) {
+			$dir = new fs\Directory($this->dir);
+			foreach($dir as $fi) {
+				if($fi->isDir()) {
+					$modules[] = $fi->getBasename();
 				}
 			}
 		}
+		if(!in_array($defaultModule, $modules)) {
+			throw new RuntimeException('Default module does not exist : ' . $defaultModule);
+		}
+		foreach($modules as $module) {
+			$this->modules[] = new Module($this,$module);
+		}
+	}
+
+	public function run() {
+		$this->request = new Request();
+		$this->response = new Response();
+		
+		$result = $this->handle($this->request->getUrl(false));
+		
+		return $this->response->send();
+	}
+	
+	public function handle($path) {
+		echo '<pre>';
+		var_dump($path);
+		exit();
 	}
 
 	public function __toString() {
 		try {
-			return (string) $this->response;
+			return (string) $this->run();
 		} catch (Exception $e) {
 			return $e->getMessage();
 		}
