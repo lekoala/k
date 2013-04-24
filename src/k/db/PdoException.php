@@ -1,10 +1,12 @@
 <?php
 namespace db;
 
+use \PDOException as NativePdoException;
+
 /**
  * @author tportelange
  */
-class exception extends \PDOException {
+class PdoException extends NativePdoException {
 
 	public function __construct($e) {
 		if (is_string($e)) {

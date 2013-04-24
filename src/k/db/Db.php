@@ -1,11 +1,16 @@
 <?php
 
+namespace db;
+
+use \PDO;
+use \PDOException as NativePdoException;
+
 /**
  * Description of config
  *
  * @author tportelange
  */
-class db {
+class Db {
 
 	protected $pdo = null;
 	protected $user;
@@ -170,9 +175,9 @@ class db {
 			$result = $this->getPdo()->exec($statement);
 			$time = microtime(true) - $time;
 			$this->log($statement, $time);
-		} catch (\PDOException $e) {
+		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new db\exception($e);
+			throw new PdoException($e);
 		}
 		return $result;
 	}
@@ -189,9 +194,9 @@ class db {
 			$result = $this->getPdo()->query($statement);
 			$time = microtime(true) - $time;
 			$this->log($statement, $time);
-		} catch (\PDOException $e) {
+		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new db\exception($e);
+			throw new PdoException($e);
 		}
 
 		return $result;
@@ -207,9 +212,9 @@ class db {
 	public function prepare($statement, $driver_options = array()) {
 		try {
 			return $this->getPdo()->prepare($statement, $driver_options)->setDb($this);
-		} catch (\PDOException $e) {
+		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new db\exception($e);
+			throw new PdoException($e);
 		}
 	}
 

@@ -2,46 +2,82 @@
 namespace k;
 
 use \Exception;
+use \InvalidArgumentException;
 
-class module {
+class Module {
+	/**
+	 * @var App
+	 */
+	protected $app;
 	protected $dir;
-	protected $viewDir = 'views';
 	
-	function __construct() {
-		$this->dir = __DIR__;
+	public function __construct(App $app, $dir) {
+		$dir = $app->getDir() . '/modules/' . $dir;
+		$this->setApp($app);
+		$this->setDir($dir);
 	}
 	
-	function setDir($dir) {
+	/**
+	 * @return App
+	 */
+	public function getApp() {
+		return $this->app;
+	}
+	
+	public function setApp($app) {
+		$this->app = $app;
+		return $this;
+	}
+	
+	public function getDir() {
+		return $this->dir;
+	}
+	
+	public function setDir($dir) {
 		if(!is_dir($dir)) {
-			throw new Exception('Not a directory : ' . $dir);
+			throw new InvalidArgumentException('Not a directory : ' . $dir);
 		}
 		$this->dir = $dir;
+		return $this;
 	}
 	
-	function dispatch($params) {
-		$templ = '';
-		$i = 0;
-		foreach($params as $k => $v) {
-			if(!empty($templ)) {
-				$i++;
-				if($i > 2) {
-					break;
-				}
-				$templ .= '/';
+	protected function config($v,$default = null) {
+		return $this->getApp()->getConfig()->get($v,$default);
+	}
+	
+	public function dispatch($params) {
+		//if the module have a views dir, look for a template
+		$renderer = $this->getApp()->getViewRenderer();
+		$viewDir = $this->getDir() . '/' . $renderer->getViewDir();
+		if(is_dir($viewDir)) {
+			$view = '';
+			$parts = $params;
+			while(empty($view) && !empty($parts)) {
+				$filename = implode('/', $parts);
+				$view = $renderer->resolve($filename,$this->getDir());
+				array_pop($parts);
 			}
-			$templ .= $v;
+			if(empty($view)) {
+				$view = $renderer->getDefaultView();
+				$view = $renderer->resolve($view,$this->getDir());
+			}
+			if($view) {
+				return $renderer->renderWithLayout($view);
+			}
+		} 
+		
+		//if the module have an actions dir, look for actions
+		$actionsDir = $this->getDir() . '/' . $this->config('action/dir','actions');
+		if(is_dir($actionsDir)) {
+			
 		}
+  		
 		
-		if(empty($templ)) {
-			$templ = 'index';
+		
+	
+		$templFile = $renderer->resolve($view,$this->dir);
+		if($templFile) {
+			return $this->getApp()->getViewRenderer()->renderWithLayout($templFile);
 		}
-		
-		$file = $this->dir . DIRECTORY_SEPARATOR . $this->viewDir . DIRECTORY_SEPARATOR . $templ;
-		
-		
-		
-		echo '<pre>' . __LINE__ . "\n";
-		print_r($file);
-		exit();
 	}
 }

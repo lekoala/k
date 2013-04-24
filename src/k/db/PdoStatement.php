@@ -2,12 +2,11 @@
 
 namespace db;
 
+use \PDOStatement as NativePdoStatement;
 /**
  * @author tportelange
  */
-class statement extends \PDOStatement {
-	
-	use \req\tdb;
+class PdoStatement extends NativePdoStatement {
 	
 	private function __construct($pdo) {
 		//need to declare construct as private

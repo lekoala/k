@@ -12,8 +12,6 @@ use ReflectionClass;
  */
 class Orm {
 
-	use TConfigure;
-
 	protected $_original = array();
 	protected $_cache = array();
 
