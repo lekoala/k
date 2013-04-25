@@ -1,14 +1,19 @@
 <?php
 
-namespace db;
+namespace k\db;
 
 use \PDOStatement as NativePdoStatement;
 /**
  * @author tportelange
  */
 class PdoStatement extends NativePdoStatement {
+	/**
+	 * @var Pdo
+	 */
+	protected $pdo;
 	
 	private function __construct($pdo) {
+		$this->pdo = $pdo;
 		//need to declare construct as private
 	}
 	
@@ -33,9 +38,9 @@ class PdoStatement extends NativePdoStatement {
 			$time = microtime(true);
 			$result = parent::execute($params);
 			$time = microtime(true) - $time;
-			$this->getDb()->log($niceSql, $time);
+			$this->pdo->log($niceSql, $time);
 		} catch (\PDOException $e) {
-			$this->getDb()->log($niceSql);
+			$this->pdo->log($niceSql);
 			throw new exception($e);
 		}
 

@@ -1,5 +1,5 @@
 <?php
-namespace db;
+namespace k\db;
 
 use \PDOException as NativePdoException;
 

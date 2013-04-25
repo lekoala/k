@@ -9,12 +9,10 @@ class Module {
 	 * @var App
 	 */
 	protected $app;
-	protected $dir;
+	protected $name;
 	
-	public function __construct(App $app, $dir) {
-		$dir = $app->getDir() . '/modules/' . $dir;
+	public function __construct(App $app) {
 		$this->setApp($app);
-		$this->setDir($dir);
 	}
 	
 	/**
@@ -29,16 +27,21 @@ class Module {
 		return $this;
 	}
 	
-	public function getDir() {
-		return $this->dir;
+	public function getName() {
+		if($this->name === null) {
+			$obj = explode('\\', get_called_class());
+			$this->name = end($obj);
+		}
+		return $this->name;
+	}
+		
+	public function setName($name) {
+		$this->name = $name;
+		return $this;
 	}
 	
-	public function setDir($dir) {
-		if(!is_dir($dir)) {
-			throw new InvalidArgumentException('Not a directory : ' . $dir);
-		}
-		$this->dir = $dir;
-		return $this;
+	public function getSrcDir() {
+		return $this->getApp()->getDir() . '/src/modules/' . $this->getName();
 	}
 	
 	protected function config($v,$default = null) {
@@ -48,7 +51,7 @@ class Module {
 	public function dispatch($params) {
 		//if the module have a views dir, look for a template
 		$renderer = $this->getApp()->getViewRenderer();
-		$viewDir = $this->getDir() . '/' . $renderer->getViewDir();
+		$viewDir = $renderer->getViewDir() . '/' . strtolower($this->getName());
 		if(is_dir($viewDir)) {
 			$view = '';
 			$parts = $params;
@@ -61,23 +64,18 @@ class Module {
 				$view = $renderer->getDefaultView();
 				$view = $renderer->resolve($view,$this->getDir());
 			}
+			echo '<pre>';
+			var_dump($view);
+			exit();
 			if($view) {
 				return $renderer->renderWithLayout($view);
 			}
 		} 
 		
 		//if the module have an actions dir, look for actions
-		$actionsDir = $this->getDir() . '/' . $this->config('action/dir','actions');
-		if(is_dir($actionsDir)) {
+		$srcDir = $this->getSrcDir();
+		if(is_dir($srcDir)) {
 			
-		}
-  		
-		
-		
-	
-		$templFile = $renderer->resolve($view,$this->dir);
-		if($templFile) {
-			return $this->getApp()->getViewRenderer()->renderWithLayout($templFile);
 		}
 	}
 }

@@ -12,11 +12,15 @@ use \InvalidArgumentException;
  */
 class Directory extends FilesystemIterator {
 
-	public function __construct($path) {
-		if(!is_dir($path)) {
-			throw new InvalidArgumentException('Path should be a dir');
-		}
-		parent::__construct($path);
+	protected $path;
+	
+	public function __construct($path, $flags = null) {
+		$this->path = $path;
+		parent::__construct($path, $flags);
+	}
+	
+	public function __toString() {
+		return $this->path;
 	}
 
 }

@@ -3,6 +3,23 @@
 namespace k;
 
 class Session {
+	
+	public function __construct() {
+		ini_set('session.use_cookies', 1);
+		
+		if (version_compare(phpversion(), '5.4.0', '>=')) {
+            session_register_shutdown();
+        } else {
+            register_shutdown_function('session_write_close');
+        }
+	}
+	
+	public function start() {
+		if(!$this->isActive()) {
+			return session_start();
+		}
+		return true;
+	}
 
 	/**
 	 * Get a session value or the whole session array. / notation allowed
@@ -61,6 +78,22 @@ class Session {
 		}
 		$loc = $value;
 		return $_SESSION;
+	}
+	
+	/**
+	 * A value to a session array
+	 * 
+	 * @param string $key
+	 * @param string $value
+	 * @return string
+	 */
+	public function add($key, $value) {
+		$v = $this->get($key);
+		if(!is_array($v)) {
+			$v = array();
+		}
+		$v[] = $value;
+		return $this->set($key,$v);
 	}
 
 	/**

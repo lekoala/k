@@ -1,27 +1,86 @@
 <?php
 
-namespace db;
+namespace k\db;
 
-use \PDO;
+use \PDO as NativePdo;
 use \PDOException as NativePdoException;
 
 /**
- * Description of config
+ * Pdo extension. The class extends PDO to allow itself to pass
+ * as an instance of PDO.
  *
- * @author tportelange
+ * @author lekoala
  */
-class Db {
+class Pdo extends NativePdo {
 
+	/**
+	 * Inner pdo instance to allow lazy connection
+	 * @var NativePdo
+	 */
 	protected $pdo = null;
+	
+	/**
+	 * User
+	 * @var string
+	 */
 	protected $user;
+	
+	/**
+	 * Password
+	 * @var password
+	 */
 	protected $password;
+	
+	/**
+	 * Dsn built from given arguments or as is
+	 * @var string
+	 */
 	protected $dsn;
+	
+	/**
+	 * Dbtype (mysql, sqlite...)
+	 * @var string
+	 */
 	protected $dbtype;
+	
+	/**
+	 * Db name if specified
+	 * @var string
+	 */
 	protected $dbname;
+	
+	/**
+	 * Options for the connection
+	 * @var options
+	 */
 	protected $options;
+	
+	/**
+	 * Store queries
+	 * @var array
+	 */
 	protected $log = array();
+	
+	/**
+	 * Log level to use for the logger
+	 * @var string
+	 */
+	protected $logLevel = 'debug';
+	
+	/**
+	 * Define a psr-3 logger
+	 * @var \k\log\LoggerInterface
+	 */
 	protected $logger;
 
+	/**
+	 * Create a new instance of the pdo. The connection is actually made later.
+	 * 
+	 * @param string|array $dsn You can overload this argument with an array of parameters
+	 * @param string $user
+	 * @param string $password
+	 * @param array $options
+	 */
 	public function __construct($dsn, $user = null, $password = null, array $options = array()) {
 		if (is_array($dsn)) {
 			//extract params
@@ -66,15 +125,15 @@ class Db {
 			$params = self::parseDsn($dsn);
 			extract($params);
 		}
-
-		$this->dsn = $dsn;
-		$this->dbtype = $dbtype;
+		
+		$this->setDsn($dsn);
+		$this->setDbtype($dbtype);
 		if (isset($dbname)) {
-			$this->dbname = $dbname;
+			$this->setDbname($dbname);
 		}
-		$this->user = $user;
-		$this->password = $password;
-		$this->options = $options;
+		$this->setUser($user);
+		$this->setPassword($password);
+		$this->setOptions($options);
 	}
 
 	/**
@@ -145,24 +204,95 @@ class Db {
 	}
 
 	public function setPdo($dsn, $user = null, $password = null, array $options = array()) {
-		$this->pdo = new PDO($dsn, $user, $password, $options);
+		$this->pdo = new NativePdo($dsn, $user, $password, $options);
 
 		//always throw exception
 		$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-//		$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_WARNING);
-
-		//don't emulate prepare
-		//WARNING : somehow this messes up transactions...
-//		$this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
 		//use custom pdo statement class
-		$this->pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('db\statement', array($this)));
+		$this->pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('\k\db\PdoStatement', array($this)));
+	}
+
+	public function getUser() {
+		return $this->user;
+	}
+
+	public function setUser($user) {
+		$this->user = $user;
+		return $this;
+	}
+
+	public function getPassword() {
+		return $this->password;
+	}
+
+	public function setPassword($password) {
+		$this->password = $password;
+		return $this;
+	}
+
+	public function getDsn() {
+		return $this->dsn;
+	}
+
+	public function setDsn($dsn) {
+		$this->dsn = $dsn;
+		return $this;
+	}
+
+	public function getDbtype() {
+		return $this->dbtype;
+	}
+
+	public function setDbtype($dbtype) {
+		$this->dbtype = $dbtype;
+		return $this;
+	}
+
+	public function getDbname() {
+		return $this->dbname;
+	}
+
+	public function setDbname($dbname) {
+		$this->dbname = $dbname;
+		return $this;
+	}
+
+	public function getOptions() {
+		return $this->options;
+	}
+
+	public function setOptions($options) {
+		$this->options = $options;
+		return $this;
+	}
+
+	public function getLog() {
+		return $this->log;
 	}
 	
+	public function setLog(array $log) {
+		return $this->log = $log;
+	}
+	
+	public function getLogLevel() {
+		return $this->logLevel;
+	}
+
+	public function setLogLevel($logLevel) {
+		$this->logLevel = $logLevel;
+		return $this;
+	}
+
+	public function getLogger() {
+		return $this->logger;
+	}
+
 	public function setLogger($logger) {
 		$this->logger = $logger;
+		return $this;
 	}
-	
+
 	/**
 	 * Exec wrapper for stats
 	 * 
@@ -186,7 +316,7 @@ class Db {
 	 * Query wrapper for stats
 	 * 
 	 * @param string $statement
-	 * @return db\statement
+	 * @return \k\db\PdoStatement
 	 */
 	public function query($statement) {
 		try {
@@ -207,11 +337,11 @@ class Db {
 	 * 
 	 * @param string $statement
 	 * @param array $driver_options
-	 * @return db\statement
+	 * @return \k\db\PdoStatement
 	 */
 	public function prepare($statement, $driver_options = array()) {
 		try {
-			return $this->getPdo()->prepare($statement, $driver_options)->setDb($this);
+			return $this->getPdo()->prepare($statement, $driver_options);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
 			throw new PdoException($e);
@@ -226,29 +356,40 @@ class Db {
 	 */
 	public function log($sql, $time = null) {
 		$this->log[] = compact('sql', 'time');
-		if($this->logger) {
-			$this->logger->debug($sql);
+		if ($this->logger) {
+			$this->logger->log($this->getLogLevel(),$sql);
 		}
 	}
 
-	public function transaction_start_no_commit() {
-		return $this->query('SET AUTOCOMMIT=0; START TRANSACTION');
-	}
-	
-	public function transaction_start() {
-		return $this->query('START TRANSACTION');
-	}
-
-	public function transaction_rollback() {
-		return $this->query('ROLLBACK');
-	}
-
-	public function transaction_commit() {
-		return $this->query('COMMIT');
+	/**
+	 * Start transaction
+	 * 
+	 * @param bool $autocommit
+	 * @return int
+	 */
+	public function startTransaction($autocommit = false) {
+		if ($autocommit) {
+			return $this->exec('SET AUTOCOMMIT=0; START TRANSACTION');
+		}
+		return $this->exec('START TRANSACTION');
 	}
 
-	public function getLog() {
-		return $this->log;
+	/**
+	 * Rollback transaction
+	 * 
+	 * @return int
+	 */
+	public function rollbackTransaction() {
+		return $this->exec('ROLLBACK');
+	}
+
+	/**
+	 * Commit transaction
+	 * 
+	 * @return init
+	 */
+	public function commitTransaction() {
+		return $this->exec('COMMIT');
 	}
 
 	/**
@@ -272,12 +413,24 @@ class Db {
 		return $this->getPdo()->quote($value, $parameter_type);
 	}
 
+	/**
+	 * Get a select query builder
+	 * 
+	 * @param string $from
+	 * @return Query
+	 */
 	public function q($from = null) {
-		return db\query::create($from)->setDb($this);
+		return Query::create($this)->from($from);
 	}
 
-	function lastInsertId() {
-		return $this->getPdo()->lastInsertId();
+	/**
+	 * Get last inserted id performed by the current connection (even if rolled back)
+	 * 
+	 * @param string $seqname
+	 * @return int
+	 */
+	public function lastInsertId($name = null) {
+		return $this->getPdo()->lastInsertId($name);
 	}
 
 	/**
@@ -287,7 +440,7 @@ class Db {
 	 * @param array $data
 	 * @return int The id of the record
 	 */
-	function insert($table, array $data) {
+	public function insert($table, array $data) {
 		$params = array();
 		foreach ($data as $k => $v) {
 			$keys[] = $k;
@@ -316,13 +469,13 @@ class Db {
 	 * @param array $params
 	 * @return bool
 	 */
-	function update($table, array $data, $where = null, $params = array()) {
+	public function update($table, array $data, $where = null, $params = array()) {
 		$sql = 'UPDATE ' . $table . " SET \n";
 		self::toNamedParams($where, $params);
 		foreach ($data as $k => $v) {
 			$placeholder = ':' . $k;
-			while(isset($params[$placeholder])) {
-				$placeholder .= rand(1,9);
+			while (isset($params[$placeholder])) {
+				$placeholder .= rand(1, 9);
 			}
 			$sql .= $k . ' = ' . $placeholder . ', ';
 			$params[$placeholder] = $v;
@@ -344,7 +497,7 @@ class Db {
 	 * @param array $params
 	 * @return bool
 	 */
-	function delete($table, $where = null, $params = array()) {
+	public function delete($table, $where = null, $params = array()) {
 		$sql = 'DELETE FROM ' . $table . '';
 		$this->injectWhere($sql, $where, $params);
 		$stmt = $this->prepare($sql);
@@ -353,7 +506,7 @@ class Db {
 		$stmt = null;
 		return $result;
 	}
-	
+
 	/**
 	 * A fix to convert ? to named params
 	 * 
@@ -372,7 +525,7 @@ class Db {
 		}
 	}
 
-		/**
+	/**
 	 * Inject where clause at the end of a sql statement
 	 * 
 	 * @param string $sql
@@ -384,10 +537,10 @@ class Db {
 			$pdo = $this;
 			array_walk($where, function (&$item, $key) use (&$params, $pdo) {
 						$placeholder = ':' . $key;
-						while(isset($params[$placeholder])) {
-							$placeholder .= rand(1,9);
+						while (isset($params[$placeholder])) {
+							$placeholder .= rand(1, 9);
 						}
-							
+
 						if (is_array($item)) {
 							$item = array_unique($item);
 							$item = $key . " IN (" . $pdo->quote($item) . ")";
@@ -405,13 +558,13 @@ class Db {
 		}
 		return $sql;
 	}
-	
+
 	/**
 	 * Fetch a single value
 	 * 
 	 * @param string $field
 	 * @param string $from
-	 * @return db\query
+	 * @return Query
 	 */
 	public function fetchValue($field, $from = null) {
 		return $this->q($from)->fields($field)->get('fetchValue');
