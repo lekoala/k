@@ -41,7 +41,7 @@ class PdoStatement extends NativePdoStatement {
 			$this->pdo->log($niceSql, $time);
 		} catch (\PDOException $e) {
 			$this->pdo->log($niceSql);
-			throw new exception($e);
+			throw new PdoException($e);
 		}
 
 		return $result;

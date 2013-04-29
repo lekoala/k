@@ -44,7 +44,7 @@ class Controller {
 	 * @var View
 	 */
 	protected $view;
-	
+
 	/**
 	 * Layout of the app, if any
 	 * 
@@ -53,8 +53,8 @@ class Controller {
 	protected $layout;
 
 	public function __construct($app) {
-		if (!$app instanceof k\App) {
-			throw new InvalidArgumentException('You must pass an app');
+		if (!$app instanceof \k\App) {
+			throw new InvalidArgumentException('You must pass an instance of k\app, ' . get_class($app) . ' was passed');
 		}
 		$this->app = $app;
 		$this->init();
@@ -64,16 +64,19 @@ class Controller {
 		//implement in subclass
 	}
 
+	public function post() {
+		//implement in subclass
+	}
+
 	public function init() {
 		//implement in subclass
 	}
-	
+
 	public function e($callback) {
 		try {
 			return $callback();
-		}
-		catch(\Exception $e) {
-			$this->getApp()->notify($e->getMessage(),'error');
+		} catch (\Exception $e) {
+			$this->getApp()->notify($e->getMessage(), 'error');
 		}
 		return false;
 	}
@@ -90,7 +93,7 @@ class Controller {
 	 */
 	public function in($k, $filter = null, $default = null) {
 		$v = $this->getApp()->getHttp()->in($k, $default);
-		if($this->getView()) {
+		if ($this->getView()) {
 			$this->getView()->$k = $v;
 		}
 		return $v;
@@ -114,18 +117,15 @@ class Controller {
 
 	public function redirect($url) {
 		if (strpos($url, '.') === 0) {
-			$name = trim(strtolower(preg_replace('/([A-Z])/', "_$1", $this->getName())), '_');
-			$url = str_replace('./', '/' . str_replace('Controller_', '', $name) . '/', $url);
+			$name = str_replace($this->getApp()->getControllerPrefix(), '', $this->getName());
+			$name = trim(strtolower(preg_replace('/([A-Z])/', "_$1", $name)), '_');
+			$url = str_replace('./', '/' . $name . '/', $url);
 		}
 		$this->getApp()->getHttp()->redirect($url, 302, true);
 	}
 
 	public function redirectBack() {
 		$this->getApp()->getHttp()->redirectBack();
-	}
-	
-	public function getService($name) {
-		return $this->getApp()->resolveService($name);
 	}
 
 	public function getApp() {
@@ -145,7 +145,7 @@ class Controller {
 		$this->requiresAuth = $requiresAuth;
 		return $this;
 	}
-	
+
 	public function getName() {
 		if ($this->name === null) {
 			$obj = explode('\\', get_called_class());
@@ -153,28 +153,38 @@ class Controller {
 		}
 		return $this->name;
 	}
-
-	public function setName($name) {
-		$this->name = $name;
-		return $this;
+	
+	public function getService($name) {
+		return $this->getApp()->resolveService($name);
 	}
 	
-	public function getLayout() {
-		return $this->layout;
-	}
+	/* shortcut to access app properties */
 
-	public function setLayout(View $layout) {
-		$this->layout = $layout;
-		return $this;
+	public function getLayout() {
+		return $this->getApp()->getLayout();
 	}
 
 	public function getView() {
-		return $this->view;
+		return $this->getApp()->getView();
 	}
 
-	public function setView(View $view) {
-		$this->view = $view;
-		return $this;
+	public function getDb() {
+		return $this->getApp()->getDb();
+	}
+	
+	public function getUser() {
+		return $this->getApp()->getUser();
+	}
+
+	public function getSession() {
+		return $this->getApp()->getSession();
+	}
+
+	public function session($k, $v = null) {
+		if ($v === null) {
+			return $this->getSession()->get($k);
+		}
+		return $this->getSession()->set($k, $v);
 	}
 
 }

@@ -15,8 +15,6 @@ class Date extends DateTime {
 	const HOUR = 3600;
 	const MINUTE = 60;
 
-	use TConfigure;
-
 	protected static $defaultFormat = 'Y-m-d H:i:s';
 
 	/**

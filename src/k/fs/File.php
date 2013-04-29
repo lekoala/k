@@ -111,16 +111,26 @@ class File extends SplFileInfo {
 		return new static($new);
 	}
 
-	public function duplicate($dir = null) {
+	public function duplicate($dir = null, $create = true) {
 		if (!$dir) {
 			$dir = $this->getPath();
 		}
-		if (!is_writable($dir)) {
-			throw new InvalidArgumentException($dir);
+		if(!is_dir($dir)) {
+			$filename = $dir;
+			$name = basename($filename);
+			$dir = dirname($dir);
 		}
-		$i = 1;
-		$name = $this->getBasename('.' . $this->getExtension());
-		$filename = $dir . DIRECTORY_SEPARATOR . $name . '_' . $i . '.' . $this->getExtension();
+		else {
+			$i = 1;
+			$name = $this->getBasename('.' . $this->getExtension());
+			$filename = $dir . DIRECTORY_SEPARATOR . $name . '_' . $i . '.' . $this->getExtension();
+		}
+		if($create && !is_dir($dir)) {
+			mkdir($dir,0777,true);
+		}
+		if (!is_writable($dir)) {
+			throw new InvalidArgumentException("Directory is not writable '$dir'");
+		}
 		while (is_file($filename)) {
 			$i++;
 			$filename = $dir . DIRECTORY_SEPARATOR . $name . '_' . $i . '.' . $this->getExtension();

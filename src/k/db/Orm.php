@@ -2,8 +2,8 @@
 
 namespace k\db;
 
-use K\Pdo;
 use ReflectionClass;
+use Exception;
 
 /**
  * Description of Orm
@@ -12,13 +12,47 @@ use ReflectionClass;
  */
 class Orm {
 
-	protected $_original = array();
-	protected $_cache = array();
+	/**
+	 * Store record properties
+	 * @var array
+	 */
+	protected $data = array();
 
 	/**
-	 * @var Pdo
+	 * Store original record properties to be able to make a diff when updating
+	 * @var array
+	 */
+	protected $original = null;
+
+	/**
+	 * Cache resolved objects
+	 * @var array
+	 */
+	protected $cache = array();
+
+	/**
+	 * \k\Pdo instance used to query the database
+	 * @var \k\Pdo
 	 */
 	protected static $pdo;
+
+	/**
+	 * Store fields properties
+	 * @var array 
+	 */
+	protected static $fields = array();
+
+	/**
+	 * Store has-one relations
+	 * @var array 
+	 */
+	protected static $hasOne = array();
+
+	/**
+	 * Store has-many relatiosn
+	 * @var array 
+	 */
+	protected static $hasMany = array();
 
 	/**
 	 * Store many-many relations like array('Class' => array('my','extra','field'))
@@ -27,30 +61,19 @@ class Orm {
 	protected static $manyMany = array();
 
 	/**
+	 * Folder to store items related to this class
 	 * @var string
 	 */
 	protected static $storage;
-
+	
 	/**
-	 * Define validation rules. You can also define custom methods like validateFieldName()
-	 * @var array
+	 * Store validation rules
+	 * @var array 
 	 */
-	protected static $validation = array(
-		'id' => 'int'
-	);
+	protected static $validation = array();
 
-	public function __construct($where = null) {
-		if ($where) {
-			$where = static::detectPrimaryKeys($where);
-			$params = array();
-			$stmt = static::getPdo()->selectStmt(static::getTable(), $where, null, null, '*', $params);
-			$stmt->setFetchMode(\PDO::FETCH_INTO, $this);
-			$result = $stmt->execute($params);
-			if (!$stmt->fetch()) {
-				throw new Exception('Failed to load record ' . json_encode(array_values($where)) . ' of class ' . get_called_class());
-			}
-		}
-		$this->_original = $this->toArray();
+	public function __construct() {
+		$this->original = $this->data;
 	}
 
 	/**
@@ -85,8 +108,7 @@ class Orm {
 			} elseif (strpos($type, 'VARCHAR') !== false) {
 				$len = preg_replace("/[^0-9,.]/", "", $type);
 				$value = substr($value, 0, $len);
-			} elseif (strpos($type, 'DECIMAL') !== false
-					|| strpos($type, 'FLOAT') !== false) {
+			} elseif (strpos($type, 'DECIMAL') !== false || strpos($type, 'FLOAT') !== false) {
 				$value = rand(0, 100) . '.' . rand(0, 100);
 			} elseif ($type == 'TEXT') {
 				$v = '';
@@ -116,26 +138,48 @@ class Orm {
 	}
 
 	public function __get($name) {
-		return $this->getProperty($name);
+		return $this->getField($name);
 	}
 
 	public function __set($name, $value) {
-		return $this->setProperty($name, $value);
+		//the class is not yet initialized, just inject data into it
+		if($this->original === null) {
+			$this->data[$name] = $value;
+		}
+		return $this->setField($name, $value);
+	}
+	
+	public function hasField($name) {
+		if(array_key_exists($name,$this->data)) {
+			return true;
+		}
+		return false;
 	}
 
+	/**
+	 * Get raw value from a field
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	public function getRawField($name) {
+		if($this->hasField($name)) {
+			return $this->data[$name];
+		}
+	}
+	
 	/**
 	 * Get a property or a virtual property
 	 * @param string $name
 	 * @return string
 	 */
-	public function getProperty($name) {
-		//property or extra field property
-		if (property_exists($this, $name)) {
-			return $this->$name;
+	public function getField($name) {
+		$method = 'get_' . $name;
+		if(method_exists($this, $method)) {
+			return $this->$method();
 		}
-		//virtal properties
-		elseif (method_exists($this, $name)) {
-			return $this->$name();
+		elseif(array_key_exists($name,$this->data)) {
+			return $this->data[$name];
 		}
 		//relation
 		else {
@@ -144,7 +188,7 @@ class Orm {
 				return $o;
 			}
 		}
-		return '';
+		return null;
 	}
 
 	/**
@@ -154,20 +198,20 @@ class Orm {
 	 * @return Object
 	 */
 	public function getAs($name, $class) {
-		if(isset($this->_cache[$name])) {
-			return $this->_cache[$name];
+		if (isset($this->cache[$name])) {
+			return $this->cache[$name];
 		}
-		$this->_cache[$name] = $class::create($this->getProperty($name));
-		return $this->_cache[$name];
+		$this->cache[$name] = $class::create($this->getField($name));
+		return $this->cache[$name];
 	}
 
 	/**
 	 * Get a property as a date
 	 * @param string $name
-	 * @return K\Date
+	 * @return \k\Date
 	 */
 	public function getAsDate($name) {
-		return static::getAs($name, 'Date');
+		return static::getAs($name, '\k\Date');
 	}
 
 	/**
@@ -176,7 +220,7 @@ class Orm {
 	 * @return K\File
 	 */
 	public function getAsFile($name) {
-		$path = static::getBaseFolder() . '/' . $this->getProperty($name);
+		$path = static::getBaseFolder() . '/' . $this->getField($name);
 		return static::getAs($path, 'File');
 	}
 
@@ -185,7 +229,7 @@ class Orm {
 	 * @param bool $create
 	 * @return string
 	 */
-	public static function getBaseFolder($create = true) {
+	public static function getBaseFolder($create = false) {
 		$folder = static::$storage . '/' . static::getTable();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
@@ -198,10 +242,25 @@ class Orm {
 	 * @param bool $create
 	 * @return string
 	 */
-	public function getFolder($create = true) {
+	public function getFolder($create = false) {
 		$folder = static::getBaseFolder() . '/' . $this->getId();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
+		}
+		return $folder;
+	}
+
+	/**
+	 * Get sub folder
+	 * 
+	 * @param string $folder
+	 * @param bool $create
+	 * @return string
+	 */
+	public function getSubFolder($folder, $create = false) {
+		$folder = $this->getFolder() . '/' . $folder;
+		if ($create && !is_dir($folder)) {
+			mkdir($folder, 0777, true);
 		}
 		return $folder;
 	}
@@ -238,11 +297,11 @@ class Orm {
 	 * @param mixed $value
 	 * @return \K\Orm
 	 */
-	public function setProperty($name, $value) {
+	public function setField($name, $value) {
 		if (is_object($value)) {
 			if (is_subclass_of($value, 'K\Orm')) {
 				$object = $value;
-				if($object->exists()) {
+				if ($object->exists()) {
 					$value = $value->getId();
 				}
 			} else {
@@ -250,7 +309,7 @@ class Orm {
 					case 'K\File':
 						$folder = static::getBaseFolder();
 						while (true) {
-							$filename = uniqid($name) . '.' . $value->getExtension(); 
+							$filename = uniqid($name) . '.' . $value->getExtension();
 							if (!file_exists($folder . '/' . $filename))
 								break;
 						}
@@ -265,14 +324,14 @@ class Orm {
 		} elseif (is_array($value)) {
 			$value = implode(',', $value);
 		}
-		static::validate($name, $value);
-		$method = '_' . $name;
-		if (property_exists($this, $name)) {
-			$this->$name = $value;
-		}
+//		static::validate($name, $value);
+		$method = 'set_' . $name;
 		//virtual property setter
-		elseif (method_exists($this, $method)) {
+		if(method_exists($this, $method)) {
 			$this->$method($value);
+		}
+		elseif(array_key_exists($name,$this->data)) {
+			$this->data[$name] = $value;
 		}
 		//relation
 		else {
@@ -353,7 +412,7 @@ class Orm {
 						$o = new $class;
 						$o->$pk = $key;
 					}
-					$record->_cache[$column] = $o;
+					$record->cache[$column] = $o;
 				}
 				break;
 			case 'has-many':
@@ -366,7 +425,7 @@ class Orm {
 							$arr[] = $i;
 						}
 					}
-					$record->_cache[$table] = $arr;
+					$record->cache[$table] = $arr;
 				}
 				break;
 			case 'many-many':
@@ -377,18 +436,18 @@ class Orm {
 				$injectTable = $injectClass::getTable();
 				$injectPk = $injectClass::getPrimaryKey();
 				$injected = static::get()
-								->fields($table . '.*')
-								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-								->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
-								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
+					->fields($table . '.*')
+					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+					->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
+					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
 				$byId = array();
 				foreach ($injected as $record) {
 					$byId[$record->$pk] = $record;
 				}
 				$map = $injectClass::get()
-								->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
-								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
+					->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
+					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
 
 				foreach ($array as $record) {
 					$id = $record->getId();
@@ -400,7 +459,7 @@ class Orm {
 							$arr[] = $byId[$injectedId];
 						}
 					}
-					$record->_cache[$table] = $arr;
+					$record->cache[$table] = $arr;
 				}
 				break;
 		}
@@ -454,18 +513,18 @@ class Orm {
 				$fkFields = static::getForeignKeys();
 				foreach ($fkFields as $fk) {
 					if ($name == $fk['name'] && $fk['relation'] == $relation) {
-						if (isset($this->_cache[$fk['name']])) {
-							return $this->_cache[$fk['name']];
+						if (isset($this->cache[$fk['name']])) {
+							return $this->cache[$fk['name']];
 						}
 						$class = ucfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name))));
 						if (class_exists($class, false) && is_subclass_of($class, 'K\Orm')) {
 							$pk = $this->$fk['name'];
 							if (empty($pk)) {
-								$this->_cache[$fk['name']] = new $class();
+								$this->cache[$fk['name']] = new $class();
 							} else {
-								$this->_cache[$fk['name']] = new $class($pk);
+								$this->cache[$fk['name']] = new $class($pk);
 							}
-							return $this->_cache[$fk['name']];
+							return $this->cache[$fk['name']];
 						}
 					}
 				}
@@ -473,26 +532,26 @@ class Orm {
 				break;
 			case 'has-many' :
 				$table = $class::getTable();
-				if (isset($this->_cache[$table])) {
-					return $this->_cache[$table];
+				if (isset($this->cache[$table])) {
+					return $this->cache[$table];
 				}
 
 				$q = $class::get()
-						->where(static::getForForeignKey(), $this->id);
-				$this->_cache[$table] = $q->fetchAll();
-				return $this->_cache[$table];
+				  ->where(static::getForForeignKey(), $this->id);
+				$this->cache[$table] = $q->fetchAll();
+				return $this->cache[$table];
 				break;
 			case 'many-many' :
 				$table = $class::getTable();
-				if (isset($this->_cache[$table])) {
-					return $this->_cache[$table];
+				if (isset($this->cache[$table])) {
+					return $this->cache[$table];
 				}
 				$q = $class::get()
-						->fields($table . '.*')
-						->innerJoin(static::getManyTable($class), $class::getTable() . '.' . $class::getPrimaryKey() . ' = ' . static::getManyTable($class) . '.' . $class::getForForeignKey())
-						->where(static::getForForeignKey(), $this->id);
-				$this->_cache[$table] = $q->fetchAll();
-				return $this->_cache[$table];
+				  ->fields($table . '.*')
+				  ->innerJoin(static::getManyTable($class), $class::getTable() . '.' . $class::getPrimaryKey() . ' = ' . static::getManyTable($class) . '.' . $class::getForForeignKey())
+				  ->where(static::getForForeignKey(), $this->id);
+				$this->cache[$table] = $q->fetchAll();
+				return $this->cache[$table];
 				break;
 		}
 	}
@@ -520,7 +579,7 @@ class Orm {
 			case 'has-one':
 				$field = $class::getForForeignKey($relation);
 				$this->$field = $o->getId();
-				$this->_cache[$field] = $o;
+				$this->cache[$field] = $o;
 				return $this->save();
 				break;
 			case 'has-many':
@@ -583,10 +642,10 @@ class Orm {
 	 * @return \K\Orm
 	 */
 	public function emptyCache() {
-		$this->_cache = array();
+		$this->cache = array();
 		return $this;
 	}
-	
+
 	/**
 	 * Does the record exist
 	 * @param bool $db Check if it really exists in the db
@@ -636,7 +695,7 @@ class Orm {
 		}
 
 		//save cached objects too
-		foreach ($this->_cache as $field => $v) {
+		foreach ($this->cache as $field => $v) {
 			$v->save();
 			$this->$field = $v->getId();
 		}
@@ -779,10 +838,10 @@ class Orm {
 				$field = $parts[1];
 				$obj = $this->getRelated($key);
 				if ($obj) {
-					$value = $obj->getProperty($field);
+					$value = $obj->getField($field);
 				}
 			} else {
-				$value = $this->getProperty($field);
+				$value = $this->getField($field);
 			}
 			$html .= "<td>" . $value . "</td>\n";
 		}
@@ -823,6 +882,22 @@ class Orm {
 	 */
 	public static function getPdo() {
 		return static::$pdo;
+	}
+
+	/**
+	 * @param PDO $pdo
+	 * @return \k\db\Orm
+	 */
+	public static function setPdo($pdo) {
+		static::$pdo = $pdo;
+	}
+
+	public static function getStorage() {
+		return static::$storage;
+	}
+
+	public static function setStorage($storage) {
+		static::$storage = $storage;
 	}
 
 	/**
@@ -915,14 +990,13 @@ class Orm {
 
 		if ($fields === null) {
 			$fields = array();
-			$ref = new ReflectionClass(get_called_class());
-			$properties = $ref->getProperties();
-			/** @var $property ReflectionProperty */
-			foreach ($properties as $property) {
-				if ($property->isStatic() || strpos($property->getName(), '_') === 0) {
-					continue;
+			$fieldsDefinition = static::$fields;
+			foreach($fieldsDefinition as $name => $class) {
+				if(is_int($name)) {
+					$name = $class;
+					$class = '';
 				}
-				$fields[] = $property->getName();
+				$fields[$name] = $class;
 			}
 		}
 
@@ -961,7 +1035,7 @@ class Orm {
 	public static function getPrimaryKey() {
 		$pkFields = static::getPrimaryKeys();
 
-		if (count($pkFields) != 1) {
+		if (count($pkFields) !== 1) {
 			throw new Exception('This method only support table with one primary key');
 		}
 
@@ -978,7 +1052,7 @@ class Orm {
 
 		if ($pkFields === null) {
 			$pkFields = array();
-			$fields = static::getFields();
+			$fields = array_keys(static::getFields());
 			if (in_array('id', $fields)) {
 				$pkFields[] = 'id';
 			} else {
@@ -1073,13 +1147,13 @@ class Orm {
 		if (empty($sort)) {
 			$pk = static::getPrimaryKeys();
 			array_walk($pk, function(&$item) {
-						$item = $item . ' ASC';
-					});
+				  $item = $item . ' ASC';
+			  });
 			$sort = implode(',', $pk);
 		}
 		return $sort;
 	}
-	
+
 	/**
 	 * Default filtering options
 	 * @return string
@@ -1088,28 +1162,34 @@ class Orm {
 		return array();
 	}
 
+	public static function query() {
+		return Query::create(static::getPdo());
+	}
+	
 	/**
 	 * Get the fluent query builder
-	 * @return K\SqlQuery
+	 * @return Query
 	 */
 	public static function get() {
-		return SqlQuery::create(static::getTable())
-						->fetchAs(get_called_class())
+		return static::query()
+			->from(static::getTable())
+			->fetchAs(get_called_class())
 		;
 	}
-	
+
 	/**
 	 * Get the fluent query builder with class defaults
-	 * @return K\SqlQuery
+	 * @return Query
 	 */
 	public static function getDefault() {
-		return SqlQuery::create(static::getTable())
-						->fetchAs(get_called_class())
-						->where(static::getDefaultWhere())
-						->orderBy(static::getDefaultSort())
+		return static::query()
+			->from(static::getTable())
+			->fetchAs(get_called_class())
+			->where(static::getDefaultWhere())
+			->orderBy(static::getDefaultSort())
 		;
 	}
-	
+
 	/**
 	 * Handle direct primary keys as params in where
 	 * @param int|array $where
@@ -1338,8 +1418,8 @@ class Orm {
 
 		$tableCols = $pdo->listColumns($table);
 		$tableFields = array_map(function($i) {
-					return $i['name'];
-				}, $tableCols);
+			  return $i['name'];
+		  }, $tableCols);
 
 		$addedFields = array_diff($fields, $tableFields);
 		$removedFields = array_diff($tableFields, $fields);

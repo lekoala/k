@@ -124,7 +124,7 @@ class View {
 	public function t($name) {
 		
 	}
-
+	
 	public static function errorHandler($errno, $errstr, $errfile, $errline, $errcontext) {
 		echo $errstr;
 	}
@@ -177,6 +177,14 @@ class View {
 		}
 		$helper = $this->helpers[$name];
 		return call_user_func_array($helper, $arguments);
+	}
+	
+	public function __get($name) {
+		return $this->getVar($name);
+	}
+	
+	public function __set($name, $value) {
+		$this->setVar($name, $value);
 	}
 
 	public function __call($name, $arguments) {

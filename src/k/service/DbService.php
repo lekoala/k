@@ -12,6 +12,7 @@ use \InvalidArgumentException;
 class DbService extends Service {
 
 	protected $table;
+	protected $model;
 
 	/**
 	 * @return \k\db\Pdo
@@ -32,18 +33,41 @@ class DbService extends Service {
 		$this->table = $table;
 		return $this;
 	}
+	
+	public function getModel() {
+		return $this->model;
+	}
+
+	public function setModel($model) {
+		$this->model = $model;
+	}
 
 	/**
 	 * Query
 	 * 
 	 * @param string $table
+	 * @param string $class
 	 * @return \k\db\Query
 	 */
-	public function q($table = null) {
+	public function q($table = null, $class = null) {
 		if ($table === null) {
 			$table = $this->getTable();
 		}
-		return $this->getDb()->q($this->table);
+		$q = $this->getDb()->q($this->table);
+		$model = $this->getModel();
+		if($class) {
+			$model = $class;
+		}
+		if($model) {
+			$q->fetchAs($model);
+		}
+		return $q;
+	}
+	
+	public function get($id) {
+		$q = $this->q();
+		$q->where('id',$id);
+		return $q->fetchOnlyOne();
 	}
 
 	/**

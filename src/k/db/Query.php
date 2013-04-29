@@ -117,7 +117,7 @@ class Query implements Iterator, Countable {
 	 */
 	protected $fetchClass = null;
 
-	/**
+	/**	
 	 * Use sql cache or not
 	 * @var bool
 	 */
@@ -162,7 +162,7 @@ class Query implements Iterator, Countable {
 
 	public function setPdo($pdo) {
 		if (!$pdo instanceof \PDO) {
-			throw new InvalidArgumentException("Db must be an instance of PDO and is of type " . get_class($$pdo));
+			throw new InvalidArgumentException("Db must be an instance of PDO");
 		}
 		$this->pdo = $pdo;
 		return $this;
@@ -880,7 +880,7 @@ class Query implements Iterator, Countable {
 	/**
 	 * Fetch only one record
 	 * 
-	 * @return boolean
+	 * @return Orm
 	 */
 	function fetchOnlyOne() {
 		$results = $this->fetchAll();

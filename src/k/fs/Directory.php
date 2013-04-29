@@ -12,15 +12,15 @@ use \InvalidArgumentException;
  */
 class Directory extends FilesystemIterator {
 
-	protected $path;
+	protected $dir;
 	
 	public function __construct($path, $flags = null) {
-		$this->path = $path;
-		parent::__construct($path, $flags);
+		$this->dir = $path;
+		parent::__construct($path, \FilesystemIterator::KEY_AS_PATHNAME | \FilesystemIterator::CURRENT_AS_FILEINFO | \FilesystemIterator::SKIP_DOTS);
 	}
 	
-	public function __toString() {
-		return $this->path;
+	public function getOriginalDir() {
+		return $this->dir;
 	}
 
 }
