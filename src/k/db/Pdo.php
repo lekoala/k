@@ -360,6 +360,17 @@ class Pdo extends NativePdo {
 			$this->logger->log($this->getLogLevel(),$sql);
 		}
 	}
+	
+	/**
+	 * Get last query
+	 * @return string
+	 */
+	public function getLastQuery() {
+		if(!empty($this->log)) {
+			$last = end($this->log);
+			return $last['sql'];
+		}
+	}
 
 	/**
 	 * Start transaction

@@ -194,6 +194,7 @@ class Core {
 		}
 		if ($view) {
 			$this->layout->setVar('content', $view);
+			$view->setParent($this->layout);
 		}
 		return $this->layout;
 	}

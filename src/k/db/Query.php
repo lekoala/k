@@ -117,7 +117,7 @@ class Query implements Iterator, Countable {
 	 */
 	protected $fetchClass = null;
 
-	/**	
+	/** 	
 	 * Use sql cache or not
 	 * @var bool
 	 */
@@ -834,11 +834,17 @@ class Query implements Iterator, Countable {
 	 * @param string $field
 	 * @return array
 	 */
-	function fetchArray($field) {
-		$field = $this->removeTableOrAlias($field);
-		$this->fields = $field;
+	function fetchColumn($field = 0) {
+		if ($field) {
+			$field = $this->removeTableOrAlias($field);
+			$this->fields = $field;
+		}
 
-		$rows = $this->fetchAll(PDO::FETCH_ASSOC);
+		$fetch = PDO::FETCH_ASSOC;
+		if (is_int($field)) {
+			$fetch = PDO::FETCH_NUM;
+		}
+		$rows = $this->fetchAll($fetch);
 		$res = array();
 		foreach ($rows as $row) {
 			$res[] = $row[$field];

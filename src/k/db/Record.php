@@ -7,7 +7,7 @@ namespace k\db;
  *
  * @author tportelange
  */
-class Model {
+class Record {
 	
 	public function getRelated($name) {
 		

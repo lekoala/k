@@ -116,7 +116,17 @@ class View {
 		$this->helpers[$name] = $helper;
 		return $this;
 	}
+	
+	public function getParent() {
+		return $this->parent;
+	}
 
+	public function setParent(View $parent) {
+		$this->parent = $parent;
+		return $this;
+	}
+
+	
 	public function e($name) {
 		echo htmlspecialchars($this->getVar($name), ENT_QUOTES, "UTF-8");
 	}

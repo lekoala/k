@@ -4,13 +4,14 @@ namespace k\db;
 
 use ReflectionClass;
 use Exception;
+use \JsonSerializable;
 
 /**
  * Description of Orm
  *
  * @author tportelange
  */
-class Orm {
+class Orm implements JsonSerializable {
 
 	/**
 	 * Store record properties
@@ -145,6 +146,7 @@ class Orm {
 		//the class is not yet initialized, just inject data into it
 		if($this->original === null) {
 			$this->data[$name] = $value;
+			return;
 		}
 		return $this->setField($name, $value);
 	}
@@ -166,6 +168,20 @@ class Orm {
 		if($this->hasField($name)) {
 			return $this->data[$name];
 		}
+	}
+	
+	/**
+	 * Get raw value from a field
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	public function setRawField($name, $value) {
+		if($this->hasField($name)) {
+			$this->data[$name] = $value;
+			return true;
+		}
+		return false;
 	}
 	
 	/**
@@ -703,7 +719,7 @@ class Orm {
 		$data = $this->toArray();
 		if ($this->exists()) {
 			$changed = array();
-			foreach ($this->_original as $k => $v) {
+			foreach ($this->original as $k => $v) {
 				if ($this->$k != $v) {
 					$changed[$k] = $this->$k;
 				}
@@ -815,7 +831,7 @@ class Orm {
 		$html .= "\n</div>";
 		return $html;
 	}
-
+	
 	/**
 	 * Simple td representation
 	 * @param string|array $fields
@@ -847,6 +863,10 @@ class Orm {
 		}
 		return $html;
 	}
+	
+	public function jsonSerialize() {
+		return $this->data;
+	}
 
 	/**
 	 * Export object to an array
@@ -855,24 +875,27 @@ class Orm {
 	 * @return array
 	 */
 	public function toArray($virtual = array(), $only = array()) {
-		$fields = static::getFields();
-		$data = array();
+		$data = $this->data;
+		$arr = array();
 		if (is_string($only)) {
 			$only = explode(',', $only);
 		}
-		foreach ($fields as $field) {
-			if (!empty($only) && !in_array($field, $only)) {
-				continue;
+		if(!empty($only)) {
+			foreach ($data as $k => $v) {
+				if (!in_array($k, $only)) {
+					continue;
+				}
+				$arr[$k] = $v;
 			}
-			$data[$field] = $this->$field;
+		}
+		else {
+			$arr = $data;
 		}
 		if (is_string($virtual)) {
 			$virtual = explode(',', $virtual);
 		}
 		foreach ($virtual as $v) {
-			if (method_exists($this, $v)) {
-				$data[$v] = $this->$v();
-			}
+			$data[$v] = $this->$v;
 		}
 		return $data;
 	}
@@ -1252,7 +1275,7 @@ class Orm {
 	 * @return array
 	 */
 	public static function filterData($data) {
-		$fields = static::getFields();
+		$fields = array_keys(static::getFields());
 		foreach ($data as $k => $v) {
 			if (!in_array($k, $fields)) {
 				unset($data[$k]);
