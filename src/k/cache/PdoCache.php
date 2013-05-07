@@ -3,6 +3,7 @@
 namespace k\cache;
 
 use \PDO;
+use \InvalidArgumentException;
 
 /**
  * Pdo based cache
@@ -32,6 +33,9 @@ class PdoCache extends CacheAbstract {
 	}
 
 	public function setPdo(PDO $pdo) {
+		if(!$pdo instanceof \PDO) {
+			throw new InvalidArgumentException("You must pass an instance of PDO");
+		}
 		$this->pdo = $pdo;
 		return $this;
 	}

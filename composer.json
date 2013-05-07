@@ -5,6 +5,7 @@
 	"license": "MIT",
 	"keywords": [
 		"php",
+		"php 5.3",
 		"framework"
 	],
 	"authors": [
@@ -19,6 +20,9 @@
 	},
 	"require": {
 		"php": ">=5.3.7",
+		"psr/log" : "*"
+	},
+	"suggest" : {
 		"ircmaxell/password-compat": "*"
 	}
 }

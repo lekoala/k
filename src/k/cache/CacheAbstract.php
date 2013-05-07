@@ -28,14 +28,14 @@ abstract class CacheAbstract implements CacheInterface {
 		$value = serialize($value);
 		return $this->_set($key, $value, $ttl);
 	}
-	
+
 	public function clear($key = null) {
 		if ($key) {
 			$this->validateKey($key);
 		}
 		return $this->_clear($key);
 	}
-	
+
 	/**
 	 * @param type $key
 	 * @return type
@@ -43,7 +43,7 @@ abstract class CacheAbstract implements CacheInterface {
 	 */
 	protected function validateKey($key) {
 		if (empty($key) || preg_match('/[^a-z0-9.#$-_]/i', $key)) {
-			throw new InvalidArgumentException($key);
+			throw new InvalidArgumentException("'$key' is not a valid key");
 		}
 	}
 

@@ -2,7 +2,7 @@
 
 /* Bootstrap the framework with some sensible defaults */
 
-// Define constants
+// Constants
 define('START_TIME', microtime(true));
 define('START_MEMORY_USAGE', memory_get_usage(true));
 define('DS', DIRECTORY_SEPARATOR);

@@ -23,9 +23,6 @@ class FileCache extends CacheAbstract {
 	}
 
 	public function setDir($dir) {
-		if (!is_dir($dir)) {
-			throw new InvalidArgumentException($dir);
-		}
 		$this->dir = $dir;
 		return $this;
 	}

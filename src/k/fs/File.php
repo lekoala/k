@@ -115,6 +115,7 @@ class File extends SplFileInfo {
 		if (!$dir) {
 			$dir = $this->getPath();
 		}
+		$i = 0;
 		if(!is_dir($dir)) {
 			$filename = $dir;
 			$name = basename($filename);
