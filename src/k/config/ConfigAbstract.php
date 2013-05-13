@@ -12,19 +12,54 @@ use \Countable;
  * @author lekoala
  */
 abstract class ConfigAbstract implements ArrayAccess, Iterator, Countable, ConfigInterface {
-	
+
 	protected $data = array();
-	
-	abstract public function get($key,$default = null);
-	
+
+	/**
+	 * Get a value from config, allowing / notation, for instance db/host
+	 * 
+	 * @param string $key
+	 * @param mixed $default
+	 * @return mixed 
+	 */
+	public function get($key, $default = null) {
+		$loc = &$this->data;
+		foreach (explode('/', $key) as $step) {
+			if (isset($loc[$step])) {
+				$loc = &$loc[$step];
+			} else {
+				return $default;
+			}
+		}
+		return $loc;
+	}
+
 	/**
 	 * Dump data as array
+	 * 
 	 * @return array
 	 */
 	public function toArray() {
 		return $this->data;
 	}
+
+	/**
+	 * Merge configs
+	 * 
+	 * @param object|array $config
+	 * @return array The merged data
+	 */
+	public function merge($config) {
+		if (is_object($config) && method_exists($config, 'toArray')) {
+			$config = $config->toArray();
+		}
+		$this->data = array_replace_recursive($this->data, $config);
+		return $this->data;
+	}
 	
+	///////////////////////////
+	// Implements interfaces //
+
 	public function offsetSet($offset, $value) {
 		if (is_null($offset)) {
 			$this->data[] = $value;
@@ -34,7 +69,7 @@ abstract class ConfigAbstract implements ArrayAccess, Iterator, Countable, Confi
 	}
 
 	public function offsetExists($offset) {
-		return array_key_exists($offset,$this->data);
+		return array_key_exists($offset, $this->data);
 	}
 
 	public function offsetUnset($offset) {
@@ -42,7 +77,7 @@ abstract class ConfigAbstract implements ArrayAccess, Iterator, Countable, Confi
 	}
 
 	public function offsetGet($offset) {
-		return array_key_exists($offset,$this->data) ? $this->data[$offset] : null;
+		return array_key_exists($offset, $this->data) ? $this->data[$offset] : null;
 	}
 
 	public function rewind() {
@@ -68,4 +103,5 @@ abstract class ConfigAbstract implements ArrayAccess, Iterator, Countable, Confi
 	public function count() {
 		return count($this->data);
 	}
+
 }

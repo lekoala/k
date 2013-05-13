@@ -12,7 +12,6 @@ class View {
 
 	/**
 	 * Path to the view to render
-	 * 
 	 * @var string
 	 */
 	protected $filename;
@@ -20,7 +19,6 @@ class View {
 	/**
 	 * 
 	 * Variables that will be made available to the view
-	 * 
 	 * @var array
 	 */
 	protected $vars;
@@ -30,6 +28,12 @@ class View {
 	 * @var array
 	 */
 	protected $helpers = array();
+	
+	/**
+	 * Parent view
+	 * @var View
+	 */
+	protected $parent = null;
 	
 	/**
 	 * Create a new template. You can pass multiple filenames like array('page','layout')
@@ -110,6 +114,16 @@ class View {
 		return $this;
 	}
 	
+	public function getParent() {
+		return $this->parent;
+	}
+
+	public function setParent(View $parent) {
+		$this->parent = $parent;
+		$this->parent->content = $this;
+		return $this;
+	}
+	
 	public function e($name) {
 		echo htmlspecialchars($this->getVar($name), ENT_QUOTES, "UTF-8");
 	}
@@ -162,7 +176,7 @@ class View {
 	 */
 	public function callHelper($name, $arguments) {
 		if (!isset($this->helpers[$name])) {
-			$parent = $this->parent;
+			$parent = $this->getParent();
 			if($parent) {
 				return $parent->callHelper($name, $arguments);
 			}

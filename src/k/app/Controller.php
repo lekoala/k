@@ -12,6 +12,8 @@ use \RuntimeException;
  */
 class Controller {
 
+	protected $name;
+
 	/**
 	 * A controller needs to know about the app that is the central hub
 	 * and class factory
