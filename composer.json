@@ -23,6 +23,7 @@
 		"psr/log" : "*"
 	},
 	"suggest" : {
-		"ircmaxell/password-compat": "*"
+		"ircmaxell/password-compat": "*",
+		"psr/log" : "*"
 	}
 }

@@ -55,7 +55,7 @@ class DevToolbar {
 
 		// Time
 		if (isset($stats['start_time'])) {
-			$elements['Rendering time'] =  $this->formatTime(microtime(true) - $stats['start_time']);
+			$elements['Rendering time'] = $this->formatTime(microtime(true) - $stats['start_time']);
 		}
 
 		// Memory
@@ -68,11 +68,15 @@ class DevToolbar {
 		foreach ($this->trackedObjects as $arr) {
 			$obj = $arr['object'];
 			$cb = $arr['callback'];
-			
-			if(is_callable($cb)) {
-				$data = $cb($obj,$this);
-			}
-			else {
+			if (is_callable($cb)) {
+				$data = $cb($obj, $this);
+			} elseif (method_exists($obj, 'devToolbarCallback')) {
+				if (is_object($obj)) {
+					$data = $obj->devToolbarCallback($this);
+				} else {
+					$data = $obj::devToolbarCallback($this);
+				}
+			} else {
 				continue;
 			}
 			$class = $obj;
@@ -178,7 +182,10 @@ function debugBarToggle(target) {
 	 * Track an object
 	 * @param string|object $o
 	 */
-	public function track($o,$cb = null) {
+	public function track($o, $cb = null) {
+		if(!$o) {
+			return false;
+		}
 		$this->trackedObjects[] = array(
 			'object' => $o,
 			'callback' => $cb
@@ -192,7 +199,7 @@ function debugBarToggle(target) {
 	public function setEnabled($flag = true) {
 		$this->enabled = $flag;
 	}
-	
+
 	/**
 	 * Format time
 	 * 

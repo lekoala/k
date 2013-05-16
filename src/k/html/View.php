@@ -69,10 +69,10 @@ class View {
 	}
 	
 	public function getVar($name) {
-		if(isset($this->vars[$name])) {
+		if(array_key_exists($name,$this->vars)) {
 			return $this->vars[$name];
 		}
-		return 'Undefined variable : ' . $name;
+		return '{{' . $name . '}}';
 	}
 
 	public function getVars() {
@@ -133,6 +133,11 @@ class View {
 	}
 	
 	public static function errorHandler($errno, $errstr, $errfile, $errline, $errcontext) {
+		if($errno == 8) {
+			$name = str_replace('Undefined variable: ','',$errstr);
+			echo '{{' . $name . '}}';
+			return true;
+		}
 		echo $errstr;
 	}
 
@@ -143,7 +148,7 @@ class View {
 	public function render() {
 		extract(array_merge($this->vars), EXTR_REFS);
 
-		set_error_handler(array(__CLASS__, 'errorHandler'));
+//		set_error_handler(array(__CLASS__, 'errorHandler'));
 
 		ob_start();
 		include($this->filename);

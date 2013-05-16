@@ -18,61 +18,73 @@ class Pdo extends NativePdo {
 	 * @var NativePdo
 	 */
 	protected $pdo = null;
-	
+
 	/**
 	 * User
 	 * @var string
 	 */
 	protected $user;
-	
+
 	/**
 	 * Password
 	 * @var password
 	 */
 	protected $password;
-	
+
 	/**
 	 * Dsn built from given arguments or as is
 	 * @var string
 	 */
 	protected $dsn;
-	
+
 	/**
 	 * Dbtype (mysql, sqlite...)
 	 * @var string
 	 */
 	protected $dbtype;
-	
+
 	/**
 	 * Db name if specified
 	 * @var string
 	 */
 	protected $dbname;
-	
+
 	/**
 	 * Options for the connection
 	 * @var options
 	 */
 	protected $options;
-	
+
 	/**
 	 * Store queries
 	 * @var array
 	 */
 	protected $log = array();
-	
+
 	/**
 	 * Log level to use for the logger
 	 * @var string
 	 */
 	protected $logLevel = 'debug';
-	
+
 	/**
 	 * Define a psr-3 logger
-	 * @var \k\log\LoggerInterface
+	 * @var \Psr\Log\LoggerInterface
 	 */
 	protected $logger;
-	
+
+	/**
+	 * Highlight colors
+	 * @var array
+	 */
+	protected $colors = array('chars' => 'Silver', 'keywords' => 'PaleTurquoise', 'joins' => 'Thistle  ', 'functions' => 'MistyRose', 'constants' => 'Wheat');
+
+	/**
+	 * Cache table resolution
+	 * @var array
+	 */
+	protected $tables = array();
+
 	/**
 	 * Create a new instance of the pdo. The connection is actually made later.
 	 * 
@@ -125,7 +137,7 @@ class Pdo extends NativePdo {
 			$params = self::parseDsn($dsn);
 			extract($params);
 		}
-		
+
 		$this->setDsn($dsn);
 		$this->setDbtype($dbtype);
 		if (isset($dbname)) {
@@ -204,6 +216,11 @@ class Pdo extends NativePdo {
 	}
 
 	public function setPdo($dsn, $user = null, $password = null, array $options = array()) {
+		$this->setDsn($dsn);
+		$this->setUser($user);
+		$this->setPassword($password);
+		$this->setOptions($options);
+
 		$this->pdo = new NativePdo($dsn, $user, $password, $options);
 
 		//always throw exception
@@ -270,11 +287,11 @@ class Pdo extends NativePdo {
 	public function getLog() {
 		return $this->log;
 	}
-	
+
 	public function setLog(array $log) {
 		return $this->log = $log;
 	}
-	
+
 	public function getLogLevel() {
 		return $this->logLevel;
 	}
@@ -290,6 +307,15 @@ class Pdo extends NativePdo {
 
 	public function setLogger($logger) {
 		$this->logger = $logger;
+		return $this;
+	}
+
+	public function getColors() {
+		return $this->colors;
+	}
+
+	public function setColors($colors) {
+		$this->colors = $colors;
 		return $this;
 	}
 
@@ -355,18 +381,18 @@ class Pdo extends NativePdo {
 	 * @param int $time
 	 */
 	public function log($sql, $time = null) {
-		$this->log[] = compact('sql','time');
+		$this->log[] = compact('sql', 'time');
 		if ($this->logger) {
-			$this->logger->log($this->getLogLevel(),$sql);
+			$this->logger->log($this->getLogLevel(), $sql);
 		}
 	}
-	
+
 	/**
 	 * Get last query
 	 * @return string
 	 */
 	public function getLastQuery() {
-		if(!empty($this->log)) {
+		if (!empty($this->log)) {
 			$last = end($this->log);
 			return $last['sql'];
 		}
@@ -378,7 +404,7 @@ class Pdo extends NativePdo {
 	 * @param bool $autocommit
 	 * @return int
 	 */
-	public function startTransaction($autocommit = false) {
+	public function transactionStart($autocommit = false) {
 		if ($autocommit) {
 			return $this->exec('SET AUTOCOMMIT=0; START TRANSACTION');
 		}
@@ -390,7 +416,7 @@ class Pdo extends NativePdo {
 	 * 
 	 * @return int
 	 */
-	public function rollbackTransaction() {
+	public function transactionRollback() {
 		return $this->exec('ROLLBACK');
 	}
 
@@ -399,7 +425,7 @@ class Pdo extends NativePdo {
 	 * 
 	 * @return init
 	 */
-	public function commitTransaction() {
+	public function transactionCommit() {
 		return $this->exec('COMMIT');
 	}
 
@@ -418,20 +444,10 @@ class Pdo extends NativePdo {
 			return "NULL";
 		} elseif (($value !== true) && ((string) (int) $value) === ((string) $value)) {
 			//otherwise int will be quoted, also see @https://bugs.php.net/bug.php?id=44639
-			return $this->getPdo()->quote(intval($value), PDO::PARAM_INT);
+			return (int) $value;
 		}
 		$parameter_type = PDO::PARAM_STR;
 		return $this->getPdo()->quote($value, $parameter_type);
-	}
-
-	/**
-	 * Get a select query builder
-	 * 
-	 * @param string $from
-	 * @return Query
-	 */
-	public function q($from = null) {
-		return Query::create($this)->from($from);
 	}
 
 	/**
@@ -443,6 +459,8 @@ class Pdo extends NativePdo {
 	public function lastInsertId($name = null) {
 		return $this->getPdo()->lastInsertId($name);
 	}
+	
+	/* sql builders */
 
 	/**
 	 * Insert records
@@ -519,6 +537,73 @@ class Pdo extends NativePdo {
 	}
 
 	/**
+	 * Explain given sql
+	 * 
+	 * @param string $sql
+	 * @return array 
+	 */
+	public function explain($sql) {
+		if ($this->dbtype == 'mssql') {
+			$this->query('SET SHOWPLAN_ALL ON');
+		}
+		$results = $this->query('EXPLAIN ' . $sql);
+		if ($this->dbtype == 'mssql') {
+			$this->query('SET SHOWPLAN_ALL OFF');
+		}
+		return $results->fetch(PDO::FETCH_ASSOC);
+	}
+
+	
+	/**
+	 * Count the records
+	 * 
+	 * @param string $table
+	 * @param array|string $where
+	 * @param array $params
+	 * @return type 
+	 */
+	public function count($table, $where = null, $params = array()) {
+		$sql = 'SELECT COUNT(*) FROM ' . $table . '';
+		$this->inject_where($sql, $where, $params);
+		$sql = $this->translate($sql);
+		$stmt = $this->prepare($sql);
+		$stmt->execute($params);
+		$results = $stmt->fetchColumn();
+		return (int) $results;
+	}
+	
+	/**
+	 * Find duplicated rows
+	 * 
+	 * @param string $table
+	 * @param string $fields
+	 * @return array
+	 */
+	public function duplicates($table, $fields) {
+		$sql = "SELECT $fields, 
+COUNT(*) as count
+FROM $table
+GROUP BY $fields
+HAVING ( COUNT(*) > 1 )";
+		$results = $this->query($sql);
+		if ($results) {
+			return $results->fetchAll(PDO::FETCH_ASSOC);
+		}
+		return array();
+	}
+	
+	public function max($table, $field = 'id') {
+		$sql = "SELECT MAX($field) FROM $table";
+		$results = $this->query($sql);
+		if($results) {
+			return $results->fetchColumn(0); 
+		}
+		return 0;
+	}
+	
+	/* helpers */
+
+	/**
 	 * A fix to convert ? to named params
 	 * 
 	 * @param string $where
@@ -547,21 +632,21 @@ class Pdo extends NativePdo {
 		if (is_array($where)) {
 			$pdo = $this;
 			array_walk($where, function (&$item, $key) use (&$params, $pdo) {
-						$placeholder = ':' . $key;
-						while (isset($params[$placeholder])) {
-							$placeholder .= rand(1, 9);
-						}
+				$placeholder = ':' . $key;
+				while (isset($params[$placeholder])) {
+					$placeholder .= rand(1, 9);
+				}
 
-						if (is_array($item)) {
-							$item = array_unique($item);
-							$item = $key . " IN (" . $pdo->quote($item) . ")";
-						} elseif (is_string($key)) {
-							$params[$placeholder] = $item;
-							$item = $key . " = " . $placeholder;
-						} else {
-							$item = $item . " = " . $placeholder;
-						}
-					});
+				if (is_array($item)) {
+					$item = array_unique($item);
+					$item = $key . " IN (" . $pdo->quote($item) . ")";
+				} elseif (is_string($key)) {
+					$params[$placeholder] = $item;
+					$item = $key . " = " . $placeholder;
+				} else {
+					$item = $item . " = " . $placeholder;
+				}
+			});
 			$where = implode(' AND ', $where);
 		}
 		if (!empty($where)) {
@@ -579,6 +664,141 @@ class Pdo extends NativePdo {
 	 */
 	public function fetchValue($field, $from = null) {
 		return $this->q($from)->fields($field)->get('fetchValue');
+	}
+	
+	/* framework integration */
+
+	/**
+	 * Callback for the Dev Toolbar
+	 * 
+	 * @param DevToolbar $tb
+	 * @return array
+	 */
+	public function devToolbarCallback($tb) {
+		$arr = array();
+		$log = $this->getLog();
+		$time = 0;
+		foreach ($log as $line) {
+			$text = $this->highlight($this->formatQuery($line['sql']));
+			if ($line['time']) {
+				$text = '[' . $tb->formatTime($line['time']) . '] ' . $text;
+			}
+			$arr[] = $text;
+			$time += $line['time'];
+		}
+		array_unshift($arr, count($this->getLog()) . ' queries in ' . $tb->formatTime($time));
+
+		return $arr;
+	}
+	
+	/* formatters */
+
+	/**
+	 * Add spacing to a sql string
+	 * 
+	 * @link http://stackoverflow.com/questions/1191397/regex-to-match-values-not-surrounded-by-another-char
+	 * @param string $sql
+	 * @return string
+	 */
+	public function formatQuery($sql) {
+		//regex work with a lookahead to avoid splitting things inside single quotes
+		$sql = preg_replace(
+		"/(WHERE|FROM|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|DUPLICATE KEY)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n$0", $sql
+		);
+		$sql = preg_replace(
+		"/(INNER|LEFT|RIGHT|CASE|WHEN|END|ELSE|AND)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n    $0", $sql);
+		return $sql;
+	}
+
+	/**
+	 * Simple sql highlight
+	 * 
+	 * @param string $sql
+	 * @return string
+	 */
+	public function highlight($sql) {
+		$colors = $this->colors;
+		$chars = '/([\\.,\\(\\)<>:=`]+)/i';
+		$constants = '/(\'[^\']*\'|[0-9]+)/i';
+		$keywords = array(
+			'SELECT', 'UPDATE', 'INSERT', 'DELETE', 'REPLACE', 'INTO', 'CREATE', 'ALTER', 'TABLE', 'DROP', 'TRUNCATE', 'FROM',
+			'ADD', 'CHANGE', 'COLUMN', 'KEY',
+			'WHERE', 'ON', 'CASE', 'WHEN', 'THEN', 'END', 'ELSE', 'AS',
+			'USING', 'USE', 'INDEX', 'CONSTRAINT', 'REFERENCES', 'DUPLICATE',
+			'LIMIT', 'OFFSET', 'SET', 'SHOW', 'STATUS',
+			'BETWEEN', 'AND', 'IS', 'NOT', 'OR', 'XOR', 'INTERVAL', 'TOP',
+			'GROUP BY', 'ORDER BY', 'DESC', 'ASC', 'COLLATE', 'NAMES', 'UTF8', 'DISTINCT', 'DATABASE',
+			'CALC_FOUND_ROWS', 'SQL_NO_CACHE', 'MATCH', 'AGAINST', 'LIKE', 'REGEXP', 'RLIKE',
+			'PRIMARY', 'AUTO_INCREMENT', 'DEFAULT', 'IDENTITY', 'VALUES', 'PROCEDURE', 'FUNCTION',
+			'TRAN', 'TRANSACTION', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'TRIGGER', 'CASCADE',
+			'DECLARE', 'CURSOR', 'FOR', 'DEALLOCATE'
+		);
+		$joins = array('JOIN', 'INNER', 'OUTER', 'FULL', 'NATURAL', 'LEFT', 'RIGHT');
+		$functions = array(
+			'MIN', 'MAX', 'SUM', 'COUNT', 'AVG', 'CAST', 'COALESCE', 'CHAR_LENGTH', 'LENGTH', 'SUBSTRING',
+			'DAY', 'MONTH', 'YEAR', 'DATE_FORMAT', 'CRC32', 'CURDATE', 'SYSDATE', 'NOW', 'GETDATE',
+			'FROM_UNIXTIME', 'FROM_DAYS', 'TO_DAYS', 'HOUR', 'IFNULL', 'ISNULL', 'NVL', 'NVL2',
+			'INET_ATON', 'INET_NTOA', 'INSTR', 'FOUND_ROWS',
+			'LAST_INSERT_ID', 'LCASE', 'LOWER', 'UCASE', 'UPPER',
+			'LPAD', 'RPAD', 'RTRIM', 'LTRIM',
+			'MD5', 'MINUTE', 'ROUND', 'PRAGMA',
+			'SECOND', 'SHA1', 'STDDEV', 'STR_TO_DATE', 'WEEK'
+		);
+
+		$sql = str_replace('\\\'', '\\&#039;', $sql);
+		foreach ($colors as $key => $color) {
+			if (in_array($key, Array('constants', 'chars'))) {
+				$regexp = $$key;
+			} else {
+				$regexp = '/\\b(' . join("|", $$key) . ')\\b/i';
+			}
+			$sql = preg_replace($regexp, '<span style="color:' . $color . "\">$1</span>", $sql);
+		}
+		return $sql;
+	}
+
+	/* factories */
+
+	/**
+	 * Alias query
+	 * 
+	 * @param string $from
+	 * @return \k\sql\Query
+	 */
+	public function q($from = null) {
+		return $this->getQuery($from);
+	}
+
+	/**
+	 * Get a select query builder
+	 * 
+	 * @param string $from
+	 * @return \k\sql\Query
+	 */
+	public function getQuery($from = null) {
+		return Query::create($this)->from($from);
+	}
+
+	/**
+	 * Alias table
+	 * 
+	 * @param string|object $table
+	 * @return \k\sql\Table
+	 */
+	public function t($table) {
+		return $this->getTable($table);
+	}
+
+	/**
+	 * Return a table from the database
+	 * @param string|object $table
+	 * @return \k\sql\Table
+	 */
+	public function getTable($table) {
+		if (!isset($this->tables[$table])) {
+			$this->tables[$table] = new Table($table, $this);
+		}
+		return $this->tables[$table];
 	}
 
 }

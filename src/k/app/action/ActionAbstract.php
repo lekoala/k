@@ -8,13 +8,13 @@ namespace k\app\action;
  * @author lekoala
  */
 class ActionAbstract {
-	
+
 	protected $controller;
-	
+
 	public function __construct($controller) {
 		$this->setController($controller);
 	}
-	
+
 	/**
 	 * @return \k\app\Controller
 	 */
@@ -37,13 +37,23 @@ class ActionAbstract {
 	public function getApp() {
 		return $this->getController()->getApp();
 	}
-	
+
 	public function getBaseDir() {
 		return $this->getApp()->getFrameworkDir('action');
 	}
-	
+
 	public function getViewDir() {
 		return $this->getApp()->getFrameworkDir('views/action');
 	}
-	
+
+	public function streamResponse() {
+		@apache_setenv('no-gzip', 1);
+		@ini_set('zlib.output_compression', 0);
+		@ini_set('implicit_flush', 1);
+		for ($i = 0; $i < ob_get_level(); $i++) {
+//			ob_end_flush();
+		}
+//		ob_implicit_flush(1);
+	}
+
 }

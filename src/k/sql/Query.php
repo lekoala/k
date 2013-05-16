@@ -8,7 +8,7 @@ use \Exception;
 use \RuntimeException;
 use \InvalidArgumentException;
 
-/**
+/**o
  * Smart query builder 
  * 
  * Inspiration :
@@ -16,6 +16,33 @@ use \InvalidArgumentException;
  */
 class Query implements Iterator, Countable {
 
+	/**
+	 * Store defaults for reset
+	 * @var array
+	 */
+	protected $defaults = array(
+		'from' => null,
+		'aliases' => array(),
+		'where' => array(),
+		'having' => array(),
+		'joins' => array(),
+		'limit' => null,
+		'orderBy' => array(),
+		'groupBy' => array(),
+		'fields' => array(),
+		'emptyOrNull' => array(),
+		'distinct' => false,
+		'or' => false,
+		'fetchClass' => null,
+		'collectionClass' => null,
+		'noCache' => false,
+		'position' => 0,
+		'fetchedData' => array(),
+		'params' => array(),
+		'fetchMode' => 'fetchAll',
+		'fetchArgs' => array()
+	);
+	
 	/**
 	 * Pdo instance
 	 * @var PDO
@@ -32,25 +59,25 @@ class Query implements Iterator, Countable {
 	 * Store aliases as alias => table
 	 * @var array 
 	 */
-	protected $aliases = array();
+	protected $aliases;
 
 	/**
 	 * Where clauses
 	 * @var array
 	 */
-	protected $where = array();
+	protected $where;
 
 	/**
 	 * Having clauses
 	 * @var array
 	 */
-	protected $having = array();
+	protected $having;
 
 	/**
 	 * Joins like "type" => , "table" =>, "predicate" =>
 	 * @var array 
 	 */
-	protected $joins = array();
+	protected $joins ;
 
 	/**
 	 * Limit clause
@@ -62,31 +89,31 @@ class Query implements Iterator, Countable {
 	 * Order by clauses
 	 * @var array
 	 */
-	protected $orderBy = array();
+	protected $orderBy;
 
 	/**
 	 * Group by clauses
 	 * @var array
 	 */
-	protected $groupBy = array();
+	protected $groupBy;
 
 	/**
 	 * Field selection
 	 * @var array
 	 */
-	protected $fields = array();
+	protected $fields;
 
 	/**
 	 * Empty or null fields
 	 * @var array
 	 */
-	protected $emptyOrNull = array();
+	protected $emptyOrNull;
 
 	/**
 	 * Is distinct
 	 * @var bool
 	 */
-	protected $distinct = false;
+	protected $distinct;
 
 	/**
 	 * Custom options
@@ -98,48 +125,48 @@ class Query implements Iterator, Countable {
 	 * Should we add clauses or use or
 	 * @var bool
 	 */
-	protected $or = false;
+	protected $or;
 
 	/**
 	 * @var array
 	 */
-	protected $fetchArgs = array();
+	protected $fetchArgs;
 
 	/*
 	 * Fetch mode for get
-	 * @var fetchMode
+	 * @var string
 	 */
-	protected $fetchMode = 'fetchAll';
+	protected $fetchMode;
 
 	/**
 	 * Fetch as class
 	 * @var string
 	 */
-	protected $fetchClass = null;
+	protected $fetchClass;
 
 	/** 	
 	 * Use sql cache or not
 	 * @var bool
 	 */
-	protected $noCache = false;
+	protected $noCache ;
 
 	/**
 	 * Position (iterator)
 	 * @var int 
 	 */
-	protected $position = 0;
+	protected $position;
 
 	/**
 	 * Fetched data (iterator)
 	 * @var array
 	 */
-	protected $fetchedData = array();
+	protected $fetchedData;
 
 	/**
 	 * Params for prepared statement
 	 * @var array
 	 */
-	protected $params = array();
+	protected $params;
 
 	/**
 	 * A file or a psr 3 log
@@ -153,6 +180,7 @@ class Query implements Iterator, Countable {
 	 * @param PDO|Db $pdo
 	 */
 	public function __construct($pdo) {
+		$this->reset();
 		$this->setPdo($pdo);
 	}
 
@@ -180,28 +208,12 @@ class Query implements Iterator, Countable {
 	/**
 	 * Reset all options
 	 * 
-	 * @return K\SqlQuery
+	 * @return \k\sql\Query
 	 */
 	public function reset() {
-		$this->from = null;
-		$this->aliases = array();
-		$this->where = array();
-		$this->having = array();
-		$this->joins = array();
-		$this->limit = null;
-		$this->orderBy = array();
-		$this->groupBy = array();
-		$this->fields = array();
-		$this->emptyOrNull = array();
-		$this->distinct = false;
-		$this->or = false;
-		$this->fetchClass = null;
-		$this->noCache = false;
-		$this->position = 0;
-		$this->fetchedData = array();
-		$this->params = array();
-		$this->fetchMode = 'fetchAll';
-		$this->fetchArgs = array();
+		foreach($this->defaults as $k => $v) {
+			$this->$k = $v;
+		}
 		return $this;
 	}
 
@@ -209,7 +221,7 @@ class Query implements Iterator, Countable {
 	 * Use OR instand of AND when assembling clauses
 	 * 
 	 * @param bool $flag 
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function useOr($flag = true) {
 		$this->or = $flag;
@@ -219,11 +231,16 @@ class Query implements Iterator, Countable {
 	/**
 	 * Fetch as class
 	 * 
-	 * @param string $class 
-	 * @return K\SqlQuery
+	 * @param string $itemClass 
+	 * @param string $collectionClass 
+	 * @return \k\sql\Query
 	 */
-	public function fetchAs($class = null) {
-		$this->fetchClass = $class;
+	public function fetchAs($itemClass = null, $collectionClass = null) {
+		$this->fetchClass = $itemClass;
+		$this->collectionClass = $collectionClass;
+		if(is_subclass_of($itemClass, '\\k\\sql\\DataObject')) {
+			$this->fields = $itemClass::getTableName() . '.*';
+		}
 		return $this;
 	}
 
@@ -231,7 +248,7 @@ class Query implements Iterator, Countable {
 	 * Add distinct option
 	 * 
 	 * @param string|array $fields (optional) shortcut for fields()
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function distinct($fields = null) {
 		if ($fields !== null) {
@@ -244,7 +261,7 @@ class Query implements Iterator, Countable {
 	/**
 	 * Disable cache
 	 * 
-	 * @return K\SqlQuery
+	 * @return \k\sql\Query
 	 */
 	public function noCache() {
 		$this->noCache = true;
@@ -256,7 +273,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string|array $table
 	 * @param string $alias
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function from($table, $alias = null) {
 		if (is_array($table)) {
@@ -276,7 +293,7 @@ class Query implements Iterator, Countable {
 	 * Specify fields
 	 * 
 	 * @param string|array $fields 
-	 * @return K\SqlQuery
+	 * @return \k\sql\Query
 	 */
 	public function fields($fields) {
 		if (!is_array($fields)) {
@@ -291,7 +308,7 @@ class Query implements Iterator, Countable {
 	 * Set the fields tht should be selected as nullif(field,'') as field
 	 * 
 	 * @param string,array $fields
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function emptyOrNull($fields) {
 		if (!is_array($fields)) {
@@ -317,7 +334,7 @@ class Query implements Iterator, Countable {
 	 * @param string|array $key
 	 * @param mixed $value (optional)
 	 * @param string $operator (optional)
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function where($key = null, $value = '', $operator = null) {
 		//pass null to reset where
@@ -330,6 +347,18 @@ class Query implements Iterator, Countable {
 		}
 		$db = $this->getPdo();
 
+		if(is_object($value)) {
+			if($value instanceof \k\sql\DataObject) {
+				$value = $value->getId();
+			}
+			elseif(method_exists($value, 'toArray()')) {
+				$value = $value->toArray();
+			}
+			else {
+				throw new InvalidArgumentException('Can not use object as value');
+			}
+		}
+		
 		if ($value === '') {
 			if (is_array($key)) {
 				//simple filter
@@ -392,7 +421,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param string $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereNot($key, $value) {
 		if (is_array($value)) {
@@ -406,7 +435,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param string $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereGt($key, $value) {
 		return $this->where($key, $value, '>');
@@ -417,7 +446,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param string $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereGte($key, $value) {
 		return $this->where($key, $value, '>=');
@@ -428,7 +457,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param string $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereLt($key, $value) {
 		return $this->where($key, $value, '<');
@@ -439,7 +468,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param string $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereLte($key, $value) {
 		return $this->where($key, $value, '<=');
@@ -450,7 +479,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param array $values 
-	 * @return K\SqlQuery
+	 * @return \k\sql\Query
 	 */
 	public function whereBetween($key, $values) {
 		return $this->where($key, $values, 'BETWEEN');
@@ -461,7 +490,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param bool $blanks
-	 * @return K\SqlQuery
+	 * @return \k\sql\Query
 	 */
 	public function whereNotNull($key, $blanks = true) {
 		$where = $key . ' IS NOT NULL';
@@ -476,7 +505,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string $key
 	 * @param bool $blanks
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function whereNull($key, $blanks = true) {
 		$where = $key . ' IS NULL';
@@ -490,7 +519,7 @@ class Query implements Iterator, Countable {
 	 * Add a having clause
 	 * 
 	 * @param type $columns
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function having($columns) {
 		if ($columns === null) {
@@ -505,7 +534,7 @@ class Query implements Iterator, Countable {
 	 * Add an order by clause
 	 * 
 	 * @param type $columns
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function orderBy($columns) {
 		if (is_array($columns)) {
@@ -520,7 +549,7 @@ class Query implements Iterator, Countable {
 	 * Add a group by clause
 	 * 
 	 * @param string $columns
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function groupBy($columns) {
 		if ($columns === null) {
@@ -535,7 +564,7 @@ class Query implements Iterator, Countable {
 	 * Limit clause
 	 * 
 	 * @param type $value
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function limit($value) {
 		if (is_array($value)) {
@@ -550,7 +579,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string|array $table
 	 * @param string $predicate
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function innerJoin($table, $predicate = null) {
 		return $this->join($table, $predicate, 'inner');
@@ -561,7 +590,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string|array $table
 	 * @param string $predicate
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function leftJoin($table, $predicate = null) {
 		return $this->join($table, $predicate, 'left');
@@ -572,7 +601,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string|array $table
 	 * @param string $predicate
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function rightJoin($table, $predicate = null) {
 		return $this->join($table, $predicate, 'right');
@@ -583,7 +612,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @param string|array $table
 	 * @param string $predicate
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function fullJoin($table, $predicate = null) {
 		return $this->join($table, $predicate, 'full');
@@ -596,7 +625,7 @@ class Query implements Iterator, Countable {
 	 * @param string $predicate
 	 * @param string $type
 	 * @param boolean $force
-	 * @return db\query
+	 * @return \k\sql\Query
 	 */
 	public function join($table, $predicate = null, $type = 'inner', $force = false) {
 		if (empty($this->from)) {
@@ -716,7 +745,7 @@ class Query implements Iterator, Countable {
 				if ($alias) {
 					$table .= ' AS ' . $alias;
 				}
-				$sql .= $join['type'] . ' JOIN ' . $table . ' ' . $join['predicate'];
+				$sql .= ' ' . $join['type'] . ' JOIN ' . $table . ' ' . $join['predicate'];
 			}
 		}
 		if (!empty($this->where)) {
@@ -743,8 +772,6 @@ class Query implements Iterator, Countable {
 			$sql .= ' LIMIT ' . $this->limit;
 		}
 
-		$sql = $this->formatQuery($sql);
-
 		return $sql;
 	}
 
@@ -770,7 +797,7 @@ class Query implements Iterator, Countable {
 	 * Allow to set in advance the fetch mode or actually do it
 	 * @param string $fetchMode
 	 * @param array $args
-	 * @return \db\query
+	 * @return \\k\sql\Query
 	 */
 	function get($fetchMode = null, $args = array()) {
 		if ($fetchMode === null) {
@@ -799,7 +826,7 @@ class Query implements Iterator, Countable {
 		$results = $this->query();
 		if ($results) {
 			if ($fetchArgument) {
-				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument);
+				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument,array(0 => $this->getPdo()));
 			} else {
 				$this->fetchedData = $results->fetchAll($fetchType);
 			}
@@ -904,7 +931,7 @@ class Query implements Iterator, Countable {
 	function fetch($fetchType = null, $fetchArgument = null) {
 		$results = $this->query();
 		if ($this->fetchClass && $fetchType === null) {
-			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass);
+			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass,array(0 => $this->getPdo()));
 		}
 		if ($fetchType === null) {
 			$fetchType = PDO::FETCH_ASSOC;
@@ -997,22 +1024,6 @@ class Query implements Iterator, Countable {
 			}
 		}
 		return false;
-	}
-
-	/**
-	 * Add spacing to a sql string
-	 * @link http://stackoverflow.com/questions/1191397/regex-to-match-values-not-surrounded-by-another-char
-	 * @param string $sql
-	 * @return string
-	 */
-	protected function formatQuery($sql) {
-		//regex work with a lookahead to avoid splitting things inside single quotes
-		$sql = preg_replace(
-				"/(WHERE|FROM|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|DUPLICATE KEY)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n$0", $sql
-		);
-		$sql = preg_replace(
-				"/(INNER|LEFT|RIGHT|CASE|WHEN|END|ELSE|AND)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n    $0", $sql);
-		return $sql;
 	}
 
 	/* --- iterator --- */

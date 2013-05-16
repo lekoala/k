@@ -8,7 +8,9 @@ use \InvalidArgumentException;
 use \ReflectionClass;
 
 class App {
-
+	
+	use SyntaxHelpers;
+	
 	//
 	// properties
 	//
@@ -22,12 +24,12 @@ class App {
 	protected $actionName;
 	protected $controller;
 	protected $controllerName;
+	protected $config = array();
 	//
 	// classes
 	//
 	protected $logger;
 	protected $view;
-	protected $config;
 	protected $http;
 	protected $db;
 	protected $session;
@@ -70,25 +72,21 @@ class App {
 	 * @param string $dir If omitted, will use the parent folder
 	 * @throws InvalidArgumentException
 	 */
-	public function __construct($dir = null) {
-		if ($dir) {
-			$this->setDir($dir);
-		}
-
-		if ($this->configFile) {
-			$configFile = $dir . '/' . $this->configFile;
-			$this->setConfig($configFile);
-		}
+	public function __construct($config = array()) {
+		$this->config = $config;
 
 		if (array_key_exists('debug', $_GET)) {
 			register_shutdown_function(function() {
+				ob_clean();
 				echo '<pre>';
-				var_dump($this->getLogger()->getLogs());
-				exit();
+				foreach ($this->getLogger()->getLogs() as $l) {
+					echo $l['level'] . "\t" . $l['message'] . "\n";
+				}
 			});
 		}
 
 		$this->init();
+		$this->getLogger()->debug('App initiliazed');
 	}
 
 	/////////////////////////////////////
@@ -105,8 +103,17 @@ class App {
 	////////////////////////
 	// properties getters //
 
+	public function getConfig() {
+		return $this->config;
+	}
+
 	public function getUseLayout() {
 		return $this->useLayout;
+	}
+
+	public function setUseLayout($useLayout = true) {
+		$this->useLayout = $useLayout;
+		return $this;
 	}
 
 	public function getModuleName() {
@@ -120,7 +127,7 @@ class App {
 	public function getControllerName() {
 		return $this->controllerName;
 	}
-	
+
 	public function getControllerPrefix() {
 		return $this->controllerPrefix;
 	}
@@ -128,42 +135,11 @@ class App {
 	/////////////////////
 	// classes getters //
 
-	/**
-	 * @return \k\config\PhpConfig
-	 */
-	public function getConfig() {
-		if ($this->config === null) {
-			$this->config = new \k\config\PhpConfig();
-		}
-		return $this->config;
-	}
-
 	public function getLogger() {
 		if ($this->logger === null) {
 			$this->logger = new \k\log\NullLogger();
 		}
 		return $this->logger;
-	}
-
-	/**
-	 * Set a config for this application
-	 * 
-	 * @param string $file
-	 * @return \k\App
-	 */
-	public function setConfig($file) {
-		if (is_file((string) $file)) {
-			$this->config = new \k\config\PhpConfig($file);
-			//check for local config
-			$file = $this->getLocalDir() . '/' . pathinfo($file, PATHINFO_BASENAME);
-			if (is_file($file)) {
-				$localConfig = new \k\config\PhpConfig($file);
-				$this->config->merge($localConfig);
-			}
-		} else {
-			$this->config = new \k\config\PhpConfig();
-		}
-		return $this;
 	}
 
 	/**
@@ -180,8 +156,8 @@ class App {
 	 * @return \k\db\Pdo
 	 */
 	public function getDb() {
-		if ($this->db === null && $this->getConfig()->get('db')) {
-			$this->db = new \k\sql\Pdo($this->getConfig()->get('db'));
+		if ($this->db === null && $this->config('db')) {
+			$this->db = new \k\sql\Pdo($this->config('db'));
 		}
 		return $this->db;
 	}
@@ -191,7 +167,7 @@ class App {
 	 */
 	public function getLayout($view = null) {
 		if ($this->layout === null) {
-			$layoutName = $this->getConfig()->get('view/layout', 'layout/default');
+			$layoutName = $this->config('view/layout', 'layout/default');
 			$this->layout = $this->createView($layoutName);
 		}
 		if ($this->layout && $view) {
@@ -238,7 +214,7 @@ class App {
 	public function getDir() {
 		if ($this->dir === null) {
 			$cl = new ReflectionClass($this);
-			$this->dir = dirname($cl->getFileName());
+			$this->dir = dirname(dirname($cl->getFileName()));
 		}
 		return $this->dir;
 	}
@@ -352,8 +328,16 @@ class App {
 	 * Run app for current request
 	 */
 	public function run() {
+		try {
 		$result = $this->handle($this->getHttp()->getPath(false));
-
+		}
+		catch(\k\app\DeniedException $e) {
+			$this->notify($e->getMessage(),'error');
+			$this->getHttp()->redirectBack();
+		}
+		catch(\k\app\NotifyException $e) {
+			$this->notify($e->getMessage(),'error');
+		}
 		$this->http->header('Content-Type: text/html; charset=utf-8');
 		echo $result;
 	}
@@ -414,12 +398,11 @@ class App {
 
 		//if we have an ajax request, we don't want a layout
 		if ($this->getHttp()->isAjax()) {
-			$this->setUseLayout(false);
-		} else {
-			//if we are requesting json data, don't create a view
-			if (!$this->getHttp()->accept('application/json')) {
-				$this->view = $this->createView($controllerName, $actionName, $moduleName);
-			}
+			$this->useLayout = false;
+		}
+		//if we are requesting json data, don't create a view
+		if (!$this->getHttp()->accept('application/json')) {
+			$this->view = $this->createView($controllerName, $actionName, $moduleName);
 		}
 
 		$response = array();
@@ -450,21 +433,26 @@ class App {
 	}
 
 	protected function callAction(Controller $controller, $name, $parts = array()) {
-		$r = call_user_func_array(array($controller, $name), $parts);
-		if ($r instanceof \k\html\View) {
-			$this->view = $r;
+		try {
+			$r = call_user_func_array(array($controller, $name), $parts);
+			if ($r instanceof \k\html\View) {
+				$this->view = $r;
+				return array();
+			}
+			if ($r === null) {
+				return array();
+			}
+			if (!is_array($r)) {
+				$r = array('content' => $r);
+			}
+			if (!isset($r['content'])) {
+				$r['content'] = null;
+			}
+			return $r;
+		} catch (\k\app\NotifyException $e) {
+			$this->notify($e->getMessage(), 'error');
 			return array();
 		}
-		if ($r === null) {
-			return array();
-		}
-		if (!is_array($r)) {
-			$r = array('content' => $r);
-		}
-		if (!isset($r['content'])) {
-			$r['content'] = null;
-		}
-		return $r;
 	}
 
 	protected function createView($controller, $action = null, $module = null) {
@@ -482,9 +470,10 @@ class App {
 		}
 		$filename .= '/' . $name;
 		$filename .= '.' . $this->viewExtension;
-		$this->getLogger()->debug('createView : Looking for ' . $filename);
+		$this->getLogger()->debug(__METHOD__ . ': ' . $filename);
 		if (is_file($filename)) {
 			$view = new \k\html\View($filename);
+			$this->getLogger()->debug('View created');
 		}
 		return $view;
 	}
@@ -498,6 +487,7 @@ class App {
 			$class .= $this->modulePrefix;
 		}
 		$class .= str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name)));
+		$this->getLogger()->debug(__METHOD__ . ': ' . $class);
 		if (!class_exists($class)) {
 			if ($this->fallbackController) {
 				$class = $this->fallbackController;
@@ -506,17 +496,18 @@ class App {
 			}
 		}
 		$controller = new $class($this);
+		$this->getLogger()->debug('Controller created');
 		return $controller;
 	}
 
-	public function resolveService($name) {
+	public function getService($name) {
 		$class = $this->servicePrefix . str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name)));
 		if (!class_exists($class)) {
 			throw new RuntimeException("Service '$name' does not exist");
 		}
 		if (!isset($this->services[$name])) {
 			$o = new $class($this);
-			if (!$o instanceof service\Service) {
+			if (!$o instanceof \k\app\Service) {
 				throw new RuntimeException("Service $name must extend base service class");
 			}
 			$this->services[$name] = $o;

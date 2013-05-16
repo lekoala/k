@@ -12,15 +12,11 @@ use \RuntimeException;
  */
 class Controller {
 
-	protected $name;
+	use AppShortcuts;
 
-	/**
-	 * A controller needs to know about the app that is the central hub
-	 * and class factory
-	 * 
-	 * @var App
-	 */
-	protected $app;
+use SyntaxHelpers;
+
+	protected $name;
 
 	/**
 	 * Define actions
@@ -28,20 +24,17 @@ class Controller {
 	 * @var array
 	 */
 	protected $actions;
-	
+
 	public function __construct($app) {
-		if (!$app instanceof \k\app\App) {
-			throw new InvalidArgumentException('You must pass an instance of k\app, ' . get_class($app) . ' was passed');
-		}
-		$this->app = $app;
+		$this->setApp($app);
 		$this->init();
 	}
 
-	public function pre($method,$params) {
+	public function pre($method, $params) {
 		//implement in subclass
 	}
 
-	public function post($method,$params) {
+	public function post($method, $params) {
 		//implement in subclass
 	}
 
@@ -56,15 +49,14 @@ class Controller {
 	 * @param function $callback
 	 * @return mixed
 	 */
-	public function e($callback) {
-		try {
-			return $callback();
-		} catch (\Exception $e) {
-			$this->getApp()->notify($e->getMessage(), 'error');
-		}
-		return false;
+	public function notify($message) {
+		throw new NotifyException($message);
 	}
-
+	
+	public function deny($message = 'Forbidden') {
+		throw new DeniedException($message);
+	}
+	
 	/**
 	 * Look for parameter in get or post
 	 * 
@@ -112,15 +104,6 @@ class Controller {
 		$this->getApp()->getHttp()->redirectBack();
 	}
 
-	public function getApp() {
-		return $this->app;
-	}
-
-	public function setApp($app) {
-		$this->app = $app;
-		return $this;
-	}
-
 	public function getRequiresAuth() {
 		return $this->requiresAuth;
 	}
@@ -137,59 +120,29 @@ class Controller {
 		}
 		return $this->name;
 	}
-	
-	public function getService($name) {
-		return $this->getApp()->resolveService($name);
-	}
-	
-	/* shortcut to access app properties */
 
-	public function getLayout() {
-		return $this->getApp()->getLayout();
-	}
-
-	public function getView() {
-		return $this->getApp()->getView();
-	}
-
-	public function getDb() {
-		return $this->getApp()->getDb();
-	}
-	
-	public function getUser() {
-		return $this->getApp()->getUser();
-	}
-
-	public function getSession() {
-		return $this->getApp()->getSession();
-	}
-
-	public function session($k, $v = null) {
-		if ($v === null) {
-			return $this->getSession()->get($k);
-		}
-		return $this->getSession()->set($k, $v);
-	}
-	
 	public function __call($name, $arguments) {
 		//look for an action
-		$actionName = ucfirst($name);
-		$actions = array_keys($this->actions);
-		if(in_array($actionName,$actions)) {
-			$class = $actionName;
-			if(isset($this->actions[$actionName])) {
-				$class = $this->actions[$actionName];
-			}
-			if(!class_exists($class)) {
-				//look in framework
-				$class = '\\k\\app\\action\\' . $class;
-				if(!class_exists($class)) {
-					throw new RuntimeException("Action '$actionName' does not exist");
+
+		if ($this->actions) {
+			$actionName = ucfirst($name);
+			$actions = array_keys($this->actions);
+			if (in_array($actionName, $actions)) {
+				$class = $actionName;
+				if (isset($this->actions[$actionName])) {
+					$class = $this->actions[$actionName];
 				}
+				if (!class_exists($class)) {
+					//look in framework
+					$class = '\\k\\app\\action\\' . $class;
+					if (!class_exists($class)) {
+						throw new RuntimeException("Action '$actionName' does not exist");
+					}
+				}
+				$o = new $class($this);
+				$r = call_user_func_array(array($o, 'run'), $arguments);
+				return $r;
 			}
-			$o = new $class($this);
-			$r = call_user_func_array(array($o, 'run'), $arguments);
-			return $r;
 		}
 	}
 

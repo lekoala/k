@@ -22,7 +22,7 @@ class PdoException extends NativePdoException {
 					$this->code = $matches[1];
 					$this->message = $matches[2];
 					if($this->code == '42000' && $pdo->getLastQuery()) {
-						$this->message = 'Syntax ' . preg_replace("#^(.*)(near '.*')(.*)$#","$2",$this->message). ' is not valid in ' . $pdo->getLastQuery();
+						$this->message = 'Syntax error ' . preg_replace("#^(.*)(near '.*')(.*)$#","$2",$this->message). ' in ' . $pdo->getLastQuery();
 					}
 				}
 			}

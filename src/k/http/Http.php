@@ -146,7 +146,7 @@ class Http {
 	public function accept($v = null, $all = false) {
 		$accept = $this->server('http_accept');
 		if ($v === null) {
-			return $v;
+			return $accept;
 		}
 		if (!$accept) {
 			return true;
@@ -328,18 +328,21 @@ class Http {
 			$url = $_GET['_back_url'];
 		}
 
-		if ($url != $currentUrl) {
+		if ($url && $url != $this->getUrl()) {
 			$this->redirect($url);
+		} else {
+			$this->redirect('/');
 		}
 	}
 
 	public function header($key, $value = null, $check = false) {
-		if ($check && !headers_sent()) {
-			if ($value !== null) {
-				$key = $key . ': ' . $value;
-			}
-			header($key);
+		if ($check && headers_sent()) {
+			return $this;
 		}
+		if ($value !== null) {
+			$key = $key . ': ' . $value;
+		}
+		header($key);
 		return $this;
 	}
 
