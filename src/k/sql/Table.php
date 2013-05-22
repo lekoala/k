@@ -29,6 +29,13 @@ class Table {
 		$this->setName($name);
 		$this->setPdo($pdo);
 	}
+	
+	public function getNewInstance() {
+		$class = $this->getItemClass();
+		if($class) {
+			return new $class($this->getPdo());
+		}
+	}
 
 	public function getPrimaryKey() {
 		$class = $this->getItemClass();

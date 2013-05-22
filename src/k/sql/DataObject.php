@@ -16,7 +16,7 @@ use \InvalidArgumentException;
  * - persistence
  * - virtual getters/setters with underscore syntax (like your db should be!)
  * - validation rules
- * - view friendly usage (do not throw exceptions for undefined properties)
+ * - view friendly usage (do not throw exceptions for undefined properties, null objects)
  * 
  * Add specifications for your DataObjects here in the static properties
  * The DataObject is also used as a record instance, to avoid creating too many
@@ -649,6 +649,9 @@ class DataObject implements JsonSerializable {
 				$field = $ft->getForForeignKey($name);
 				$q = $ft->q()->where($pkField, $this->$field);
 				$data = $q->fetchOne();
+				if(!$data) {
+					$data = $ft->getNewInstance();
+				}
 				break;
 			case 'hasMany' :
 				$q = $ft->q()->where($this->getForForeignKey(), $this->getId());
