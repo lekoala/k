@@ -21,7 +21,13 @@ class View {
 	 * Variables that will be made available to the view
 	 * @var array
 	 */
-	protected $vars;
+	protected $vars = array();
+	
+	/**
+	 * Variables used by default by the view
+	 * @var array
+	 */
+	protected $escapedVars = array();
 
 	/**
 	 * Store view helpers in an array
@@ -79,11 +85,16 @@ class View {
 		return $this->vars;
 	}
 
-	public function setVars($vars) {
+	public function setVars($vars, $clean = true) {
 		if (!is_array($vars)) {
 			$vars = array('content' => $vars);
 		}
-		$this->vars = $vars;
+		if($clean) {
+			$this->vars = array();
+		}
+		foreach($vars as $k => $v) {
+			$this->setVar($k, $v);
+		}
 		return $this;
 	}
 
@@ -93,10 +104,7 @@ class View {
 	}
 
 	public function addVars($vars) {
-		if (!is_array($vars)) {
-			$vars = array('content' => $vars);
-		}
-		$this->vars = array_merge($this->vars, $vars);
+		$this->setVar($vars, false);
 		return $this;
 	}
 
@@ -124,8 +132,12 @@ class View {
 		return $this;
 	}
 	
+	protected function escapeString($str) {
+		return htmlspecialchars($str, ENT_QUOTES, "UTF-8");
+	}
+	
 	public function e($name) {
-		echo htmlspecialchars($this->getVar($name), ENT_QUOTES, "UTF-8");
+		echo $this->escapeString($this->getVar($name));
 	}
 
 	public function t($name) {
@@ -140,13 +152,24 @@ class View {
 		}
 		echo $errstr;
 	}
+	
+	protected function escapeVars() {
+		foreach($this->vars as $k => $v) {
+			$ev = $v;
+			if(is_string($v)) {
+				$ev = $this->escapeString($v);
+			}
+			$this->escapedVars[$k] = $ev;
+		}
+	}
 
 	/**
 	 * Render the template
 	 * @return string
 	 */
 	public function render() {
-		extract(array_merge($this->vars), EXTR_REFS);
+		$this->escapeVars();
+		extract(array_merge($this->escapedVars), EXTR_REFS);
 
 //		set_error_handler(array(__CLASS__, 'errorHandler'));
 

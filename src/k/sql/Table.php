@@ -30,11 +30,16 @@ class Table {
 		$this->setPdo($pdo);
 	}
 	
+	/**
+	 * Get a new instance of a class
+	 * @return \stdClass|\k\sql\DataObject
+	 */
 	public function getNewInstance() {
 		$class = $this->getItemClass();
 		if($class) {
 			return new $class($this->getPdo());
 		}
+		return new stdClass();
 	}
 
 	public function getPrimaryKey() {
@@ -128,20 +133,94 @@ class Table {
 		return $this;
 	}
 
+	/**
+	 * Shortcut to get the query builder
+	 * @return \k\sql\Query;
+	 */
 	public function q() {
 		return $this->query();
 	}
 
-	public function query() {
+	/**
+	 * Get a query builder for this table
+	 * 
+	 * @param bool $class
+	 * @return \k\sql\Query;
+	 */
+	public function query($class = true) {
 		$q = new Query($this->getPdo());
 		$q->from($this->getName());
-		if ($this->getItemClass()) {
+		if ($class && $this->getItemClass()) {
 			$q->fetchAs($this->getItemClass());
 		}
 		return $q;
 	}
+	
+	/**
+	 * Get the fluent query builder with class defaults
+	 * @return \k\sql\Query;
+	 */
+	public function defaultQuery() {
+		$q = $this->query();
+		$q->where(static::defaultWhere());
+		$q->orderBy(static::defaultOrderBy());
+		return $q;
+	}
+	
+		/**
+	 * Handle direct primary keys as params in where
+	 * @param int|array $where
+	 * @return type
+	 * @throws Exception
+	 */
+	protected function detectPrimaryKeys($where) {
+		if (empty($where)) {
+			return $where;
+		}
+		$pkFields = $this->getPrimaryKeys();
+		if (is_numeric($where)) {
+			if (count($pkFields) > 1) {
+				throw new Exception('Only one id for a composed primary keys');
+			}
+			$where = array($pkFields[0] => $where);
+		} elseif (is_array($where)) {
+			$values = array();
+			foreach ($where as $k => $v) {
+				if (is_int($k)) {
+					$values[] = $v;
+				}
+			}
+			if (count($values) == count($pkFields)) {
+				$where = array_combine($pkFields, $values);
+			}
+		}
+		return $where;
+	}
 
 	/**
+	 * Do not try to insert or update fields that don't exist
+	 * @param array $data
+	 * @return array
+	 */
+	public function filterData($data) {
+		$cl = $this->getItemClass();
+		if (!$cl) {
+			return $data;
+		}
+		$fields = array_keys($cl::getFields());
+		foreach ($data as $k => $v) {
+			if (!in_array($k, $fields)) {
+				unset($data[$k]);
+			}
+		}
+		return $data;
+	}
+
+	/**
+	 * Save a dataobject into the table
+	 * 
+	 * This helper abstract and improves insert and update helpers based
+	 * on changed fields and object existence
 	 * 
 	 * @param \k\sql\DataObject $do
 	 * @return boolean
@@ -190,34 +269,7 @@ class Table {
 		}
 		return $res;
 	}
-
-	/**
-	 * @param array|string $where
-	 * @param array|string $orderBy
-	 * @param array|string $limit
-	 * @param array|string $fields
-	 * @param array $params
-	 * @return array 
-	 */
-	public function select($where = array(), $orderBy = 'default', $limit = null, $fields = '*', $params = array()) {
-		$cl = $this->getItemClass();
-		if ($cl) {
-			$res = $cl::onBeforeSelect($where, $orderBy, $limit, $fields, $params);
-			if ($res === false) {
-				return false;
-			}
-		}
-		$where = $this->detectPrimaryKeys($where);
-		if ($orderBy == 'default') {
-			$orderBy = $this->getDefaultSort();
-		}
-		$data = $this->getPdo()->select($this->getName(), $where, $orderBy, $limit, $fields, $params);
-		if ($cl) {
-			$cl::onAfterSelect($data);
-		}
-		return $data;
-	}
-
+	
 	/**
 	 * @param array $data
 	 * @return int The id of the record
@@ -295,55 +347,6 @@ class Table {
 	}
 
 	/**
-	 * Handle direct primary keys as params in where
-	 * @param int|array $where
-	 * @return type
-	 * @throws Exception
-	 */
-	protected function detectPrimaryKeys($where) {
-		if (empty($where)) {
-			return $where;
-		}
-		$pkFields = $this->getPrimaryKeys();
-		if (is_numeric($where)) {
-			if (count($pkFields) > 1) {
-				throw new Exception('Only one id for a composed primary keys');
-			}
-			$where = array($pkFields[0] => $where);
-		} elseif (is_array($where)) {
-			$values = array();
-			foreach ($where as $k => $v) {
-				if (is_int($k)) {
-					$values[] = $v;
-				}
-			}
-			if (count($values) == count($pkFields)) {
-				$where = array_combine($pkFields, $values);
-			}
-		}
-		return $where;
-	}
-
-	/**
-	 * Do not try to insert or update fields that don't exist
-	 * @param array $data
-	 * @return array
-	 */
-	public function filterData($data) {
-		$cl = $this->getItemClass();
-		if (!$cl) {
-			return $data;
-		}
-		$fields = array_keys($cl::getFields());
-		foreach ($data as $k => $v) {
-			if (!in_array($k, $fields)) {
-				unset($data[$k]);
-			}
-		}
-		return $data;
-	}
-
-	/**
 	 * @param array|string $where
 	 * @param array $params
 	 * @return int 
@@ -367,20 +370,22 @@ class Table {
 	public static function max($field = 'id') {
 		return $this->getPdo()->max($this->getName(), $field);
 	}
+	
+	/* table helpers */
 
 	/**
 	 * @param bool $truncate
 	 * @return int
 	 */
-	public static function emptyTable() {
-		return static::getPdo()->emptyTable(static::getTable());
+	public function emptyTable() {
+		return $this->getPdo()->empty($this->getName());
 	}
 
 	/**
 	 * @return int
 	 */
-	public static function dropTable() {
-		return static::getPdo()->dropTable(static::getTable());
+	public function dropTable() {
+		return $this->getPdo()->dropTable($this->getName());
 	}
 
 	/**
@@ -388,7 +393,7 @@ class Table {
 	 * @param bool $foreignKeys
 	 * @return string 
 	 */
-	public static function createTable($execute = true, $foreignKeys = true) {
+	public function createTable($execute = true, $foreignKeys = true) {
 		$fkFields = array();
 		if ($foreignKeys) {
 			$fks = static::getForeignKeys();
@@ -414,11 +419,11 @@ class Table {
 	 * @param bool $execute
 	 * @return boolean
 	 */
-	public static function alterTable($execute = true) {
+	public function alterTable($execute = true) {
 		$pdo = static::getPdo();
 		$table = static::getTable();
 
-		$fields = static::getFields();
+		$fields = 
 
 		$tableCols = $pdo->listColumns($table);
 		$tableFields = array_map(function($i) {
@@ -432,19 +437,6 @@ class Table {
 			return false;
 		}
 		return $pdo->alterTable($table, $addedFields, $removeFields, $execute);
-	}
-
-	/**
-	 * Get the fluent query builder with class defaults
-	 * @return Query
-	 */
-	public static function getDefault() {
-		return static::query()
-		->from(static::getTable())
-		->fetchAs(get_called_class())
-		->where(static::getDefaultWhere())
-		->orderBy(static::getDefaultSort())
-		;
 	}
 
 }
