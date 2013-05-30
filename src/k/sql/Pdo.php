@@ -8,16 +8,38 @@ use \PDOException as NativePdoException;
 /**
  * Pdo extension. The class extends PDO to allow itself to pass
  * as an instance of PDO.
- *
+ * 
+ * Main functionnalities:
+ * - Allow to pass an array of arguments to the constructor
+ * - Lazy connection
+ * - Throws exception by default
+ * - You can attach a logger or use the built in log functionnality
+ * - Sql helpers
+ * - Sql formatter and highlight
+ * - Factories for Query and Table
+ * - Connections registry
+ * 
  * @author lekoala
  */
 class Pdo extends NativePdo {
+
+	/**
+	 * Store instances
+	 * @var array
+	 */
+	protected static $instances = array();
 
 	/**
 	 * Inner pdo instance to allow lazy connection
 	 * @var NativePdo
 	 */
 	protected $pdo = null;
+
+	/**
+	 * Friendly name for the connection
+	 * @var string
+	 */
+	protected $name;
 
 	/**
 	 * User
@@ -74,12 +96,6 @@ class Pdo extends NativePdo {
 	protected $logger;
 
 	/**
-	 * Highlight colors
-	 * @var array
-	 */
-	protected $colors = array('chars' => 'Silver', 'keywords' => 'PaleTurquoise', 'joins' => 'Thistle  ', 'functions' => 'MistyRose', 'constants' => 'Wheat');
-
-	/**
 	 * Cache table resolution
 	 * @var array
 	 */
@@ -97,7 +113,7 @@ class Pdo extends NativePdo {
 		if (is_array($dsn)) {
 			//extract params
 			extract($dsn);
-			$params = array('user', 'password', 'options', 'dbtype', 'driver', 'database', 'username');
+			$params = array('name', 'user', 'password', 'options', 'dbtype', 'driver', 'database', 'username');
 			foreach ($params as $param) {
 				if (isset($dsn[$param])) {
 					$$param = $dsn[$param];
@@ -131,6 +147,10 @@ class Pdo extends NativePdo {
 				}
 			}
 
+			if (isset($name)) {
+				$this->setName($name);
+			}
+
 			//{dbtype}:dbname={dbname};host={host};port={port}
 			$dsn = $dbtype . ':' . implode(';', array_values($dsn));
 		} else {
@@ -146,6 +166,12 @@ class Pdo extends NativePdo {
 		$this->setUser($user);
 		$this->setPassword($password);
 		$this->setOptions($options);
+
+		//store in registry
+		if (empty(self::$instances)) {
+			self::$instances['default'] = $this;
+		}
+		self::$instances[$this->getName()] = $this;
 	}
 
 	/**
@@ -208,6 +234,11 @@ class Pdo extends NativePdo {
 		return $params;
 	}
 
+	/**
+	 * Get inner pdo instance
+	 * 
+	 * @return \PDO
+	 */
 	public function getPdo() {
 		if (!$this->pdo) {
 			$this->setPdo($this->dsn, $this->user, $this->password, $this->options);
@@ -215,6 +246,14 @@ class Pdo extends NativePdo {
 		return $this->pdo;
 	}
 
+	/**
+	 * Set inner pdo instance
+	 * 
+	 * @param string $dsn
+	 * @param string $user
+	 * @param string $password
+	 * @param array $options
+	 */
 	public function setPdo($dsn, $user = null, $password = null, array $options = array()) {
 		$this->setDsn($dsn);
 		$this->setUser($user);
@@ -228,6 +267,44 @@ class Pdo extends NativePdo {
 
 		//use custom pdo statement class
 		$this->pdo->setAttribute(PDO::ATTR_STATEMENT_CLASS, array('\k\sql\PdoStatement', array($this)));
+	}
+
+	/**
+	 * Get a connection
+	 * 
+	 * @param string $name
+	 * @return \k\sql\Pdo
+	 */
+	public static function get($name = 'default') {
+		if (!isset(self::$instances[$name])) {
+			self::$instances[$name] = new self();
+		}
+		return self::$instances[$name];
+	}
+
+	/**
+	 * Get friendly name
+	 * 
+	 * @return string
+	 */
+	public function getName() {
+		if (!$this->name) {
+			$dbname = $this->getDbname();
+			if ($dbname && $this->getDbtype() == 'sqlite') {
+				$dbname = basename($dbname);
+			}
+			if ($dbname) {
+				$this->name = $dbname;
+			} else {
+				$this->name = 'connection_' . count(self::$instances);
+			}
+		}
+		return $this->name;
+	}
+
+	public function setName($name) {
+		$this->name = $name;
+		return $this;
 	}
 
 	public function getUser() {
@@ -301,6 +378,9 @@ class Pdo extends NativePdo {
 		return $this;
 	}
 
+	/**
+	 * @return \Psr\Log\LoggerInterface
+	 */
 	public function getLogger() {
 		return $this->logger;
 	}
@@ -310,17 +390,8 @@ class Pdo extends NativePdo {
 		return $this;
 	}
 
-	public function getColors() {
-		return $this->colors;
-	}
-
-	public function setColors($colors) {
-		$this->colors = $colors;
-		return $this;
-	}
-
 	/**
-	 * Exec wrapper for stats
+	 * Exec wrapper
 	 * 
 	 * @param string $statement
 	 * @return int
@@ -339,7 +410,7 @@ class Pdo extends NativePdo {
 	}
 
 	/**
-	 * Query wrapper for stats
+	 * Query wrapper
 	 * 
 	 * @param string $statement
 	 * @return \k\db\PdoStatement
@@ -389,6 +460,7 @@ class Pdo extends NativePdo {
 
 	/**
 	 * Get last query
+	 *
 	 * @return string
 	 */
 	public function getLastQuery() {
@@ -459,9 +531,46 @@ class Pdo extends NativePdo {
 	public function lastInsertId($name = null) {
 		return $this->getPdo()->lastInsertId($name);
 	}
-	
-	
+
 	/* sql builders */
+
+	/**
+	 * Select
+	 * 
+	 * @param string $table
+	 * @param array|string $where
+	 * @param array|string $orderBy
+	 * @param array|string $limit
+	 * @param array|string $fields
+	 * @param array $params
+	 * @return _pdo_statement 
+	 */
+	public function select($table, $where = null, $orderBy = null, $limit = null, $fields = '*', $params = array()) {
+		if (is_array($fields)) {
+			$fields = implode(',', $fields);
+		}
+		$sql = 'SELECT ' . $fields . ' FROM ' . $table . '';
+		$this->injectWhere($sql, $where, $params);
+		if (!empty($orderBy)) {
+			if (is_array($orderBy)) {
+				$orderBy = implode(',', $orderBy);
+			}
+			$sql .= ' ORDER BY ' . $orderBy;
+		}
+		if (!empty($limit)) {
+			if (is_array($limit)) {
+				$limit = implode(',', $limit);
+			}
+			$sql .= ' LIMIT ' . $limit;
+		}
+		$sql = $this->translate($sql);
+		$stmt = $this->prepare($sql);
+		$stmt->execute($params);
+		$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$stmt->closeCursor();
+		$stmt = null;
+		return $results;
+	}
 
 	/**
 	 * Insert records
@@ -554,7 +663,6 @@ class Pdo extends NativePdo {
 		return $results->fetch(PDO::FETCH_ASSOC);
 	}
 
-	
 	/**
 	 * Count the records
 	 * 
@@ -572,7 +680,7 @@ class Pdo extends NativePdo {
 		$results = $stmt->fetchColumn();
 		return (int) $results;
 	}
-	
+
 	/**
 	 * Find duplicated rows
 	 * 
@@ -592,16 +700,299 @@ HAVING ( COUNT(*) > 1 )";
 		}
 		return array();
 	}
-	
+
 	public function max($table, $field = 'id') {
 		$sql = "SELECT MAX($field) FROM $table";
 		$results = $this->query($sql);
-		if($results) {
-			return $results->fetchColumn(0); 
+		if ($results) {
+			return $results->fetchColumn(0);
 		}
 		return 0;
 	}
-	
+
+	/* table operations */
+
+	/**
+	 * Drop table
+	 * 
+	 * @param string $table
+	 * @return int
+	 */
+	public function dropTable($table) {
+		$sql = 'DROP TABLE ' . $table . '';
+		return $this->exec($sql);
+	}
+
+	/**
+	 * Scaffold a create statement
+	 * 
+	 * @param string $table
+	 * @param array $fields
+	 * @param array $pkFields
+	 * @param array $fkFields
+	 * @param bool $execute
+	 * @return string 
+	 */
+	public function createTable($table, array $fields = array(), $pkFields = array(), $fkFields = array(), $execute = true) {
+		if (is_string($pkFields) && !empty($pkFields)) {
+			$pkFields = array($pkFields);
+		}
+
+		$fields = $this->guessTypes($fields, $pkFields);
+
+		if (self::isReservedName($table)) {
+			throw new Exception($table . ' is a reserved name');
+		}
+		foreach ($fields as $field => $value) {
+			if (self::isReservedName($field)) {
+				throw new Exception($field . ' is a reserved name in table ' . $table);
+			}
+		}
+
+		$dbtype = $this->getDbtype();
+
+		$sql = 'CREATE TABLE IF NOT EXISTS ' . $table . "(\n";
+		foreach ($fields as $field => $type) {
+			$sql .= "\t" . $field . ' ' . $type . ",\n";
+		}
+
+		//primary key
+		if ($dbtype != 'sqlite') {
+			if (!empty($pkFields)) {
+				$sql .= "\t" . 'PRIMARY KEY (' . implode(',', $pkFields) . ')' . ",\n";
+			}
+		}
+
+		//foreign keys
+		foreach ($fkFields as $key => $reference) {
+			$fk_name = 'fk_' . $table . '_' . preg_replace('/[^a-z]/', '', $reference);
+			$sql .= "\t" . 'CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference . ",\n";
+		}
+
+		$sql = rtrim($sql, ",\n");
+
+		$sql .= "\n)";
+
+		if ($execute) {
+			$this->exec($sql);
+		}
+
+		return $sql;
+	}
+
+	/**
+	 * Scaffold an alter table
+	 * 
+	 * @param string $table
+	 * @param array $addFields
+	 * @param array $removeFields
+	 * @param bool $execute
+	 * @return string 
+	 */
+	public function alterTable($table, array $addFields = array(), array $removeFields = array(), $execute = true) {
+
+		$addFields = $this->guessTypes($addFields);
+
+		$sql = 'ALTER TABLE ' . $table . "\n";
+
+		foreach ($addFields as $field => $type) {
+			if (self::isReservedName($field)) {
+				throw new Exception($field . ' is a reserved name');
+			}
+			$sql .= "ADD COLUMN " . $field . " " . $type . ",\n";
+		}
+
+		foreach ($removeFields as $field) {
+			$sql .= "DROP COLUMN " . $field . ",\n";
+		}
+
+		$sql = rtrim($sql, ",\n");
+
+		if ($execute) {
+			$this->exec($sql);
+		}
+
+		return $sql;
+	}
+
+	/**
+	 * All columns from a table
+	 * 
+	 * @param string $table
+	 * @return array
+	 */
+	public function listColumns($table) {
+		$sql = 'SELECT * FROM ' . $table . ' LIMIT 1';
+
+		$stmt = $this->query($sql);
+
+		$i = 0;
+		$infos = array();
+		while ($column = $stmt->getColumnMeta($i++)) {
+			$infos[$column['name']] = $column;
+		}
+		return $infos;
+	}
+
+	/**
+	 * Cross database list tables
+	 * 
+	 * @return array 
+	 */
+	public function listTables() {
+		// use database specific statement to get the list of tables
+		$mysql = 'SHOW FULL TABLES';
+		$pgsql = 'SELECT * FROM pg_tables';
+		$mssql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+		$sqlite = "SELECT * FROM sqlite_master WHERE type='table'";
+		$oracle = "SELECT * FROM dba_tables";
+
+		$type = $this->getDbtype();
+
+		$result = $this->query($$type);
+		$list = $result->fetchAll();
+		$count = count($list);
+
+		//normalize results
+		switch ($type) {
+			case 'mysql':
+				$tables = array();
+				for ($i = 0; $i < $count; $i++) {
+					$tables[] = $list[$i][0];
+				}
+				$list = $tables;
+				break;
+		}
+
+		return $list;
+	}
+
+	/**
+	 * Alter charset of a table
+	 * 
+	 * @param string $table
+	 * @param string $charset
+	 * @param string $collation
+	 * @param bool $execute
+	 * @return string 
+	 */
+	public function alterCharset($table, $charset = 'utf8', $collation = 'utf8_unicode_ci', $execute = true) {
+		$sql = 'ALTER TABLE ' . $table . ' MODIFY' . "\n";
+		$sql .= 'CHARACTER SET ' . $charset;
+		$sql .= 'COLLATE ' . $collation;
+		if ($execute) {
+			$this->exec($sql);
+		}
+		return $sql;
+	}
+
+	/* Key related helpers */
+
+	/**
+	 * Alter keys
+	 * 
+	 * @param string $table
+	 * @param array $keys
+	 * @param bool $execute
+	 * @return string 
+	 */
+	public function alterKeys($table, $keys, $execute = true) {
+		if (empty($keys)) {
+			return false;
+		}
+		$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
+		if (!$res) {
+			return false;
+		}
+		$rows = $res->fetchAll();
+		if (!isset($rows['Engine']) || $rows['Engine'] != 'InnoDb') {
+			return false;
+		}
+
+		$all = '';
+		foreach ($keys as $key => $reference) {
+			$sql = 'ALTER TABLE ' . $table . "\n";
+			$fk_name = 'fk_' . $table . '_' . preg_replace('/[^a-z]/', '', $reference);
+			$sql .= 'ADD CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference;
+			$all .= $sql . ";\n";
+			if ($execute) {
+				$this->exec($sql);
+			}
+		}
+		$all = trim($sql, "\n");
+		return $all;
+	}
+
+	/**
+	 * Enable or disable foreign key support
+	 * 
+	 * @param bool $enable
+	 * @return bool 
+	 */
+	public function foreignKeysStatus($enable = true) {
+		$dbtype = $this->getDbtype();
+		switch ($dbtype) {
+			case 'sqlite' :
+				if ($enable) {
+					return $this->exec('PRAGMA foreign_keys = ON');
+				} else {
+					return $this->exec('PRAGMA foreign_keys = OFF');
+				}
+			case 'mysql':
+				if ($enable) {
+					return $this->exec('SET FOREIGN_KEY_CHECKS = 1');
+				} else {
+					return $this->exec('SET FOREIGN_KEY_CHECKS = 0');
+				}
+			case 'mssql' :
+				if ($enable) {
+					return $this->exec('ALTER TABLE ? NOCHECK CONSTRAINT ALL');
+				} else {
+					return $this->exec('ALTER TABLE ? CHECK CONSTRAINT ALL');
+				}
+			default :
+				throw new Exception('Unsupported database : ' . $dbtype);
+		}
+	}
+
+	/**
+	 * List foreign keys querying information schema
+	 * 
+	 * Return something like
+	 * Array(
+	 * 	[0] => Array(
+	 * 	[column_name] => 'name'
+	 *  [foreign_db] => 'db,
+	 *  [foreign_table] => 'company',
+	 *  [foreign_column] => 'id'
+	 * 	)
+	 * )
+	 * @return array
+	 */
+	public function listForeignKeys($table) {
+		$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
+		if (!$res) {
+			return false;
+		}
+		$query = "SELECT
+    `column_name`, 
+    `referenced_table_schema` AS foreign_db, 
+    `referenced_table_name` AS foreign_table, 
+    `referenced_column_name`  AS foreign_column 
+FROM
+    `information_schema`.`KEY_COLUMN_USAGE`
+WHERE
+    `constraint_schema` = SCHEMA()
+AND
+    `table_name` = '$table'
+AND
+    `referenced_column_name` IS NOT NULL
+ORDER BY
+    `column_name`";
+		$res = $this->query($query);
+		return $res->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	/* helpers */
 
 	/**
@@ -620,6 +1011,118 @@ HAVING ( COUNT(*) > 1 )";
 			}
 			$params = $namedParams;
 		}
+	}
+
+	/**
+	 * Check if the name is reserved or not (better to avoid them)
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	public static function isReservedName($name) {
+		return in_array(strtoupper($name), array(
+			"ACCESSIBLE", "ADD", "ALL",
+			"ALTER", "ANALYZE", "AND",
+			"AS", "ASC", "ASENSITIVE",
+			"BEFORE", "BETWEEN", "BIGINT",
+			"BINARY", "BLOB", "BOTH",
+			"BY", "CALL", "CASCADE",
+			"CASE", "CHANGE", "CHAR",
+			"CHARACTER", "CHECK", "COLLATE",
+			"COLUMN", "CONDITION", "CONSTRAINT",
+			"CONTINUE", "CONVERT", "CREATE",
+			"CROSS", "CURRENT_DATE", "CURRENT_TIME",
+			"CURRENT_TIMESTAMP", "CURRENT_USER", "CURSOR",
+			"DATABASE", "DATABASES", "DAY_HOUR",
+			"DAY_MICROSECOND", "DAY_MINUTE", "DAY_SECOND",
+			"DEC", "DECIMAL", "DECLARE",
+			"DEFAULT", "DELAYED", "DELETE",
+			"DESC", "DESCRIBE", "DETERMINISTIC",
+			"DISTINCT", "DISTINCTROW", "DIV",
+			"DOUBLE", "DROP", "DUAL",
+			"EACH", "ELSE", "ELSEIF",
+			"ENCLOSED", "ESCAPED", "EXISTS",
+			"EXIT", "EXPLAIN", "FALSE",
+			"FETCH", "FLOAT", "FLOAT4",
+			"FLOAT8", "FOR", "FORCE",
+			"FOREIGN", "FROM", "FULLTEXT",
+			"GRANT", "GROUP", "HAVING",
+			"HIGH_PRIORITY", "HOUR_MICROSECOND", "HOUR_MINUTE",
+			"HOUR_SECOND", "IF", "IGNORE",
+			"IN", "INDEX", "INFILE",
+			"INNER", "INOUT", "INSENSITIVE",
+			"INSERT", "INT", "INT1",
+			"INT2", "INT3", "INT4",
+			"INT8", "INTEGER", "INTERVAL",
+			"INTO", "IS", "ITERATE",
+			"JOIN", "KEY", "KEYS",
+			"KILL", "LEADING", "LEAVE",
+			"LEFT", "LIKE", "LIMIT",
+			"LINEAR", "LINES", "LOAD",
+			"LOCALTIME", "LOCALTIMESTAMP", "LOCK",
+			"LONG", "LONGBLOB", "LONGTEXT",
+			"LOOP", "LOW_PRIORITY", "MASTER_SSL_VERIFY_SERVER_CERT",
+			"MATCH", "MAXVALUE", "MEDIUMBLOB",
+			"MEDIUMINT", "MEDIUMTEXT", "MIDDLEINT",
+			"MINUTE_MICROSECOND", "MINUTE_SECOND", "MOD",
+			"MODIFIES", "NATURAL", "NOT",
+			"NO_WRITE_TO_BINLOG", "NULL", "NUMERIC",
+			"ON", "OPTIMIZE", "OPTION",
+			"OPTIONALLY", "OR", "ORDER",
+			"OUT", "OUTER", "OUTFILE",
+			"PRECISION", "PRIMARY", "PROCEDURE",
+			"PURGE", "RANGE", "READ",
+			"READS", "READ_WRITE", "REAL",
+			"REFERENCES", "REGEXP", "RELEASE",
+			"RENAME", "REPEAT", "REPLACE",
+			"REQUIRE", "RESIGNAL", "RESTRICT",
+			"RETURN", "REVOKE", "RIGHT",
+			"RLIKE", "SCHEMA", "SCHEMAS",
+			"SECOND_MICROSECOND", "SELECT", "SENSITIVE",
+			"SEPARATOR", "SET", "SHOW",
+			"SIGNAL", "SMALLINT", "SPATIAL",
+			"SPECIFIC", "SQL", "SQLEXCEPTION",
+			"SQLSTATE", "SQLWARNING", "SQL_BIG_RESULT",
+			"SQL_CALC_FOUND_ROWS", "SQL_SMALL_RESULT", "SSL",
+			"STARTING", "STRAIGHT_JOIN", "TABLE",
+			"TERMINATED", "THEN", "TINYBLOB",
+			"TINYINT", "TINYTEXT", "TO",
+			"TRAILING", "TRIGGER", "TRUE",
+			"UNDO", "UNION", "UNIQUE",
+			"UNLOCK", "UNSIGNED", "UPDATE",
+			"USAGE", "USE", "USING",
+			"UTC_DATE", "UTC_TIME", "UTC_TIMESTAMP",
+			"VALUES", "VARBINARY", "VARCHAR",
+			"VARCHARACTER", "VARYING", "WHEN",
+			"WHERE", "WHILE", "WITH",
+			"WRITE", "XOR", "YEAR_MONTH",
+			"ZEROFILL", " ",
+			"GENERAL", "IGNORE_SERVER_IDS", "MASTER_HEARTBEAT_PERIOD",
+			"MAXVALUE", "RESIGNAL", "SIGNAL",
+			"SLOW"
+		));
+	}
+
+	/**
+	 * Guess types from an array of names
+	 * Does not overwrite already defined types
+	 * 
+	 * @param array $arr
+	 * @return array
+	 */
+	public function guessTypes($arr) {
+		$fields = array();
+		foreach ($arr as $name => $type) {
+			if (is_int($name)) {
+				$name = $type;
+				$type = '';
+			}
+			if (empty($type)) {
+				$type = $this->guessType($name);
+			}
+			$fields[$name] = $type;
+		}
+		return $fields;
 	}
 
 	/**
@@ -666,7 +1169,7 @@ HAVING ( COUNT(*) > 1 )";
 	public function fetchValue($field, $from = null) {
 		return $this->q($from)->fields($field)->get('fetchValue');
 	}
-	
+
 	/* framework integration */
 
 	/**
@@ -691,7 +1194,7 @@ HAVING ( COUNT(*) > 1 )";
 
 		return $arr;
 	}
-	
+
 	/* formatters */
 
 	/**
@@ -718,7 +1221,7 @@ HAVING ( COUNT(*) > 1 )";
 	 * @return string
 	 */
 	public function highlight($sql) {
-		$colors = $this->colors;
+		$colors = array('chars' => 'Silver', 'keywords' => 'PaleTurquoise', 'joins' => 'Thistle  ', 'functions' => 'MistyRose', 'constants' => 'Wheat');
 		$chars = '/([\\.,\\(\\)<>:=`]+)/i';
 		$constants = '/(\'[^\']*\'|[0-9]+)/i';
 		$keywords = array(
@@ -756,6 +1259,54 @@ HAVING ( COUNT(*) > 1 )";
 			$sql = preg_replace($regexp, '<span style="color:' . $color . "\">$1</span>", $sql);
 		}
 		return $sql;
+	}
+
+	/**
+	 * Guess type of a field according to its name
+	 * 
+	 * @param string $name
+	 * @return string 
+	 */
+	public function guessType($name) {
+		$dbtype = $this->getDbtype();
+
+		$rules = array(
+			'zipcode' => 'VARCHAR(20)',
+			'_?ip$' => 'VARCHAR(45)', //ipv6 storage
+			'lang_code|country_code' => 'VARCHAR(2)',
+			'_?price$' => 'DECIMAL(10,2) UNSIGNED',
+			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => 'INT',
+			'_?(lat|lng|lon|latitude|longitude)$' => 'FLOAT(10,6)',
+			'_?(text|content)' => 'TEXT',
+			'_?(guid|uuid)$' => 'BINARY(36)', //don't store charset/collation
+			//dates
+			'^(is|has)_' => 'TINYINT',
+			'_?(datetime|at)$' => 'DATETIME',
+			'_?(date|birthdate|birthday)$' => 'DATE',
+			'_?time' => 'TIME',
+			'_?ts' => 'TIMESTAMP',
+		);
+
+		//default type
+		$type = 'VARCHAR(255)';
+
+		//guess by name
+		if ($name == 'id') {
+			if ($dbtype == 'sqlite') {
+				$type = 'INTEGER PRIMARY KEY AUTOINCREMENT';
+			} else {
+				$type = 'INT AUTO_INCREMENT';
+			}
+			return $type;
+		}
+
+		foreach ($rules as $r => $t) {
+			if (preg_match('/' . $r . '/', $name)) {
+				return $t;
+			}
+		}
+
+		return $type;
 	}
 
 	/* factories */

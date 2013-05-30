@@ -5,7 +5,9 @@ namespace k\sql;
 use \PDOStatement as NativePdoStatement;
 
 /**
- * @author tportelange
+ * Custom PDO statement to allow automatic logging of prepared statements
+ * 
+ * @author lekoala
  */
 class PdoStatement extends NativePdoStatement {
 

@@ -9,10 +9,10 @@ use \stdClass;
 /**
  * Table class
  * 
- * Table information is done through introspection or by asking DataObjects if
+ * Table information is done through introspection or by asking Orms if
  * they exists
  *
- * select/insert/update/delete are fully hookable by adding definitions in dataobjects
+ * select/insert/update/delete are fully hookable by adding definitions in Orms
  * 
  * @author lekoala
  */
@@ -32,7 +32,7 @@ class Table {
 	
 	/**
 	 * Get a new instance of a class
-	 * @return \stdClass|\k\sql\DataObject
+	 * @return \stdClass|\k\sql\Orm
 	 */
 	public function getNewInstance() {
 		$class = $this->getItemClass();
@@ -44,7 +44,7 @@ class Table {
 
 	public function getPrimaryKey() {
 		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\sql\\DataObject')) {
+		if ($class && is_subclass_of($class, '\\k\\sql\\Orm')) {
 			return $class::getPrimaryKey();
 		}
 		//TODO : introspect db
@@ -52,17 +52,10 @@ class Table {
 
 	public function getPrimaryKeys() {
 		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\sql\\DataObject')) {
+		if ($class && is_subclass_of($class, '\\k\\sql\\Orm')) {
 			return $class::getPrimaryKeys();
 		}
 		//TODO : introspect db
-	}
-
-	public function getForForeignKey($name = null) {
-		if (!$name) {
-			$name = $this->getName();
-		}
-		return strtolower($name) . '_' . $this->getPrimaryKey();
 	}
 
 	public function getNameAsClass() {
@@ -149,7 +142,7 @@ class Table {
 	 */
 	public function query($class = true) {
 		$q = new Query($this->getPdo());
-		$q->from($this->getName());
+		$q->from($this->getName())->fields($this->getName() . '.*');
 		if ($class && $this->getItemClass()) {
 			$q->fetchAs($this->getItemClass());
 		}
@@ -216,60 +209,6 @@ class Table {
 		return $data;
 	}
 
-	/**
-	 * Save a dataobject into the table
-	 * 
-	 * This helper abstract and improves insert and update helpers based
-	 * on changed fields and object existence
-	 * 
-	 * @param \k\sql\DataObject $do
-	 * @return boolean
-	 * @throws InvalidArgumentException
-	 */
-	public function save($do) {
-		$class = $this->getItemClass();
-		if (!$do instanceof $class) {
-			throw new InvalidArgumentException("You must pass a $class to save");
-		}
-		//save cached objects too
-		foreach ($do->getCache() as $name => $o) {
-			if (is_object($o)) {
-				$o->save();
-				$field = $o->getForForeignKey();
-				$do->$field = $o->getId();
-			}
-		}
-
-		$data = $do->toArray();
-		if ($do->exists()) {
-			$changed = array();
-			foreach ($do->getOriginal() as $k => $v) {
-				if ($do->$k != $v) {
-					$changed[$k] = $do->$k;
-				}
-			}
-			if (empty($changed)) {
-				return true;
-			}
-			$res = $this->update($changed, $do->pkAsArray());
-		} else {
-			$inserted = array();
-			foreach ($data as $k => $v) {
-				if (!empty($v)) {
-					$inserted[$k] = $v;
-				}
-			}
-			if (empty($inserted)) {
-				return false;
-			}
-			$res = static::insert($inserted);
-			if ($res && property_exists($do, 'id')) {
-				$do->id = $res;
-			}
-		}
-		return $res;
-	}
-	
 	/**
 	 * @param array $data
 	 * @return int The id of the record
@@ -439,4 +378,8 @@ class Table {
 		return $pdo->alterTable($table, $addedFields, $removeFields, $execute);
 	}
 
+	
+	public function __toString() {
+		return $this->getName();
+	}
 }

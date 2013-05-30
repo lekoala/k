@@ -104,7 +104,7 @@ class View {
 	}
 
 	public function addVars($vars) {
-		$this->setVar($vars, false);
+		$this->setVars($vars, false);
 		return $this;
 	}
 

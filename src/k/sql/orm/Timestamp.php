@@ -7,17 +7,10 @@ namespace k\sql\orm;
  */
 trait Timestamp {
 
-	/**
-	 * Timestamp
-	 * @var string
-	 */
-	protected $created_at;
-
-	/**
-	 * Timestamp
-	 * @var string
-	 */
-	protected $updated_at;
+	public static $permissionsFields = array(
+		'created_at' => 'DATETIME',
+		'updated_at' => 'DATETIME'
+	);
 
 	public function onPreSaveTimestamp() {
 		if ($this->exists()) {

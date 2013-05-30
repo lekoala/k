@@ -6,16 +6,18 @@ namespace k\sql\orm;
  * Password
  */
 trait Password {
+
 	protected $password;
-	
-	public function setPassword($password) {
-		$this->password = \K\Password::hash($password);
+
+	public function set_password($password) {
+		$this->password = password_hash($password);
 		return $this;
 	}
-	
+
 	public function generatePassword($length = 10, $chars = 'abcdefghjkpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXY3456789') {
-		$password = substr( str_shuffle( $chars ), 0, $length );
-		$this->setPassword($password);
+		$password = substr(str_shuffle($chars), 0, $length);
+		$this->password = $password;
 		return $password;
 	}
+
 }

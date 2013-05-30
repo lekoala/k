@@ -6,11 +6,15 @@ namespace k\sql\orm;
  * Address
  */
 trait Address {
-	protected $street;
-	protected $street_no;
-	protected $zip;
-	protected $city;
-	protected $country_code;
+	
+	public static $addressFields = array(
+		'building' => 'VARCHAR(255)',
+		'street' => 'VARCHAR(255)',
+		'street_no' => 'VARCHAR',
+		'zip' => 'VARCHAR(20)',
+		'city' => 'VARCHAR(255)',
+		'country_code' => 'VARCHAR(2)'
+	);
 	
 	function address() {
 		if (empty($this->street) || ($this->location() == '')) {

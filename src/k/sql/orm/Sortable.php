@@ -7,11 +7,9 @@ namespace k\sql\orm;
  */
 trait Sortable {
 
-	/**
-	 * Order
-	 * @var int
-	 */
-	protected $sort_order;
+	public static $sortableFields = array(
+		'sort_order' => 'INT'
+	);
 
 	/**
 	 * Default sort

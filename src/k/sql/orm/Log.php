@@ -3,7 +3,7 @@
 namespace k\sql\orm;
 
 /**
- * Meta
+ * Log
  */
 trait Log {
 	

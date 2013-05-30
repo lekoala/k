@@ -3,6 +3,7 @@
 namespace k;
 
 use \InvalidArgumentException;
+use \ReflectionClass;
 
 class Obj {
 
@@ -85,6 +86,11 @@ class Obj {
 	 */
 	public function getClass() {
 		return self::getClassName(get_called_class());
+	}
+	
+	public static function getTraits($class) {
+		$refl = new ReflectionClass($class);
+		return $refl->getTraitNames();
 	}
 
 	/**

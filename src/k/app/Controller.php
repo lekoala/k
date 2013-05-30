@@ -43,21 +43,6 @@ use SyntaxHelpers;
 	}
 
 	/**
-	 * Utility function to run code that can trigger exception and convert
-	 * them as error notification
-	 * 
-	 * @param function $callback
-	 * @return mixed
-	 */
-	public function notify($message) {
-		throw new NotifyException($message);
-	}
-	
-	public function deny($message = 'Forbidden') {
-		throw new DeniedException($message);
-	}
-	
-	/**
 	 * Look for parameter in get or post
 	 * 
 	 * Any value will be automatically added to the view if it exists
@@ -97,11 +82,11 @@ use SyntaxHelpers;
 			$name = trim(strtolower(preg_replace('/([A-Z])/', "_$1", $name)), '_');
 			$url = str_replace('./', '/' . $name . '/', $url);
 		}
-		$this->getApp()->getHttp()->redirect($url, 302, true);
+		$this->getApp()->getResponse()->redirect($url,302,true);
 	}
 
 	public function redirectBack() {
-		$this->getApp()->getHttp()->redirectBack();
+		$this->getApp()->getResponse()->redirectBack();
 	}
 
 	public function getRequiresAuth() {
@@ -123,7 +108,6 @@ use SyntaxHelpers;
 
 	public function __call($name, $arguments) {
 		//look for an action
-
 		if ($this->actions) {
 			$actionName = ucfirst($name);
 			$actions = array_keys($this->actions);

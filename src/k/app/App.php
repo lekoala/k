@@ -8,6 +8,10 @@ use \InvalidArgumentException;
 use \ReflectionClass;
 
 class App {
+	const NOTICE = 'notice';
+	const INFO = 'info';
+	const SUCCESS = 'success';
+	const ERROR = 'error';
 	
 	use SyntaxHelpers;
 	
@@ -25,9 +29,12 @@ class App {
 	protected $controller;
 	protected $controllerName;
 	protected $config = array();
+	protected $isJson = false;
+	protected $isAjax = false;
 	//
 	// classes
 	//
+	protected $response;
 	protected $logger;
 	protected $view;
 	protected $http;
@@ -67,24 +74,11 @@ class App {
 	/**
 	 * Create a new app
 	 * 
-	 * Pass the dir where the app lives
-	 * 
 	 * @param string $dir If omitted, will use the parent folder
 	 * @throws InvalidArgumentException
 	 */
 	public function __construct($config = array()) {
 		$this->config = $config;
-
-		if (array_key_exists('debug', $_GET)) {
-			register_shutdown_function(function() {
-				ob_clean();
-				echo '<pre>';
-				foreach ($this->getLogger()->getLogs() as $l) {
-					echo $l['level'] . "\t" . $l['message'] . "\n";
-				}
-			});
-		}
-
 		$this->init();
 		$this->getLogger()->debug('App initiliazed');
 	}
@@ -135,15 +129,29 @@ class App {
 	/////////////////////
 	// classes getters //
 
+	/**
+	 * @return \psr\log\LoggerInterface
+	 */
 	public function getLogger() {
 		if ($this->logger === null) {
 			$this->logger = new \k\log\NullLogger();
 		}
 		return $this->logger;
 	}
+	
+	/**
+	 * 
+	 * @return k\app\Response
+	 */
+	public function getResponse() {
+		if($this->response === null) {
+			$this->response = new Response($this->config('response',array()));
+		}
+		return $this->response;
+	}
 
 	/**
-	 * @return Http
+	 * @return k\app\Http
 	 */
 	public function getHttp() {
 		if ($this->http === null) {
@@ -169,6 +177,7 @@ class App {
 		if ($this->layout === null) {
 			$layoutName = $this->config('view/layout', 'layout/default');
 			$this->layout = $this->createView($layoutName);
+			$this->layout->content = '';
 		}
 		if ($this->layout && $view) {
 			$view->setParent($this->layout);
@@ -198,7 +207,10 @@ class App {
 		}
 		return $this->cookies;
 	}
-
+	
+	/**
+	 * @return \k\html\View
+	 */
 	public function getView() {
 		return $this->view;
 	}
@@ -329,17 +341,13 @@ class App {
 	 */
 	public function run() {
 		try {
-		$result = $this->handle($this->getHttp()->getPath(false));
+			$this->handle($this->getHttp()->getPath(false));
 		}
 		catch(\k\app\DeniedException $e) {
 			$this->notify($e->getMessage(),'error');
-			$this->getHttp()->redirectBack();
+			$this->getResponse()->status(401)->redirectBack();
 		}
-		catch(\k\app\NotifyException $e) {
-			$this->notify($e->getMessage(),'error');
-		}
-		$this->http->header('Content-Type: text/html; charset=utf-8');
-		echo $result;
+		$this->getResponse()->send();
 	}
 
 	public function notify($text, $options = array()) {
@@ -351,6 +359,9 @@ class App {
 		}
 		$options['text'] = $text;
 		$options['history'] = false;
+		if($this->isJson) {
+			return $this->getResponse()->addData('notifications',$options);
+		}
 		return $this->getSession()->add('notifications', $options);
 	}
 
@@ -363,10 +374,20 @@ class App {
 	 * @return string
 	 */
 	public function handle($path) {
+		
+		$response = $this->getResponse();
+		
 		$path = trim($path, '/');
 		$parts = explode('/', $path);
 		$parts = array_filter($parts);
+		
+		$this->isAjax = $this->getHttp()->isAjax() || isset($_GET['_ajax']);
+		$this->isJson = $this->getHttp()->accept('application/json') || isset($_GET['_json']);
 
+		if($this->isJson) {
+			$response->json();
+		}
+		
 		//match to a module if we are using them
 		$moduleName = null;
 		if (is_dir($this->dir . '/src/modules')) {
@@ -397,15 +418,24 @@ class App {
 		$this->actionName = $actionName;
 
 		//if we have an ajax request, we don't want a layout
-		if ($this->getHttp()->isAjax()) {
+		if ($this->getHttp()->isAjax() || $this->isJson) {
 			$this->useLayout = false;
 		}
 		//if we are requesting json data, don't create a view
-		if (!$this->getHttp()->accept('application/json')) {
+		if (!$this->isJson) {
 			$this->view = $this->createView($controllerName, $actionName, $moduleName);
 		}
 
-		$response = array();
+		//without view or controller, return 404
+		if(!$this->view && (!$this->controller || $this->controller instanceof $this->fallbackController)) {
+			$response->error();
+		}
+
+		$responseData = array();
+		if($this->config('debug')) {
+			$responseData['debug'] = array();
+		}
+				
 		if ($this->controller) {
 			//indexAction...
 			$method = lcfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $actionName))))
@@ -416,20 +446,25 @@ class App {
 			$methodResponse = $this->callAction($this->controller, $method, $parts);
 			$postResponse = $this->callAction($this->controller, 'post', array($this->actionName, $parts));
 
-			$response = array_merge($preResponse, $methodResponse, $postResponse);
+			$responseData = array_merge($responseData, $preResponse, $methodResponse, $postResponse);
+			$response->data($responseData);
 		}
-
-		//render with template
+		
+		//render with template //
+		
 		if ($this->view) {
-			$this->view->addVars($response);
+			$this->view->addVars($responseData);
 		}
 		if ($this->useLayout) {
 			$this->view = $this->getLayout($this->view);
 		}
+		//could be a view or a view/layout
 		if ($this->view) {
 			$this->registerViewHelpers($this->view);
-			return $this->view;
+			$response->body($this->view);
 		}
+		
+		return $response;
 	}
 
 	protected function callAction(Controller $controller, $name, $parts = array()) {

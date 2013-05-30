@@ -6,11 +6,10 @@ namespace k\sql\orm;
  * Implement softdelete system
  */
 trait SoftDelete {
-	/**
-	 * Datetime when the record was deleted
-	 * @var string
-	 */
-	protected $deleted_at;
+	
+	public static $softDeleteFields = array(
+		'deleted_at' => 'DATETIME'
+	);
 	
 	public static function get() {
 		$q = parent::get();

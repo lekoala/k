@@ -6,21 +6,12 @@ namespace k\sql\orm;
  * Geoloc
  */
 trait Geoloc {
-	/**
-	 * Latitude
-	 * @var float
-	 */
-	protected $lat;
-	/**
-	 * Longitude
-	 * @var float
-	 */
-	protected $lng;
-	/**
-	 * Address from google
-	 * @var string
-	 */
-	protected $mapped_address;
+	
+	public static $geolocFields = array(
+		'lat' => 'FLOAT(10,6)',
+		'lng' => 'FLOAT(10,6)',
+		'mapped_address' => 'VARCHAR(255)'
+	);
 	
 	public function geocode($save = true) {
 		$address = $this->mapped_address;

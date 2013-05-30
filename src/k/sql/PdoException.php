@@ -4,7 +4,9 @@ namespace k\sql;
 use \PDOException as NativePdoException;
 
 /**
- * @author tportelange
+ * Extend PDO exception with more helpful error messages
+ * 
+ * @author lekoala
  */
 class PdoException extends NativePdoException {
 

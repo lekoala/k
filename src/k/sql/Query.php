@@ -190,7 +190,7 @@ class Query implements Iterator, Countable {
 
 	public function setPdo($pdo) {
 		if (!$pdo instanceof \PDO) {
-			throw new InvalidArgumentException("Db must be an instance of PDO");
+			throw new InvalidArgumentException("You must pass an instance of PDO");
 		}
 		$this->pdo = $pdo;
 		return $this;
@@ -238,8 +238,8 @@ class Query implements Iterator, Countable {
 	public function fetchAs($itemClass = null, $collectionClass = null) {
 		$this->fetchClass = $itemClass;
 		$this->collectionClass = $collectionClass;
-		if(is_subclass_of($itemClass, '\\k\\sql\\DataObject')) {
-			$this->fields = $itemClass::getTableName() . '.*';
+		if(is_subclass_of($itemClass, '\\k\\sql\\Orm')) {
+			$this->fields($itemClass::getTableName() . '.*');
 		}
 		return $this;
 	}
@@ -348,7 +348,7 @@ class Query implements Iterator, Countable {
 		$db = $this->getPdo();
 
 		if(is_object($value)) {
-			if($value instanceof \k\sql\DataObject) {
+			if($value instanceof \k\sql\Orm) {
 				$value = $value->getId();
 			}
 			elseif(method_exists($value, 'toArray()')) {
@@ -728,9 +728,7 @@ class Query implements Iterator, Countable {
 		if (empty($fields)) {
 			$fields = '*';
 		} else {
-			if (is_array($fields)) {
-				$fields = implode(',', $fields);
-			}
+			$fields = implode(',', $fields);
 		}
 		foreach ($this->emptyOrNull as $k => $v) {
 			$fields = str_replace($k, "nullif($k,'') AS $k", $fields);
@@ -826,7 +824,7 @@ class Query implements Iterator, Countable {
 		$results = $this->query();
 		if ($results) {
 			if ($fetchArgument) {
-				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument,array(0 => $this->getPdo()));
+				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument);
 			} else {
 				$this->fetchedData = $results->fetchAll($fetchType);
 			}
@@ -846,7 +844,7 @@ class Query implements Iterator, Countable {
 	 */
 	function fetchValue($field = null) {
 		if ($field !== null) {
-			$this->fields = $field;
+			$this->fields($field);
 		}
 		$row = $this->fetch(PDO::FETCH_NUM);
 		if (isset($row[0])) {
@@ -864,7 +862,7 @@ class Query implements Iterator, Countable {
 	function fetchColumn($field = 0) {
 		if ($field) {
 			$field = $this->removeTableOrAlias($field);
-			$this->fields = $field;
+			$this->fields($field);
 		}
 
 		$fetch = PDO::FETCH_ASSOC;
@@ -887,7 +885,7 @@ class Query implements Iterator, Countable {
 	 * @return array
 	 */
 	function fetchMap($value = 'name', $key = 'id') {
-		$this->fields = $key . ',' . $value;
+		$this->fields($key . ',' . $value);
 		$rows = $this->fetchAll(PDO::FETCH_OBJ);
 		$res = array();
 
@@ -931,7 +929,7 @@ class Query implements Iterator, Countable {
 	function fetch($fetchType = null, $fetchArgument = null) {
 		$results = $this->query();
 		if ($this->fetchClass && $fetchType === null) {
-			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass,array(0 => $this->getPdo()));
+			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass);
 		}
 		if ($fetchType === null) {
 			$fetchType = PDO::FETCH_ASSOC;
@@ -1004,7 +1002,7 @@ class Query implements Iterator, Countable {
 			}
 			$this->leftJoin($table);
 			if (empty($this->fields)) {
-				$this->fields = array($this->from . '.*');
+				$this->fields($this->from . '.*');
 			}
 			$this->addField($table . '.' . $key_parts[1]);
 		}

@@ -50,4 +50,23 @@ trait AppShortcuts {
 	public function getSession() {
 		return $this->getApp()->getSession();
 	}
+	
+	public function getResponse() {
+		return $this->getApp()->getResponse();
+	}
+	
+	/**
+	 * Utility function to run code that can trigger exception and convert
+	 * them as error notification
+	 * 
+	 * @param function $callback
+	 * @return mixed
+	 */
+	public function notify($message, $status = 'info') {
+		$this->getApp()->notify($message, $status);
+	}
+
+	public function deny($message = 'Forbidden') {
+		throw new DeniedException($message);
+	}
 }

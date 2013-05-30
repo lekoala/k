@@ -8,7 +8,9 @@ namespace k\sql\orm;
  */
 trait Permissions {
 	
-	protected $permissions = 0;
+	public static $permissionsFields = array(
+		'permissions' => 'INT'
+	);
 	
 	public static function getDefaultPermissions() {
 		return array(
