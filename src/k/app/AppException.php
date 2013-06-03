@@ -9,6 +9,8 @@ use \Exception;
  *
  * @author lekoala
  */
-class DeniedException extends Exception {
-
+class AppException extends Exception {
+	const GENERAL = 1;
+	const DENIED = 2;
+	const NOT_INSTALLED = 3;
 }

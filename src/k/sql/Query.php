@@ -13,6 +13,7 @@ use \InvalidArgumentException;
  * 
  * Inspiration :
  * @link https://github.com/lichtner/fluentdb/blob/master/FluentPDO.php
+ * @link https://github.com/monochromegane/QueryBuilder
  */
 class Query implements Iterator, Countable {
 
@@ -177,7 +178,7 @@ class Query implements Iterator, Countable {
 	/**
 	 * Create a new Query object and allow passing directly the from
 	 * 
-	 * @param PDO|Db $pdo
+	 * @param PDO $pdo
 	 */
 	public function __construct($pdo) {
 		$this->reset();

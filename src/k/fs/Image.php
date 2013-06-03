@@ -22,7 +22,11 @@ class Image extends File {
 	public function resize($width = 0, $height = 0, $proportional = true) {
 		return self::imageResize($this->getPathname(), $width, $height, $proportional);
 	}
-
+	
+	public function crop($width = 0, $height = 0) {
+		return self::imageCrop($this->getPathname(), $width, $height);
+	}
+	
 	/**
 	 * Create a gd resource from a filename
 	 * 
@@ -114,8 +118,8 @@ class Image extends File {
 			return false;
 		}
 		$infos = getimagesize($filename);
-		$width_old = $infos[0];
-		$height_old = $infos[1];
+		$widthOld = $infos[0];
+		$heightOld = $infos[1];
 		$type = $infos[2];
 
 		//handle x
@@ -128,53 +132,53 @@ class Image extends File {
 		//handle %
 		if (strpos($width, '%') !== false) {
 			$perc = trim($width, '%');
-			$width = $width_old / 100 * $perc;
+			$width = $widthOld / 100 * $perc;
 		}
 		if (strpos($height, '%') !== false) {
 			$perc = trim($height, '%');
-			$height = $height_old / 100 * $perc;
+			$height = $heightOld / 100 * $perc;
 		}
 
 		//for proportional resize, check the ratio
 		if ($proportional) {
 			if ($width == 0) {
-				$ratio = $height / $height_old;
+				$ratio = $height / $heightOld;
 			} elseif ($height == 0) {
-				$ratio = $width / $width_old;
+				$ratio = $width / $widthOld;
 			} else {
-				$ratio = min($width / $width_old, $height / $height_old);
+				$ratio = min($width / $widthOld, $height / $heightOld);
 			}
 
-			$width = round($width_old * $ratio);
-			$height = round($height_old * $ratio);
+			$width = round($widthOld * $ratio);
+			$height = round($heightOld * $ratio);
 		}
 
 		$image = self::imageCreate($filename);
-		$image_resized = imagecreatetruecolor($width, $height);
+		$imageResized = imagecreatetruecolor($width, $height);
 
 		//transparency support
 		if ($type == IMAGETYPE_GIF || $type == IMAGETYPE_PNG) {
 			$transparency = imagecolortransparent($image);
 			if ($transparency && $transparency > 0) {
-				$transparency_color = imagecolorsforindex($image, $transparency);
-				$transparency = imagecolorallocate($image_resized, $transparency_color['red'], $transparency_color['green'], $transparency_color['blue']);
-				imagefill($image_resized, 0, 0, $transparency);
-				imagecolortransparent($image_resized, $transparency);
+				$transpColor = imagecolorsforindex($image, $transparency);
+				$transparency = imagecolorallocate($imageResized, $transpColor['red'], $transpColor['green'], $transpColor['blue']);
+				imagefill($imageResized, 0, 0, $transparency);
+				imagecolortransparent($imageResized, $transparency);
 			} elseif ($type == IMAGETYPE_PNG) {
-				imagealphablending($image_resized, false);
-				$color = imagecolorallocatealpha($image_resized, 0, 0, 0, 127);
-				imagefill($image_resized, 0, 0, $color);
-				imagesavealpha($image_resized, true);
+				imagealphablending($imageResized, false);
+				$color = imagecolorallocatealpha($imageResized, 0, 0, 0, 127);
+				imagefill($imageResized, 0, 0, $color);
+				imagesavealpha($imageResized, true);
 			}
 		}
 
-		imagecopyresampled($image_resized, $image, 0, 0, 0, 0, $width, $height, $width_old, $height_old);
+		imagecopyresampled($imageResized, $image, 0, 0, 0, 0, $width, $height, $widthOld, $heightOld);
 
 		if ($output) {
 			$filename = image_type_to_mime_type($type);
 		}
 
-		return self::imageSave($image_resized, $filename);
+		return self::imageSave($imageResized, $filename);
 	}
 
 	/**
@@ -183,67 +187,76 @@ class Image extends File {
 	 * @param string $filename
 	 * @param int $width
 	 * @param int $height
-	 * @param int|string $from_x
-	 * @param int|string $from_y
-	 * @param bool $resize_before
+	 * @param int|string $fromX
+	 * @param int|string $fromY
+	 * @param bool $resize
 	 * @return bool
 	 * @throws Exception
 	 */
-	public static function imageCrop($filename, $width = 0, $height = 0, $from_x = '50%', $from_y = '50%', $resize_before = true) {
-		if ($resize_before) {
-			self::imageResize($filename, $width, $height);
-		}
-
+	public static function imageCrop($filename, $width = 0, $height = 0, $fromX = '50%', $fromY = '50%', $resize = true) {
 		$infos = getimagesize($filename);
-		$width_old = $infos[0];
-		$height_old = $infos[1];
+		$widthOld = $infos[0];
+		$heightOld = $infos[1];
+		
+		if ($resize) {
+			if($widthOld < $heightOld) {
+				self::imageResize($filename, $width, 0);
+			}
+			else {
+				self::imageResize($filename, 0, $height);
+			}
+		}
+		
+		$infos = getimagesize($filename);
+		$widthOld = $infos[0];
+		$heightOld = $infos[1];
 		$type = $infos[2];
 
 		if ($width == 0) {
-			$width = $width_old;
+			$width = $widthOld;
 		}
 		if ($height == 0) {
-			$height = $height_old;
+			$height = $heightOld;
 		}
 
 		//handle x
-		if (strpos($from_x, 'x') !== false) {
-			$parts = explode('x', $from_x);
-			$from_x = trim($parts[0]);
-			$from_y = trim($parts[1]);
+		if (strpos($fromX, 'x') !== false) {
+			$parts = explode('x', $fromX);
+			$fromX = trim($parts[0]);
+			$fromY = trim($parts[1]);
 		}
 
 		//handle %
-		if (strpos($from_x, '%') !== false) {
-			$perc = trim($from_x, '%');
-			$from_x = round(max($width_old - $width, 0) / 100 * $perc);
+		if (strpos($fromX, '%') !== false) {
+			$perc = trim($fromX, '%');
+			$fromX = round(max($widthOld - $width, 0) / 100 * $perc);
 		}
-		if (strpos($from_y, '%') !== false) {
-			$perc = trim($from_y, '%');
-			$from_y = round(max($height_old - $height, 0) / 100 * $perc);
+		if (strpos($fromY, '%') !== false) {
+			$perc = trim($fromY, '%');
+			$fromY = round(max($heightOld - $height, 0) / 100 * $perc);
 		}
 
 		$image = self::imageCreate($filename);
-		$image_resized = imagecreatetruecolor($width, $height);
+		$imageResized = imagecreatetruecolor($width, $height);
 
 		//transparency support
 		if ($type == IMAGETYPE_GIF || $type == IMAGETYPE_PNG) {
 			$transparency = imagecolortransparent($image);
 			if ($transparency) {
-				$transparency_color = imagecolorsforindex($image, $transparency);
-				$transparency = imagecolorallocate($image_resized, $transparency_color['red'], $transparency_color['green'], $transparency_color['blue']);
-				imagefill($image_resized, 0, 0, $transparency);
-				imagecolortransparent($image_resized, $transparency);
+				$transpColor = imagecolorsforindex($image, $transparency);
+				$transparency = imagecolorallocate($imageResized, $transpColor['red'], $transpColor['green'], $transpColor['blue']);
+				imagefill($imageResized, 0, 0, $transparency);
+				imagecolortransparent($imageResized, $transparency);
 			} elseif ($type == IMAGETYPE_PNG) {
-				imagealphablending($image_resized, false);
-				$color = imagecolorallocatealpha($image_resized, 0, 0, 0, 127);
-				imagefill($image_resized, 0, 0, $color);
-				imagesavealpha($image_resized, true);
+				imagealphablending($imageResized, false);
+				$color = imagecolorallocatealpha($imageResized, 0, 0, 0, 127);
+				imagefill($imageResized, 0, 0, $color);
+				imagesavealpha($imageResized, true);
 			}
 		}
 
-		imagecopyresampled($image_resized, $image, 0, 0, $from_x, $from_y, $width, $height, $width, $height);
-		return self::imageSave($image_resized, $filename);
+		imagecopyresampled($imageResized, $image, 0, 0, $fromX, $fromY, $width, $height, $width, $height);
+		return self::imageSave($imageResized, $filename);
 	}
 
 	/**

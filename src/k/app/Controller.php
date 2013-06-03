@@ -8,13 +8,11 @@ use \RuntimeException;
 /**
  * The controller handles extra logic to handle actions triggered in the view
  * 
- * Business logic should be forwared to the models as much as possible
+ * Business logic should be forwared to the models/services as much as possible
  */
-class Controller {
+abstract class Controller {
 
-	use AppShortcuts;
-
-use SyntaxHelpers;
+	use Bridge;
 
 	protected $name;
 
@@ -25,20 +23,11 @@ use SyntaxHelpers;
 	 */
 	protected $actions;
 
-	public function __construct($app) {
-		$this->setApp($app);
-		$this->init();
-	}
-
 	public function pre($method, $params) {
 		//implement in subclass
 	}
 
 	public function post($method, $params) {
-		//implement in subclass
-	}
-
-	public function init() {
 		//implement in subclass
 	}
 
@@ -53,57 +42,48 @@ use SyntaxHelpers;
 	 * @return mixed
 	 */
 	public function in($k, $filter = null, $default = null) {
-		$v = $this->getApp()->getHttp()->in($k, $default);
+		$v = $this->getRequest()->in($k, $default);
 		if ($this->getView()) {
 			$this->getView()->$k = $v;
 		}
 		return $v;
 	}
-
-	public function isGet() {
-		return $this->getApp()->getHttp()->isGet();
+	
+	public function method($v = null) {
+		return $this->getRequest()->method($v);
 	}
 
-	public function isPost() {
-		return $this->getApp()->getHttp()->isPost();
+	protected function file($filename, $name = null, $force = false) {
+		if (!is_file($filename)) {
+			//TODO
+		}
+		if (!$name) {
+			$name = basename($filename);
+		}
+		$filesize = filesize($filename);
+		//large files should be handled by apache directly
+		if ($filesize > $this->getApp()->config('large_file_limit')) {
+			$location = '/files/' . $name;
+			$symbolic = $this->getApp()->getPublicDir() . $location;
+			$res = system(sprintf('ln -s %s %s', $filename, $symbolic), $ret);
+			if ($res !== false) {
+				$this->redirect($location);
+			}
+		} else {
+			$this->getResponse()->file($filename, $name, $force);
+		}
 	}
 
-	public function isUpdate() {
-		return $this->getApp()->getHttp()->isUpdate();
-	}
-
-	public function isDelete() {
-		return $this->getApp()->getHttp()->isDelete();
-	}
-
-	public function redirect($url) {
+	protected function redirect($url) {
 		if (strpos($url, '.') === 0) {
-			$name = str_replace($this->getApp()->getControllerPrefix(), '', $this->getName());
-			$name = trim(strtolower(preg_replace('/([A-Z])/', "_$1", $name)), '_');
-			$url = str_replace('./', '/' . $name . '/', $url);
+			$name = $this->getApp()->getUrlSegment();
+			$url = preg_replace('#^\./#', $name . '/', $url);
 		}
-		$this->getApp()->getResponse()->redirect($url,302,true);
+		$this->getApp()->getResponse()->redirect($url, 302, true);
 	}
 
-	public function redirectBack() {
+	protected function redirectBack() {
 		$this->getApp()->getResponse()->redirectBack();
-	}
-
-	public function getRequiresAuth() {
-		return $this->requiresAuth;
-	}
-
-	public function setRequiresAuth($requiresAuth) {
-		$this->requiresAuth = $requiresAuth;
-		return $this;
-	}
-
-	public function getName() {
-		if ($this->name === null) {
-			$obj = explode('\\', get_called_class());
-			$this->name = end($obj);
-		}
-		return $this->name;
 	}
 
 	public function __call($name, $arguments) {

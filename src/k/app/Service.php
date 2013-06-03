@@ -9,11 +9,12 @@ use \RuntimeException;
  * A service controls business logic related to an entity or a group of entity
  * 
  * Basic exemple : UserService should handle logic for login, password reset etc
+ * Twitter service can serve or post tweets...
+ * Image service can provide thumbnails and so on...
  */
 class Service {
 	
-	use AppShortcuts;
-	use SyntaxHelpers;
+	use Bridge;
 
 	protected $name;
 
@@ -24,15 +25,6 @@ class Service {
 	 */
 	protected $actions;
 	protected $tables = array();
-
-	public function __construct($app) {
-		$this->setApp($app);
-		$this->init();
-	}
-
-	public function init() {
-		//implement in subclass
-	}
 
 	public function getName() {
 		if ($this->name === null) {

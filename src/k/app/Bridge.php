@@ -8,32 +8,15 @@ namespace k\app;
  *
  * @author lekoala
  */
-trait AppShortcuts {
-
-	/**
-	 * Store the app instance
-	 * 
-	 * @var App
-	 */
-	protected $app;
+trait Bridge {
 
 	public function getApp() {
-		return $this->app;
+		return App::getInstance();
 	}
 
-	public function setApp($app) {
-		if (!$app instanceof \k\app\App) {
-			throw new InvalidArgumentException('You must pass an instance of k\app, ' . get_class($app) . ' was passed');
-		}
-		$this->app = $app;
-		return $this;
-	}
-	
 	public function getService($name) {
-		return $this->getApp()->getService($name);
+		return $this->getApp()->createService($name);
 	}
-
-	/* shortcut to access app properties */
 
 	public function getLayout() {
 		return $this->getApp()->getLayout();
@@ -55,6 +38,11 @@ trait AppShortcuts {
 		return $this->getApp()->getResponse();
 	}
 	
+	public function getRequest() {
+		return $this->getApp()->getRequest();
+	}
+
+	
 	/**
 	 * Utility function to run code that can trigger exception and convert
 	 * them as error notification
@@ -67,6 +55,41 @@ trait AppShortcuts {
 	}
 
 	public function deny($message = 'Forbidden') {
-		throw new DeniedException($message);
+		throw new AppException($message);
+	}
+	
+	/**
+	 * Get a value from the config
+	 * 
+	 * @param string $key
+	 * @param mixed $default
+	 * @return mixed
+	 */
+	public function config($key, $default = null) {
+		$conf = $this->getApp()->getConfig();
+		$loc = &$conf;
+		foreach (explode('/', $key) as $step) {
+			if (isset($loc[$step])) {
+				$loc = &$loc[$step];
+			} else {
+				return $default;
+			}
+		}
+		return $loc;
+	}
+
+	
+	/**
+	 * Get/set a value from the session
+	 * 
+	 * @param string $k
+	 * @param mixed $v
+	 * @return mixed
+	 */
+	public function session($k, $v = null) {
+		if ($v === null) {
+			return $this->getApp()->getSession()->get($k);
+		}
+		return $this->getApp()->getSession()->set($k, $v);
 	}
 }

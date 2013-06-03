@@ -952,6 +952,10 @@ class Orm implements JsonSerializable {
 	public static function setStorage($storage) {
 		static::$storage = $storage;
 	}
+	
+	public function t($name = null) {
+		return static::getTable($name);
+	}
 
 	/**
 	 * Get table instance
@@ -959,7 +963,10 @@ class Orm implements JsonSerializable {
 	 * @return \k\sql\Table
 	 */
 	public static function getTable($name = null) {
-		return static::getPdo()->t(static::getTableName());
+		if($name === null) {
+			$name = static::getTableName();
+		}
+		return static::getPdo()->t($name);
 	}
 
 	/**
@@ -1407,6 +1414,10 @@ class Orm implements JsonSerializable {
 
 	public static function onAfterDelete(&$res, $data, $where = null, $params = null) {
 		
+	}
+	
+	protected function q() {
+		return static::query();
 	}
 
 	protected static function query() {

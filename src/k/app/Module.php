@@ -5,28 +5,11 @@ use \Exception;
 use \InvalidArgumentException;
 
 class Module {
-	/**
-	 * @var App
-	 */
-	protected $app;
+	
+	use Bridge;
+	
 	protected $name;
-	
-	public function __construct(App $app) {
-		$this->setApp($app);
-	}
-	
-	/**
-	 * @return App
-	 */
-	public function getApp() {
-		return $this->app;
-	}
-	
-	public function setApp($app) {
-		$this->app = $app;
-		return $this;
-	}
-	
+
 	public function getName() {
 		if($this->name === null) {
 			$obj = explode('\\', get_called_class());
