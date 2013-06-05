@@ -693,7 +693,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @return string
 	 */
-	function build() {
+	public function build() {
 		if (empty($this->from)) {
 			throw new Exception('You must set a table before building the statement');
 		}
@@ -779,7 +779,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @return PdoStatement
 	 */
-	function query() {
+	public function query() {
 		$db = $this->getPdo();
 
 		$sql = $this->build();
@@ -798,7 +798,7 @@ class Query implements Iterator, Countable {
 	 * @param array $args
 	 * @return \\k\sql\Query
 	 */
-	function get($fetchMode = null, $args = array()) {
+	public function get($fetchMode = null, $args = array()) {
 		if ($fetchMode === null) {
 			return call_user_func_array(array($this, $this->fetchMode), $this->fetchArgs);
 		}
@@ -814,7 +814,7 @@ class Query implements Iterator, Countable {
 	 * @param mixed $fetchArgument
 	 * @return array 
 	 */
-	function fetchAll($fetchType = null, $fetchArgument = null) {
+	public function fetchAll($fetchType = null, $fetchArgument = null) {
 		if ($this->fetchClass && $fetchType === null) {
 			$fetchType = PDO::FETCH_CLASS;
 			$fetchArgument = $this->fetchClass;
@@ -836,6 +836,28 @@ class Query implements Iterator, Countable {
 		}
 		return $this->fetchedData;
 	}
+	
+	/**
+	 * Fetch all records index by column
+	 * 
+	 * @param string $column
+	 * @param int $fetchType
+	 * @param mixed $fetchArgument
+	 * @return array
+	 */
+	public function fetchBy($column = 'id',$fetchType = null, $fetchArgument = null) {
+		$data = $this->fetchAll($fetchType, $fetchArgument);
+		$dataBy = array();
+		foreach($data as $row) {
+			if(is_object($row)) {
+				$dataBy[$row->$column] = $row;
+			}
+			else {
+				$dataBy[$row[$column]] = $row;
+			}
+		}
+		return $dataBy;
+	}
 
 	/**
 	 * Fetch only the first value
@@ -843,7 +865,7 @@ class Query implements Iterator, Countable {
 	 * @param string $field (optional) shortcut for fields
 	 * @return string
 	 */
-	function fetchValue($field = null) {
+	public function fetchValue($field = null) {
 		if ($field !== null) {
 			$this->fields($field);
 		}
@@ -860,7 +882,7 @@ class Query implements Iterator, Countable {
 	 * @param string $field
 	 * @return array
 	 */
-	function fetchColumn($field = 0) {
+	public function fetchColumn($field = 0) {
 		if ($field) {
 			$field = $this->removeTableOrAlias($field);
 			$this->fields($field);
@@ -885,7 +907,7 @@ class Query implements Iterator, Countable {
 	 * @param string $key
 	 * @return array
 	 */
-	function fetchMap($value = 'name', $key = 'id') {
+	public function fetchMap($value = 'name', $key = 'id') {
 		$this->fields($key . ',' . $value);
 		$rows = $this->fetchAll(PDO::FETCH_OBJ);
 		$res = array();
@@ -898,13 +920,13 @@ class Query implements Iterator, Countable {
 		}
 		return $res;
 	}
-
+	
 	/**
 	 * Fetch one record (limit)
 	 * 
 	 * @return array|object
 	 */
-	function fetchOne() {
+	public function fetchOne() {
 		$this->limit = 1;
 		return $this->fetch();
 	}
@@ -914,7 +936,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @return Orm
 	 */
-	function fetchOnlyOne() {
+	public function fetchOnlyOne() {
 		$results = $this->fetchAll();
 		if (count($results) == 1) {
 			return $results[0];
@@ -927,7 +949,7 @@ class Query implements Iterator, Countable {
 	 * 
 	 * @return array|object
 	 */
-	function fetch($fetchType = null, $fetchArgument = null) {
+	public function fetch($fetchType = null, $fetchArgument = null) {
 		$results = $this->query();
 		if ($this->fetchClass && $fetchType === null) {
 			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass);
@@ -944,7 +966,7 @@ class Query implements Iterator, Countable {
 		return false;
 	}
 
-	function __toString() {
+	public function __toString() {
 		return $this->build();
 	}
 

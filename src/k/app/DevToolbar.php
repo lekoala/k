@@ -55,13 +55,13 @@ class DevToolbar {
 
 		// Time
 		if (isset($stats['start_time'])) {
-			$elements['Rendering time'] = $this->formatTime(microtime(true) - $stats['start_time']);
+			$elements['Rendered in'] = $this->formatTime(microtime(true) - $stats['start_time']);
 		}
 
 		// Memory
 		if (isset($stats['start_memory_usage'])) {
 			$elements['Memory usage'] = $this->formatSize(memory_get_usage(true) - $stats['start_memory_usage']);
-			$elements['Memory peak usage'] = $this->formatSize(memory_get_peak_usage(true));
+			$elements['Memory usage'] .= ' / ' . $this->formatSize(memory_get_peak_usage(true));
 		}
 
 		// Tracked objects
@@ -183,7 +183,7 @@ function debugBarToggle(target) {
 	 * @param string|object $o
 	 */
 	public function track($o, $cb = null) {
-		if(!$o) {
+		if (!$o) {
 			return false;
 		}
 		$this->trackedObjects[] = array(

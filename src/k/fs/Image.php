@@ -10,6 +10,7 @@ use \Exception;
 /**
  * Image
  *
+ * @link http://flourishlib.com/docs/fImage
  * @author lekoala
  */
 class Image extends File {

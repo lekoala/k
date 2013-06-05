@@ -7,6 +7,9 @@ use \DateTimeZone;
 
 /**
  * Extend datetime to allow to use it as a string
+ * 
+ * @link http://flourishlib.com/docs/fDate
+ * @link https://github.com/fightbulc/moment.php
  */
 class Date extends DateTime {
 

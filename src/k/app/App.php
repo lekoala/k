@@ -7,7 +7,6 @@ use \RuntimeException;
 use \InvalidArgumentException;
 use \BadMethodCallException;
 use \ReflectionClass;
-use \DirectoryIterator;
 
 class App {
 
@@ -18,11 +17,12 @@ class App {
 	const SUCCESS = 'success';
 	const ERROR = 'error';
 
-	protected static $instance = null;
+	protected static $instance;
 	//
 	// properties
 	//
 	protected $useLayout = true;
+	protected $log;
 	protected $module;
 	protected $moduleName;
 	protected $action;
@@ -44,8 +44,8 @@ class App {
 	protected $http;
 	protected $db;
 	protected $session;
-	protected $cookies;
 	protected $layout;
+	protected $profiler;
 	//
 	// conventions
 	//
@@ -53,7 +53,6 @@ class App {
 	protected $defaultController = 'home';
 	protected $defaultModule = 'main';
 	protected $servicePrefix = 'Service_';
-	protected $modelPrefix = 'Model_';
 	protected $viewDir = 'views';
 	protected $viewExtension = 'phtml';
 	//
@@ -89,27 +88,46 @@ class App {
 		$c = $dir . '/config.php';
 		$installed = false;
 		if (is_file($c)) {
+			$this->log[] = "found config $c";
 			$installed = true;
 			$this->config = array_replace_recursive($this->config, require $c);
 		}
 		$lc = dirname($dir) . '/' . basename($dir) . '.php';
 		if (is_file($lc)) {
+			$this->log[] = "found local config $lc";
 			$installed = true;
 			$this->config = array_replace_recursive($this->config, require $lc);
 		}
-		if(!$installed) {
+		if (!$installed) {
 			$this->error(AppException::NOT_INSTALLED);
 		}
 		
+		if($this->config('debug')) {
+			$this->getProfiler()->start();
+		}
+
+		//init
 		$this->initModules();
 		$this->init();
-		$this->getLogger()->debug('App initiliazed');
-	}
-	
-	public function error($code = 1, $message = 'Unknown error') {
-		throw new AppException($message,$code);
+		$this->log[] = 'App initiliazed';
 	}
 
+	public function error($code = 1, $message = 'Unknown error') {
+		throw new AppException($message, $code);
+	}
+
+	/**
+	 * Callback for the Dev Toolbar
+	 * 
+	 * @param DevToolbar $tb
+	 * @return array
+	 */
+	public function devToolbarCallback($tb) {
+		$arr =  $this->log;
+		array_unshift($arr, count($arr) . ' events');
+		return $arr;
+	}
+	
 	/**
 	 * @return static
 	 */
@@ -137,7 +155,7 @@ class App {
 	public function getConfig() {
 		return $this->config;
 	}
-
+	
 	public function getUseLayout() {
 		return $this->useLayout;
 	}
@@ -172,6 +190,13 @@ class App {
 
 	/////////////////////
 	// classes getters //
+
+	public function getProfiler() {
+		if($this->profiler === null) {
+			$this->profiler = new Profiler();
+		}
+		return $this->profiler;
+	}
 
 	/**
 	 * @return \psr\log\LoggerInterface
@@ -240,16 +265,6 @@ class App {
 	}
 
 	/**
-	 * @return \k\http\Cookies
-	 */
-	public function getCookies() {
-		if ($this->cookies === null) {
-			$this->cookies = new \k\http\Cookies;
-		}
-		return $this->cookies;
-	}
-
-	/**
 	 * @return \k\html\View
 	 */
 	public function getView() {
@@ -298,11 +313,8 @@ class App {
 		return $this->baseDir;
 	}
 
-	///////////////////
-	// cache getters //
-
 	/**
-	 * Get app framework dir
+	 * Get app framework dir (typically somewhere in your vendor dir)
 	 * 
 	 * @param string $dir
 	 * @return string
@@ -322,14 +334,29 @@ class App {
 		return null;
 	}
 
+	/**
+	 * Get public dir served by apache
+	 * 
+	 * @return string
+	 */
 	public function getPublicDir() {
 		return $this->getBaseDir() . '/' . $this->publicDirSegment;
 	}
 
+	/**
+	 * Get data dir (where you store assets)
+	 * 
+	 * @return string
+	 */
 	public function getDataDir() {
 		return $this->getBaseDir() . '/' . $this->dataDirSegment;
 	}
 
+	/**
+	 * Get temp dir (where you store files that can be deleted without worries)
+	 * 
+	 * @return string
+	 */
 	public function getTmpDir() {
 		return $this->getBaseDir() . '/' . $this->tmpDirSegment;
 	}
@@ -337,6 +364,11 @@ class App {
 	/////////////////////
 	// classes methods //
 
+	/**
+	 * Initialize modules. Each module can have a bootstrap that modifies
+	 * the behaviour of the app so it is necessary to create all of them
+	 * before routing the request.
+	 */
 	protected function initModules() {
 		$modules = $this->config('modules');
 
@@ -345,7 +377,10 @@ class App {
 		}
 	}
 
-	public function handle() {
+	/**
+	 * Get the current request and find matching module/controller/action/view
+	 */
+	protected function handle() {
 		$request = $this->getRequest();
 		$response = $this->getResponse();
 
@@ -359,7 +394,7 @@ class App {
 		if (isset($_GET['_json'])) {
 			$this->getRequest()->forceType('application/json');
 		}
-		
+
 		//match to a module if we are using them
 		$modules = array_keys($this->modules);
 		if (!empty($parts[0]) && in_array($parts[0], $modules)) {
@@ -367,7 +402,7 @@ class App {
 		} else {
 			$this->moduleName = $this->defaultModule;
 		}
-
+		$this->log[] = 'Current module is ' . $this->moduleName;
 		$this->module = $this->createModule($this->moduleName);
 
 		//match to a controller
@@ -399,6 +434,8 @@ class App {
 
 			try {
 				$this->controller = $this->createController();
+				$this->log[] = 'Current controller is ' . $this->controllerName;
+				
 				//indexAction...
 				$method = lcfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $this->actionName))))
 				. 'Action';
@@ -410,11 +447,11 @@ class App {
 
 				$responseData = array_merge($responseData, $preResponse, $methodResponse, $postResponse);
 			} catch (\k\app\AppException $e) {
-				$this->notify($e->getMessage(),self::ERROR);
+				$this->notify($e->getMessage(), self::ERROR);
 				$this->getResponse()->redirectBack()->send();
 			}
 		}
-		
+
 		//without view or controller, return 404
 		if (!$this->view && !$this->controller) {
 			$response->send(404);
@@ -426,6 +463,7 @@ class App {
 			$this->view->addVars($responseData);
 		}
 		if ($this->useLayout) {
+			$this->log[] = 'Use layout';
 			$this->view = $this->getLayout($this->view);
 		}
 		//could be a view or a view/layout
@@ -433,7 +471,7 @@ class App {
 			$this->registerViewHelpers($this->view);
 			$response->body((string) $this->view);
 		} else {
-			$response->addData('vars',$responseData);
+			$response->addData('vars', $responseData);
 		}
 		$response->send();
 	}
@@ -442,30 +480,11 @@ class App {
 	 * Run app for current request
 	 */
 	public function run() {
-		try {
-			$this->handle();
-		} catch (\k\app\AppException $e) {
-			$this->notify($e->getMessage());
-			$this->getResponse()->redirectBack();
-		}
-	}
-
-	public function notify($text, $options = array()) {
-		if (!is_array($options)) {
-			$options = array('type' => $options);
-		}
-		if (is_array($text)) {
-			$options = $text;
-		}
-		$options['text'] = $text;
-		$options['history'] = false;
-		if ($this->getRequest()->accept('application/json')) {
-			return $this->getResponse()->addData('notifications', $options);
-		}
-		return $this->getSession()->add('notifications', $options);
+		$this->handle();
 	}
 
 	protected function callAction(Controller $controller, $name, $parts = array()) {
+		$this->log[] = __METHOD__ . ': ' . $name;
 		$r = call_user_func_array(array($controller, $name), $parts);
 		if ($r instanceof \k\html\View) {
 			$this->view = $r;
@@ -483,6 +502,24 @@ class App {
 		return $r;
 	}
 
+	/**
+	 * Helper that help to format class name
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	protected static function classize($name) {
+		return str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name)));
+	}
+
+	/**
+	 * Create a view
+	 * 
+	 * @param string $controller
+	 * @param string $action
+	 * @param string $module
+	 * @return View
+	 */
 	protected function createView($controller, $action = null, $module = null) {
 		$view = null;
 		$name = $controller;
@@ -499,18 +536,20 @@ class App {
 		$filename .= '/' . $this->viewDir;
 		$filename .= '/' . $name;
 		$filename .= '.' . $this->viewExtension;
-		$this->getLogger()->debug(__METHOD__ . ': ' . $filename);
+		$this->log[] = __METHOD__ . ': ' . $filename;
 		if (is_file($filename)) {
 			$view = new \k\html\View($filename);
-			$this->getLogger()->debug('View created');
+			$this->log[] = "View created";
 		}
 		return $view;
 	}
 
-	protected static function classize($name) {
-		return str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name)));
-	}
-
+	/**
+	 * Create a module
+	 * 
+	 * @param string $name
+	 * @return Module
+	 */
 	protected function createModule($name = null) {
 		if ($name === null) {
 			$name = $this->moduleName;
@@ -519,44 +558,59 @@ class App {
 			return $this->modules[$name];
 		}
 		$class = self::classize($name) . '_Module';
-		$this->getLogger()->debug(__METHOD__ . ': ' . $class);
+		$this->log[] = __METHOD__ . ': ' . $class;
 		if (!class_exists($class)) {
 			return null;
 		}
 		$o = new $class();
 		$this->modules[$name] = $o;
+		$this->log[] = "Module $name created";
 		return $o;
 	}
 
-	protected function createController($name = null, $module = '*') {
+	/**
+	 * Create a controller
+	 * 
+	 * @param string $name
+	 * @param string $module
+	 * @return Controller
+	 */
+	protected function createController($name = null, $module = null) {
 		if ($name === null) {
 			$name = $this->controllerName;
 		}
-		if ($module === '*') {
+		if ($module === null) {
 			$module = $this->moduleName;
 		}
 		$class = self::classize($module) . '_' . self::classize($name);
-		$this->getLogger()->debug(__METHOD__ . ': ' . $class);
+		$this->log[] = __METHOD__ . ': ' . $class;
 		if (!class_exists($class)) {
+			//a controller doesn't have to exist
 			return null;
 		}
 		$o = new $class();
 		$this->controllers[$name] = $o;
-		$this->getLogger()->debug('Controller created');
+		$this->log[] = "Controller $name created";
 		return $o;
 	}
 
+	/**
+	 * Create a service
+	 * 
+	 * @param string $name
+	 * @return Service
+	 * @throws RuntimeException
+	 */
 	public function createService($name) {
-		$class = $this->servicePrefix . str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $name)));
-		if (!class_exists($class)) {
-			throw new RuntimeException("Service '$name' does not exist");
-		}
+		$class = $this->servicePrefix . self::classize($name);
 		if (!isset($this->services[$name])) {
-			$o = new $class();
-			if (!$o instanceof \k\app\Service) {
-				throw new RuntimeException("Service $name must extend base service class");
+			$this->log[] = __METHOD__ . ': ' . $class;
+			if (!class_exists($class)) {
+				throw new RuntimeException("Service '$name' does not exist");
 			}
+			$o = new $class();
 			$this->services[$name] = $o;
+			$this->log[] = "Service $name created";
 		}
 		return $this->services[$name];
 	}

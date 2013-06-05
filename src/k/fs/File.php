@@ -10,6 +10,7 @@ use \InvalidArgumentException;
  *
  * @link https://github.com/symfony/symfony/blob/master/src/Symfony/Component/HttpFoundation/File/File.php
  * @link http://www.php.net/manual/en/class.splfileinfo.php
+ * @link http://flourishlib.com/docs/fFile
  * 
  * @author lekoala
  */

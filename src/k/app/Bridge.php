@@ -50,10 +50,21 @@ trait Bridge {
 	 * @param function $callback
 	 * @return mixed
 	 */
-	public function notify($message, $status = 'info') {
-		$this->getApp()->notify($message, $status);
+	public function notify($text, $options = array()) {
+		if (!is_array($options)) {
+			$options = array('type' => $options);
+		}
+		if (is_array($text)) {
+			$options = $text;
+		}
+		$options['text'] = $text;
+		$options['history'] = false;
+		if ($this->getRequest()->accept('application/json')) {
+			return $this->getResponse()->addData('notifications', $options);
+		}
+		return $this->getSession()->add('notifications', $options);
 	}
-
+	
 	public function deny($message = 'Forbidden') {
 		throw new AppException($message);
 	}

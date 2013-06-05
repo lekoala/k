@@ -1183,12 +1183,20 @@ ORDER BY
 		$log = $this->getLog();
 		$time = 0;
 		foreach ($log as $line) {
+			$t = $line['time'];
 			$text = $this->highlight($this->formatQuery($line['sql']));
-			if ($line['time']) {
-				$text = '[' . $tb->formatTime($line['time']) . '] ' . $text;
+			if ($t) {
+				$color = 'Silver';
+				if ($t > 0.1) {
+					$color = 'PaleTurquoise';
+				}
+				elseif ($t > 1) {
+					$color = 'Red';
+				}
+				$text = '<span style="color:' . $color . '">[' . $tb->formatTime($t) . ']</span> ' . $text;
 			}
 			$arr[] = $text;
-			$time += $line['time'];
+			$time += $t;
 		}
 		array_unshift($arr, count($this->getLog()) . ' queries in ' . $tb->formatTime($time));
 
