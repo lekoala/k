@@ -9,8 +9,7 @@ use \InvalidArgumentException;
  *
  * @author lekoala
  */
-abstract class LoggerAbstract implements LoggerInterface {
-
+abstract class LoggerAbstract implements \Psr\Log\LoggerInterface {
 	const EMERGENCY = 'emergency';
 	const ALERT = 'alert';
 	const CRITICAL = 'critical';
