@@ -13,6 +13,8 @@ Installation
 Requirements :
 - Requires php > 5.4 
 - PDO for the db package
+- psr/log for log package
+- ircmaxell/password-compat for password hashing
 
 composer
 
@@ -62,6 +64,15 @@ Views
 
 Ajax
 ---
+
+cache package
+===
+
+log package
+===
+
+session package
+===
 
 db package
 ===
