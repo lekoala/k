@@ -124,6 +124,7 @@ Interesting frameworks
 - https://github.com/titon/
 - https://github.com/mako-framework
 - https://github.com/eldadfux/Utopia-PHP-Framework/
+- https://github.com/mnilsson/Mnl
 
 Doc markup
 ---

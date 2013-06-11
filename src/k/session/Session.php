@@ -1,6 +1,6 @@
 <?php
 
-namespace k\http;
+namespace k\session;
 
 /**
  * Simple session wrapper

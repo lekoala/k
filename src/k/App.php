@@ -99,7 +99,7 @@ class App {
 			$this->config = array_replace_recursive($this->config, require $lc);
 		}
 		if (!$installed) {
-			$this->error(AppException::NOT_INSTALLED);
+			throw new AppException('Not installed', AppException::NOT_INSTALLED);
 		}
 		
 		if($this->config('debug')) {
@@ -110,10 +110,6 @@ class App {
 		$this->initModules();
 		$this->init();
 		$this->log[] = 'App initiliazed';
-	}
-
-	public function error($code = 1, $message = 'Unknown error') {
-		throw new AppException($message, $code);
 	}
 
 	/**
@@ -154,6 +150,10 @@ class App {
 
 	public function getConfig() {
 		return $this->config;
+	}
+	
+	public function getLog() {
+		return $this->log;
 	}
 	
 	public function getUseLayout() {
@@ -231,7 +231,7 @@ class App {
 	 */
 	public function getDb() {
 		if ($this->db === null && $this->config('db')) {
-			$this->db = new \k\sql\Pdo($this->config('db'));
+			$this->db = new \k\db\Pdo($this->config('db'));
 		}
 		return $this->db;
 	}
@@ -258,7 +258,7 @@ class App {
 	 */
 	public function getSession() {
 		if ($this->session === null) {
-			$this->session = new \k\http\Session;
+			$this->session = new \k\session\Session;
 			session_save_path($this->getTmpDir() . '/sessions');
 		}
 		return $this->session;
@@ -431,21 +431,22 @@ class App {
 		}
 
 		if ($this->controllerName) {
-
 			try {
 				$this->controller = $this->createController();
-				$this->log[] = 'Current controller is ' . $this->controllerName;
-				
-				//indexAction...
-				$method = lcfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $this->actionName))))
-				. 'Action';
-				$this->action = $method;
+				if($this->controller) {
+					$this->log[] = 'Current controller is ' . $this->controllerName;
 
-				$preResponse = $this->callAction($this->controller, 'pre', array($this->actionName, $parts));
-				$methodResponse = $this->callAction($this->controller, $method, $parts);
-				$postResponse = $this->callAction($this->controller, 'post', array($this->actionName, $parts));
+					//indexAction...
+					$method = lcfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $this->actionName))))
+					. 'Action';
+					$this->action = $method;
 
-				$responseData = array_merge($responseData, $preResponse, $methodResponse, $postResponse);
+					$preResponse = $this->callAction($this->controller, 'pre', array($this->actionName, $parts));
+					$methodResponse = $this->callAction($this->controller, $method, $parts);
+					$postResponse = $this->callAction($this->controller, 'post', array($this->actionName, $parts));
+
+					$responseData = array_merge($responseData, $preResponse, $methodResponse, $postResponse);
+				}
 			} catch (\k\app\AppException $e) {
 				$this->notify($e->getMessage(), self::ERROR);
 				$this->getResponse()->redirectBack()->send();
@@ -454,10 +455,15 @@ class App {
 
 		//without view or controller, return 404
 		if (!$this->view && !$this->controller) {
-			$response->send(404);
+			if($this->config('debug')) {
+				throw new AppException('No view or controller');
+			}
+			else {
+				$response->send(404);
+			}
 		}
 
-		//render with template //
+		//render with template
 
 		if ($this->view) {
 			$this->view->addVars($responseData);
@@ -554,17 +560,19 @@ class App {
 		if ($name === null) {
 			$name = $this->moduleName;
 		}
-		if (isset($this->modules[$name])) {
+		if (array_key_exists($name,$this->modules)) {
 			return $this->modules[$name];
 		}
 		$class = self::classize($name) . '_Module';
 		$this->log[] = __METHOD__ . ': ' . $class;
 		if (!class_exists($class)) {
-			return null;
+			$o = null;
 		}
-		$o = new $class();
+		else {
+			$o = new $class();
+			$this->log[] = "Module $name created";
+		}
 		$this->modules[$name] = $o;
-		$this->log[] = "Module $name created";
 		return $o;
 	}
 
