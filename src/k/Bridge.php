@@ -41,7 +41,6 @@ trait Bridge {
 	public function getRequest() {
 		return $this->getApp()->getRequest();
 	}
-
 	
 	/**
 	 * Utility function to run code that can trigger exception and convert

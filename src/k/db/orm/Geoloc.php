@@ -10,6 +10,7 @@ trait Geoloc {
 	public static $geolocFields = array(
 		'lat' => 'FLOAT(10,6)',
 		'lng' => 'FLOAT(10,6)',
+		'accuracy' => 'DECIMAL(10)',
 		'mapped_address' => 'VARCHAR(255)'
 	);
 	

@@ -227,6 +227,32 @@ class Request {
 	public function isSecure() {
 		return $this->server('HTTPS') === 'on';
 	}
+	
+	public function ip() {
+		if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+			$ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+
+			$ip = array_pop($ip);
+		} else if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+			$ip = $_SERVER['HTTP_CLIENT_IP'];
+		} else if (!empty($_SERVER['HTTP_X_CLUSTER_CLIENT_IP'])) {
+			$ip = $_SERVER['HTTP_X_CLUSTER_CLIENT_IP'];
+		} else if (!empty($_SERVER['REMOTE_ADDR'])) {
+			$ip = $_SERVER['REMOTE_ADDR'];
+		}
+
+		if (isset($ip) && filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+			return $ip;
+		}
+		return '0.0.0.0';
+	}
+	
+	/**
+	 * @return bool
+	 */
+	public function isLocal() {
+		return in_array($this->ip(), array('127.0.0.1','::1'));
+	}
 
 	/**
 	 * @param string $v

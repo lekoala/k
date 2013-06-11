@@ -376,7 +376,7 @@ class App {
 			$this->modules[$module] = $this->createModule($module);
 		}
 	}
-
+	
 	/**
 	 * Get the current request and find matching module/controller/action/view
 	 */
