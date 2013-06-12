@@ -36,12 +36,12 @@ class Service {
 
 	public function getTable($name) {
 		if (!isset($this->tables[$name])) {
-			$this->tables[$name] = new \k\sql\Table($name, $this->getDb());
+			$this->tables[$name] = new \k\db\Table($name, $this->getDb());
 		}
 		return $this->tables[$name];
 	}
 
 	public function query() {
-		return \k\sql\Query::create($this->getDb());
+		return \k\db\Query::create($this->getDb());
 	}
 }

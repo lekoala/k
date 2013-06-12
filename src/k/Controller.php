@@ -11,7 +11,6 @@ use \RuntimeException;
  * Business logic should be forwared to the models/services as much as possible
  */
 abstract class Controller {
-
 	use Bridge;
 
 	protected $name;
@@ -48,7 +47,7 @@ abstract class Controller {
 		}
 		return $v;
 	}
-	
+
 	public function method($v = null) {
 		return $this->getRequest()->method($v);
 	}
@@ -108,6 +107,60 @@ abstract class Controller {
 				return $r;
 			}
 		}
+	}
+
+	/* view helpers */
+
+	public function notifications() {
+		$notifications = $this->getSession()->take('notifications', array());
+		$arr = array();
+		foreach ($notifications as $options) {
+			$this->getApp()->getLogger()->debug($options['text']);
+			$arr[] = json_encode($options);
+		}
+		$js = '';
+		if (!empty($arr)) {
+			$js = '<script>var notifications = [' . implode(",\n", $arr) . '];</script>';
+		}
+		return $js;
+	}
+
+	public function viewModel($item, $tpl = 'record') {
+		if (!$item instanceof Model) {
+			return 'Not a model';
+		}
+		$filename = 'models/' . $item::getTableName() . '/' . $tpl;
+		$v = $this->getApp()->createView($filename);
+		if (!$v) {
+			return;
+		}
+		$v->setVar('o', $item);
+		return $v;
+	}
+
+	public function devToolbar() {
+		if (!$this->config('debug')) {
+			return;
+		}
+		$app = $this->getApp();
+		$o = new DevToolbar();
+		$o->track($app);
+		$o->track($app->getProfiler());
+		$o->track($app->getDb());
+		$o->track($app->getLogger(), function($o, $tb) {
+			$log = $o->getLogs();
+			$arr = array();
+			foreach ($log as $l) {
+				$arr[] = '[' . $l['level'] . "] \t" . $l['message'];
+			}
+			array_unshift($arr, count($arr) . ' logs');
+			return $arr;
+		});
+		return $o;
+	}
+
+	public function isLocal() {
+		return $this->getRequest()->isLocal();
 	}
 
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace k\html;
+namespace k;
 
 use \InvalidArgumentException;
 use \BadMethodCallException;
@@ -9,6 +9,8 @@ use \BadMethodCallException;
  * Simple view wrapper
  */
 class View {
+	
+	use Bridge;
 
 	/**
 	 * Path to the view to render
@@ -28,13 +30,13 @@ class View {
 	 * @var array
 	 */
 	protected $escapedVars = array();
-
+	
 	/**
-	 * Store view helpers in an array
+	 * Registered helpers
 	 * @var array
 	 */
 	protected $helpers = array();
-	
+
 	/**
 	 * Parent view
 	 * @var View
@@ -141,7 +143,7 @@ class View {
 	}
 
 	public function t($name) {
-		
+		//TODO: translate
 	}
 	
 	public static function errorHandler($errno, $errstr, $errfile, $errline, $errcontext) {
@@ -195,7 +197,8 @@ class View {
 	}
 
 	/**
-	 * Helpers functions inside the view
+	 * Helpers functions inside the view. Helpers are registered in the controller
+	 * or defined through addHelper
 	 * 
 	 * $this->doSomething()
 	 * 
@@ -203,15 +206,25 @@ class View {
 	 * @param array $arguments
 	 */
 	public function callHelper($name, $arguments) {
-		if (!isset($this->helpers[$name])) {
+		$helper = null;
+		if(isset($this->helpers[$name])) {
+			$helper = $this->helpers[$name];
+		}
+		else {
+			$controller = $this->getApp()->getController();
+			if(method_exists($controller, $name)) {
+				$helper  = array($controller,$name);
+			}
+		}
+		if(!$helper) {
 			$parent = $this->getParent();
 			if($parent) {
 				return $parent->callHelper($name, $arguments);
 			}
 			throw new BadMethodCallException("Helpers '$name' does not exist");
 		}
-		$helper = $this->helpers[$name];
-		return call_user_func_array($helper, $arguments);
+		$res = call_user_func_array($helper, $arguments);
+		return $res;
 	}
 	
 	public function __get($name) {

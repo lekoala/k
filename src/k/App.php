@@ -237,7 +237,7 @@ class App {
 	}
 
 	/**
-	 * @return \k\html\View
+	 * @return \k\View
 	 */
 	public function getLayout($view = null) {
 		if ($this->layout === null) {
@@ -265,10 +265,17 @@ class App {
 	}
 
 	/**
-	 * @return \k\html\View
+	 * @return \k\View
 	 */
 	public function getView() {
 		return $this->view;
+	}
+	
+	/**
+	 * @return \k\Controller
+	 */
+	public function getController() {
+		return $this->controller;
 	}
 
 	/////////////////////////////
@@ -302,7 +309,7 @@ class App {
 	}
 
 	/**
-	 * Return the base dir
+	 * Return the base dir (where is composer.json for instance)
 	 * 
 	 * @return string
 	 */
@@ -380,13 +387,15 @@ class App {
 	/**
 	 * Get the current request and find matching module/controller/action/view
 	 */
-	protected function handle() {
+	protected function handle($path =null) {
 		$request = $this->getRequest();
 		$response = $this->getResponse();
 
-		$path = trim($request->getPath(false), '/');
+		if($path === null) {
+			$path = trim($request->getPath(false), '/');
+		}
 		$parts = explode('/', $path);
-		$parts = array_filter($parts);
+		$parts = array_merge(array(),array_filter($parts));
 
 		if (isset($_GET['_ajax'])) {
 			$this->getRequest()->forceAjax();
@@ -394,7 +403,7 @@ class App {
 		if (isset($_GET['_json'])) {
 			$this->getRequest()->forceType('application/json');
 		}
-
+		
 		//match to a module if we are using them
 		$modules = array_keys($this->modules);
 		if (!empty($parts[0]) && in_array($parts[0], $modules)) {
@@ -447,7 +456,7 @@ class App {
 
 					$responseData = array_merge($responseData, $preResponse, $methodResponse, $postResponse);
 				}
-			} catch (\k\app\AppException $e) {
+			} catch (\k\AppException $e) {
 				$this->notify($e->getMessage(), self::ERROR);
 				$this->getResponse()->redirectBack()->send();
 			}
@@ -485,14 +494,14 @@ class App {
 	/**
 	 * Run app for current request
 	 */
-	public function run() {
-		$this->handle();
+	public function run($path = null) {
+		$this->handle($path);
 	}
 
 	protected function callAction(Controller $controller, $name, $parts = array()) {
 		$this->log[] = __METHOD__ . ': ' . $name;
 		$r = call_user_func_array(array($controller, $name), $parts);
-		if ($r instanceof \k\html\View) {
+		if ($r instanceof \k\View) {
 			$this->view = $r;
 			return array();
 		}
@@ -544,7 +553,7 @@ class App {
 		$filename .= '.' . $this->viewExtension;
 		$this->log[] = __METHOD__ . ': ' . $filename;
 		if (is_file($filename)) {
-			$view = new \k\html\View($filename);
+			$view = new \k\View($filename);
 			$this->log[] = "View created";
 		}
 		return $view;

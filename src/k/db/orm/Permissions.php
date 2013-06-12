@@ -9,7 +9,7 @@ namespace k\db\orm;
 trait Permissions {
 	
 	public static $permissionsFields = array(
-		'permissions' => 'INT'
+		'perms' => 'INT'
 	);
 	
 	public static function getDefaultPermissions() {

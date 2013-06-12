@@ -10,6 +10,11 @@ namespace k;
  */
 trait Bridge {
 
+	/**
+	 * Get current app instance
+	 * 
+	 * @return App
+	 */
 	public function getApp() {
 		return App::getInstance();
 	}

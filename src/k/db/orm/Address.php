@@ -16,14 +16,15 @@ trait Address {
 		'country_code' => 'VARCHAR(2)'
 	);
 	
-	function address() {
-		if (empty($this->street) || ($this->location() == '')) {
+	public function get_address() {
+		if (empty($this->street) || ($this->location = '')) {
 			return '';
 		}
-		return $this->street . ' ' . $this->street_no . ' ' . $this->location();
-	}
+		return $this->street . ' ' . $this->street_no . ' ' . $this->location;
+		
+		}
 
-	function location() {
+	public function get_location() {
 		if (empty($this->zipcode) || empty($this->city)) {
 			return '';
 		}

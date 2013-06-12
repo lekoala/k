@@ -7,7 +7,9 @@ namespace k\db\orm;
  */
 trait Password {
 
-	protected $password;
+	public static $passwordFields = array(
+		'password' => 'VARCHAR(255)',
+	);
 
 	public function set_password($password) {
 		$this->password = password_hash($password);

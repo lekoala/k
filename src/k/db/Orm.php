@@ -105,13 +105,13 @@ class Orm implements JsonSerializable {
 	 * @var array 
 	 */
 	protected static $validation = array();
-	
+
 	/**
 	 * Default additionnal fields to export with toArray()
 	 * @var array
 	 */
 	protected static $exportableFields = array();
-	
+
 	public function __construct($data = null) {
 		if (is_array($data)) {
 			$this->data = $data;
@@ -318,7 +318,7 @@ class Orm implements JsonSerializable {
 		}
 		return $arr;
 	}
-	
+
 	/**
 	 * Get all traits applied to this Orm
 	 * 
@@ -327,12 +327,15 @@ class Orm implements JsonSerializable {
 	 */
 	public static function getTraits() {
 		static $traits;
-		
-		if($traits === null) {
+
+		if ($traits === null) {
 			$ref = new ReflectionClass(get_called_class());
-			$traits = $ref->getTraitNames();
+			$trait = $ref->getTraitNames();
+			$name = explode('\\', $trait);
+			$name = end($name);
+			$traits[$trait] = $name;
 		}
-		
+
 		return $traits;
 	}
 
@@ -646,20 +649,25 @@ class Orm implements JsonSerializable {
 	/**
 	 * Get related objects
 	 * @param string $name
+	 * @param string $type
+	 * @param string $class
 	 * @return array
 	 */
-	public function getRelated($name) {
+	public function getRelated($name, $type = null, $class = null) {
 		$cache = $this->getCache($name);
 		if ($cache) {
 			return $cache;
 		}
-		$type = static::isRelated($name);
+		if ($type === null) {
+			$type = static::isRelated($name);
+		}
 		if (!$type) {
 			return false;
 		}
-		$relations = static::getAllRelations();
-		$class = $relations[$name];
-		
+		if ($class === null) {
+			$relations = static::getAllRelations();
+			$class = $relations[$name];
+		}
 		$data = null;
 		switch ($type) {
 			case static::HAS_ONE:
@@ -952,7 +960,7 @@ class Orm implements JsonSerializable {
 	public static function setStorage($storage) {
 		static::$storage = $storage;
 	}
-	
+
 	public function t($name = null) {
 		return static::getTable($name);
 	}
@@ -963,7 +971,7 @@ class Orm implements JsonSerializable {
 	 * @return \k\db\Table
 	 */
 	public static function getTable($name = null) {
-		if($name === null) {
+		if ($name === null) {
 			$name = static::getTableName();
 		}
 		return static::getPdo()->t($name);
@@ -1022,16 +1030,27 @@ class Orm implements JsonSerializable {
 	 * @param array $arr Fields definition
 	 * @return array
 	 */
-	protected static function buildRelationsArray($arr) {
+	protected static function buildRelationsArray($arr,$type = null) {
 		$relations = array();
+
+		if($type) {
+			//add extensions fields
+			foreach (static::getTraits() as $t => $name) {
+				$m = $type . $name;
+				if (method_exists($t, $m)) {
+					$relations = array_merge($relations, $t::$$m());
+				}
+			}
+		}
+
 		foreach ($arr as $name => $class) {
 			//if no table was specfied, use the name of the relation
 			if (is_int($name)) {
 				$name = $class;
 				$class = ucfirst(static::singularize($name));
-				if (Table::$classPrefix) {
-					$class = Table::$classPrefix . $class;
-				}
+			}
+			if (Table::$classPrefix) {
+				$class = Table::$classPrefix . $class;
 			}
 			$relations[$name] = $class;
 		}
@@ -1087,7 +1106,7 @@ class Orm implements JsonSerializable {
 		static $relations = null;
 
 		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$hasOne);
+			$relations = static::buildRelationsArray(static::$hasOne, static::HAS_ONE);
 		}
 
 		if ($keys) {
@@ -1106,7 +1125,7 @@ class Orm implements JsonSerializable {
 		static $relations = null;
 
 		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$hasMany);
+			$relations = static::buildRelationsArray(static::$hasMany, static::HAS_MANY);
 		}
 
 		if ($keys) {
@@ -1125,7 +1144,7 @@ class Orm implements JsonSerializable {
 		static $relations = null;
 
 		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$manyMany);
+			$relations = static::buildRelationsArray(static::$manyMany, static::MANY_MANY);
 		}
 
 		if ($keys) {
@@ -1183,18 +1202,17 @@ class Orm implements JsonSerializable {
 			$hasOneFields = static::getHasOneRelations();
 			foreach ($hasOneFields as $name => $class) {
 				$field = $class::getForForeignKey($name);
-				if(!isset($fields[$field])) {
+				if (!isset($fields[$field])) {
 					//TODO: support other types of primary keys
 					$fields[$field] = 'INT';
 				}
 			}
-			
+
 			//add extensions fields
-			foreach(static::getTraits() as $t) {
-				$p = explode('\\',$t);
-				$p = lcfirst(end($p)) . 'Fields';
-				if(property_exists($t, $p)) {
-					$fields = array_merge($fields,$t::$$p);
+			foreach (static::getTraits() as $t => $name) {
+				$p = 'fields' . $name;
+				if (property_exists($t, $p)) {
+					$fields = array_merge($fields, $t::$$p);
 				}
 			}
 		}
@@ -1291,7 +1309,7 @@ class Orm implements JsonSerializable {
 	 */
 	public static function getForForeignKey($name = null) {
 		$rel = static::getTableName();
-		if($name) {
+		if ($name) {
 			$rel = strtolower($name);
 		}
 		return $rel . '_' . static::getPrimaryKey();
@@ -1363,23 +1381,21 @@ class Orm implements JsonSerializable {
 	public static function getDefaultWhere() {
 		return array();
 	}
-	
+
 	public static function syncTable() {
 		$pdo = static::getPdo();
 		$table = static::getTableName();
 		try {
 			$res = $pdo->query("SELECT 1 FROM " . $table);
 			$exists = true;
-		}
-		catch(PdoException $e) {
+		} catch (PdoException $e) {
 			$exists = false;
 		}
-		if($exists) {
+		if ($exists) {
 			$cols = $pdo->listColumns($table);
-			
+
 			return $pdo->alterTable($table, $addFields, $removeFields);
-		}
-		else {
+		} else {
 			return $pdo->createTable($table, $fields, $pkFields, $fkFields);
 		}
 	}
@@ -1415,7 +1431,7 @@ class Orm implements JsonSerializable {
 	public static function onAfterDelete(&$res, $data, $where = null, $params = null) {
 		
 	}
-	
+
 	protected function q() {
 		return static::query();
 	}

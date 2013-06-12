@@ -1,14 +1,16 @@
+
 <?php
 
 namespace k\db\orm;
 
 /**
- * Meta - store meta info like name => value
+ * Store meta info like name => value
+ * Extra fields can be specified with the property $infoFields
  */
-trait Meta {
+trait Info {
 
-	public static function getTableMeta() {
-		return static::getTable() . 'meta';
+	public static function getTableInfo() {
+		return static::getTable() . 'info';
 	}
 
 	public static function createTableMeta($execute = true) {
