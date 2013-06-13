@@ -24,7 +24,7 @@ trait SoftDelete {
 		}
 		return false; //cancel the traditional remove
 	}
-		
+	
 	public function restore() {
 		if($this->deleted_at) {
 			$this->deleted_at = null;

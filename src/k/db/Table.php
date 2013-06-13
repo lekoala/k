@@ -171,6 +171,9 @@ class Table {
 			return $where;
 		}
 		$pkFields = $this->getPrimaryKeys();
+		if(!$pkFields) {
+			return $where;
+		}
 		if (is_numeric($where)) {
 			if (count($pkFields) > 1) {
 				throw new Exception('Only one id for a composed primary keys');

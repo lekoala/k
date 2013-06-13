@@ -3,7 +3,9 @@
 namespace k\db\orm;
 
 /**
- * Password
+ * Passwor trait
+ * 
+ * Require PHP 5.5 or password-compat
  */
 trait Password {
 
@@ -12,7 +14,7 @@ trait Password {
 	);
 
 	public function set_password($password) {
-		$this->password = password_hash($password);
+		$this->setField('password',password_hash($password,PASSWORD_BCRYPT));
 		return $this;
 	}
 

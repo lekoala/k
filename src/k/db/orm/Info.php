@@ -1,10 +1,9 @@
-
 <?php
 
 namespace k\db\orm;
 
 /**
- * Store meta info like name => value
+ * Store Info info like name => value
  * Extra fields can be specified with the property $infoFields
  */
 trait Info {
@@ -13,36 +12,32 @@ trait Info {
 		return static::getTable() . 'info';
 	}
 
-	public static function createTableMeta($execute = true) {
+	public static function createTableInfo($execute = true) {
 		$table = static::getTable();
-		$ttable = static::getTableMeta();
+		$ttable = static::getTableInfo();
 		$fields = array(
 			'id',
 			$table . '_id',
 			'name',
 			'value'
 		);
+		//TODO: add extra fields
 		return static::getPdo()->createTable($ttable, $fields, array(), null, $execute);
 	}
 
 	public static function createTable($execute = true, $foreignKeys = true) {
 		$sql = parent::createTable($execute, $foreignKeys);
-		$sql .= static::createTableMeta($execute);
+		$sql .= static::createTableInfo($execute);
 		return $sql;
 	}
 
-	public static function dropTableMeta() {
-		return static::getPdo()->dropTable(static::getTableMeta());
+	public static function dropTableInfo() {
+		return static::getPdo()->dropTable(static::getTableInfo());
 	}
 
-	public static function dropTable() {
-		static::dropTableMeta();
-		return parent::dropTable();
-	}
-
-	public function hasMeta($name = null, $value = null) {
+	public function hasInfo($name = null, $value = null) {
 		$table = static::getTable();
-		$ttable = static::getTableMeta();
+		$ttable = static::getTableInfo();
 		$where = array($table . '_id' => $this->id);
 		if ($name) {
 			$where['name'] = $name;
@@ -53,26 +48,26 @@ trait Info {
 		return static::getPdo()->count($ttable, $where);
 	}
 
-	public function addMeta($name, $value) {
+	public function addInfo($name, $value) {
 		$table = static::getTable();
-		$ttable = static::getTableMeta();
+		$ttable = static::getTableInfo();
 		if (is_array($value)) {
 			foreach ($value as $v) {
-				$this->addMeta($name, $v);
+				$this->addInfo($name, $v);
 			}
 		}
-		if (!$this->hasMeta($name, $value)) {
+		if (!$this->hasInfo($name, $value)) {
 			return static::getPdo()->insert($ttable, array($table . '_id' => $this->id, 'name' => $name, 'value' => $value));
 		}
 		return true;
 	}
 
-	public function removeMeta($name = null, $value = null) {
+	public function removeInfo($name = null, $value = null) {
 		$table = static::getTable();
-		$ttable = static::getTableMeta();
+		$ttable = static::getTableInfo();
 		if (is_array($value)) {
 			foreach ($value as $v) {
-				$this->removeMeta($name, $v);
+				$this->removeInfo($name, $v);
 			}
 		}
 		$where = array($table . '_id' => $this->id);
@@ -85,23 +80,23 @@ trait Info {
 		return static::getPdo()->delete($ttable, $where);
 	}
 
-	public function getMeta($name = null) {
+	public function getInfo($name = null) {
 		$table = static::getTable();
-		$ttable = static::getTableMeta();
+		$ttable = static::getTableInfo();
 		$where = array($table . '_id' => $this->id, 'name' => $name);
 		$results = static::getPdo()->select($ttable, $where);
-		$meta = array();
+		$Info = array();
 		foreach ($results as $row) {
 			if ($name) {
-				$meta[] = $row['value'];
+				$Info[] = $row['value'];
 			} else {
-				if (!isset($meta[$row['name']])) {
-					$meta[$row['name']] = array();
+				if (!isset($Info[$row['name']])) {
+					$Info[$row['name']] = array();
 				}
-				$meta[$row['name']][] = $row['value'];
+				$Info[$row['name']][] = $row['value'];
 			}
 		}
-		return $meta;
+		return $Info;
 	}
 
 }

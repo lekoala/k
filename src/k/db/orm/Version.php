@@ -35,45 +35,11 @@ trait Version {
 
 		return static::getPdo()->createTable($ttable, $fields, array(), $pk, $execute);
 	}
-	
-	public static function createTable($execute = true, $foreignKeys = true) {
-		$sql = parent::createTable($execute, $foreignKeys);
-		$sql .= static::createTableVersion($execute);
-		return $sql;
-	}
-	
+		
 	public static function dropTableVersion() {
 		return static::getPdo()->dropTable(static::getTableVersion());
 	}
 	
-	public static function dropTable() {
-		static::dropTableVersion();
-		return parent::dropTable();
-	}
-
-	public static function alterTable($execute = true) {
-		$pdo = static::getPdo();
-		$table = static::getTable();
-		$ttable = static::getTableVersion();
-
-		$fields = static::getFields();
-
-		$tableCols = $pdo->listColumns($table);
-		$tableFields = array_map(function($i) {
-					return $i['name'];
-				}, $tableCols);
-
-		$addedFields = array_diff($fields, $tableFields);
-		$removedFields = array_diff($tableFields, $fields);
-
-		if (empty($addedFields) || empty($removedFields)) {
-			return false;
-		}
-		$sql = $pdo->alterTable($table, $addedFields, $removeFields, $execute);
-		$sql .= $pdo->alterTable($ttable, $addedFields, $removeFields, $execute);
-		return $sql;
-	}
-
 	public static function insertVersion($data) {
 		if (!isset($data['id'])) {
 			return false;
@@ -90,10 +56,6 @@ trait Version {
 			$data = $this->_original;
 			static::insertVersion($data);
 		}
-	}
-
-	public function onPreSave() {
-		$this->onPreSaveVersion();
 	}
 
 }
