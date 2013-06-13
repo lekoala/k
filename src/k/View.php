@@ -173,7 +173,7 @@ class View {
 		$this->escapeVars();
 		extract(array_merge($this->escapedVars), EXTR_REFS);
 
-//		set_error_handler(array(__CLASS__, 'errorHandler'));
+		set_error_handler(array(__CLASS__, 'errorHandler'));
 
 		ob_start();
 		include($this->filename);
