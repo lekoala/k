@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait Address {
 	
-	public static $addressFields = array(
+	public static $fieldsAddress = array(
 		'building' => 'VARCHAR(255)',
 		'street' => 'VARCHAR(255)',
 		'street_no' => 'VARCHAR',

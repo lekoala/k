@@ -8,7 +8,7 @@ namespace k\db\orm;
  */
 trait Permissions {
 	
-	public static $permissionsFields = array(
+	public static $fieldsPermissions = array(
 		'perms' => 'INT'
 	);
 	

@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait Password {
 
-	public static $passwordFields = array(
+	public static $fieldsPassword = array(
 		'password' => 'VARCHAR(255)',
 	);
 

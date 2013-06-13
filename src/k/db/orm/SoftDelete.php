@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait SoftDelete {
 	
-	public static $softDeleteFields = array(
+	public static $fieldsSoftDelete = array(
 		'deleted_at' => 'DATETIME'
 	);
 	

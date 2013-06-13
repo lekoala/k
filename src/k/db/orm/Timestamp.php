@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait Timestamp {
 
-	public static $permissionsFields = array(
+	public static $fieldsTimestamp = array(
 		'created_at' => 'DATETIME',
 		'updated_at' => 'DATETIME'
 	);

@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait Sortable {
 
-	public static $sortableFields = array(
+	public static $fieldsSortable = array(
 		'sort_order' => 'INT'
 	);
 

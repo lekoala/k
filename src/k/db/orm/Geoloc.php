@@ -7,7 +7,7 @@ namespace k\db\orm;
  */
 trait Geoloc {
 	
-	public static $geolocFields = array(
+	public static $fieldsGeoloc = array(
 		'lat' => 'FLOAT(10,6)',
 		'lng' => 'FLOAT(10,6)',
 		'accuracy' => 'DECIMAL(10)',
