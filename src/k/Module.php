@@ -31,6 +31,9 @@ class Module {
 		$arr = array();
 		foreach($iter as $fi) {
 			$classes = util\Obj::getClassesInFile($fi->getPathname());
+			if(empty($classes)) {
+				continue;
+			}
 			$name = $classes[0];
 			$actions = array();
 			$refl = new ReflectionClass($name);

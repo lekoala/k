@@ -82,7 +82,19 @@ abstract class Controller {
 	}
 	
 	protected function line($v) {
-		echo "$v\n";
+		if(php_sapi_name() == 'cli') {
+			echo "$v\n";
+		}
+		else {
+			$view = $this->getView();
+			if(!$view) {
+				//create a generic view to render content
+				$view = $this->getApp()->createView('utils/blank');
+				$this->getApp()->setView($view);
+			}
+			$c = $view->getVar('content');
+			$view->content = $c . $v . '<br/>'; 
+		}
 	}
 
 	protected function redirectBack() {
