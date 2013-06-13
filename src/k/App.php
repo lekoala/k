@@ -9,7 +9,6 @@ use \BadMethodCallException;
 use \ReflectionClass;
 
 class App {
-
 	use Bridge;
 
 	const NOTICE = 'notice';
@@ -51,6 +50,7 @@ class App {
 	//
 	protected $defaultAction = 'index';
 	protected $defaultController = 'home';
+	protected $fallbackController = 'Controller';
 	protected $defaultModule = 'main';
 	protected $servicePrefix = 'Service_';
 	protected $viewDir = 'views';
@@ -101,8 +101,8 @@ class App {
 		if (!$installed) {
 			throw new AppException('Not installed', AppException::NOT_INSTALLED);
 		}
-		
-		if($this->config('debug')) {
+
+		if ($this->config('debug')) {
 			$this->getProfiler()->start();
 		}
 
@@ -119,11 +119,11 @@ class App {
 	 * @return array
 	 */
 	public function devToolbarCallback($tb) {
-		$arr =  $this->log;
+		$arr = $this->log;
 		array_unshift($arr, count($arr) . ' events');
 		return $arr;
 	}
-	
+
 	/**
 	 * @return static
 	 */
@@ -151,11 +151,11 @@ class App {
 	public function getConfig() {
 		return $this->config;
 	}
-	
+
 	public function getLog() {
 		return $this->log;
 	}
-	
+
 	public function getUseLayout() {
 		return $this->useLayout;
 	}
@@ -176,11 +176,11 @@ class App {
 	public function getControllerName() {
 		return $this->controllerName;
 	}
-	
+
 	public function getDefaultModule() {
 		return $this->defaultModule;
 	}
-	
+
 	public function getModules() {
 		return $this->modules;
 	}
@@ -200,7 +200,7 @@ class App {
 	// classes getters //
 
 	public function getProfiler() {
-		if($this->profiler === null) {
+		if ($this->profiler === null) {
 			$this->profiler = new Profiler();
 		}
 		return $this->profiler;
@@ -278,18 +278,18 @@ class App {
 	public function getView() {
 		return $this->view;
 	}
-	
+
 	public function setView($v) {
 		$this->view = $v;
 	}
-	
+
 	/**
 	 * @return \k\Controller
 	 */
 	public function getController() {
 		return $this->controller;
 	}
-	
+
 	/**
 	 * @return \k\Module
 	 */
@@ -402,19 +402,19 @@ class App {
 			$this->modules[$module] = $this->createModule($module);
 		}
 	}
-	
+
 	/**
 	 * Get the current request and find matching module/controller/action/view
 	 */
-	protected function handle($path =null) {
+	protected function handle($path = null) {
 		$request = $this->getRequest();
 		$response = $this->getResponse();
 
-		if($path === null) {
+		if ($path === null) {
 			$path = trim($request->getPath(false), '/');
 		}
 		$parts = explode('/', $path);
-		$parts = array_merge(array(),array_filter($parts));
+		$parts = array_merge(array(), array_filter($parts));
 
 		if (isset($_GET['_ajax'])) {
 			$this->getRequest()->forceAjax();
@@ -422,7 +422,7 @@ class App {
 		if (isset($_GET['_json'])) {
 			$this->getRequest()->forceType('application/json');
 		}
-		
+
 		//match to a module if we are using them
 		$modules = array_keys($this->modules);
 		if (!empty($parts[0]) && in_array($parts[0], $modules)) {
@@ -444,8 +444,7 @@ class App {
 		}
 
 		//if we have an ajax request, we don't want a layout
-		if ($this->getRequest()->isAjax() 
-			|| $this->getRequest()->accept('application/json')
+		if ($this->getRequest()->isAjax() || $this->getRequest()->accept('application/json')
 		) {
 			$this->useLayout = false;
 			$response->type('application/json');
@@ -463,7 +462,7 @@ class App {
 		if ($this->controllerName) {
 			try {
 				$this->controller = $this->createController();
-				if($this->controller) {
+				if ($this->controller) {
 					$this->log[] = 'Current controller is ' . $this->controllerName;
 
 					//indexAction...
@@ -485,10 +484,9 @@ class App {
 
 		//without view or controller, return 404
 		if (!$this->view && !$this->controller) {
-			if($this->config('debug')) {
+			if ($this->config('debug')) {
 				throw new AppException('No view or controller');
-			}
-			else {
+			} else {
 				$response->send(404);
 			}
 		}
@@ -590,17 +588,16 @@ class App {
 		if ($name === null) {
 			$name = $this->moduleName;
 		}
-		if (array_key_exists($name,$this->modules)) {
+		if (array_key_exists($name, $this->modules)) {
 			return $this->modules[$name];
 		}
-		$classname  =self::classize($name);
+		$classname = self::classize($name);
 		$class = $classname . '_Module';
 		$this->log[] = __METHOD__ . ': ' . $class;
 		$dir = $this->getDir() . '/src/' . $classname;
 		if (!class_exists($class)) {
 			$o = new Module($dir);
-		}
-		else {
+		} else {
 			$o = new $class($dir);
 			$this->log[] = "Module $name created";
 		}
@@ -625,8 +622,13 @@ class App {
 		$class = self::classize($module) . '_' . self::classize($name);
 		$this->log[] = __METHOD__ . ': ' . $class;
 		if (!class_exists($class)) {
-			//a controller doesn't have to exist
-			return null;
+			if($this->fallbackController) {
+				$class = $this->fallbackController;
+			}
+			else {
+				//a controller doesn't have to exist
+				return null;
+			}
 		}
 		$o = new $class();
 		$this->controllers[$name] = $o;
@@ -653,6 +655,59 @@ class App {
 			$this->log[] = "Service $name created";
 		}
 		return $this->services[$name];
+	}
+
+	/* view helpers */
+
+	public function notifications() {
+		$notifications = $this->getSession()->take('notifications', array());
+		$arr = array();
+		foreach ($notifications as $options) {
+			$this->getLogger()->debug($options['text']);
+			$arr[] = json_encode($options);
+		}
+		$js = '';
+		if (!empty($arr)) {
+			$js = '<script>var notifications = [' . implode(",\n", $arr) . '];</script>';
+		}
+		return $js;
+	}
+
+	public function viewModel($item, $tpl = 'record') {
+		if (!$item instanceof Model) {
+			return 'Not a model';
+		}
+		$filename = 'models/' . $item::getTableName() . '/' . $tpl;
+		$v = $this->createView($filename);
+		if (!$v) {
+			return;
+		}
+		$v->setVar('o', $item);
+		return $v;
+	}
+
+	public function devToolbar() {
+		if (!$this->config('debug')) {
+			return;
+		}
+		$o = new DevToolbar();
+		$o->track($this);
+		$o->track($this->getProfiler());
+		$o->track($this->getDb());
+		$o->track($this->getLogger(), function($o, $tb) {
+			$log = $o->getLogs();
+			$arr = array();
+			foreach ($log as $l) {
+				$arr[] = '[' . $l['level'] . "] \t" . $l['message'];
+			}
+			array_unshift($arr, count($arr) . ' logs');
+			return $arr;
+		});
+		return $o;
+	}
+
+	public function isLocal() {
+		return $this->getRequest()->isLocal();
 	}
 
 	public function __toString() {

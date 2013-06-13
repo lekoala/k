@@ -26,6 +26,10 @@ class Module {
 		return $this->dir;
 	}
 	
+	public function getName() {
+		return strtolower(basename($this->dir));
+	}
+	
 	public function getControllers() {
 		$iter = new Directory($this->getDir());
 		$arr = array();

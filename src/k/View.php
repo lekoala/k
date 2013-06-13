@@ -223,9 +223,13 @@ class View {
 		if (isset($this->helpers[$name])) {
 			$helper = $this->helpers[$name];
 		} else {
-			$controller = $this->getApp()->getController();
+			$app = $this->getApp();
+			$controller = $app->getController();
 			if (method_exists($controller, $name)) {
 				$helper = array($controller, $name);
+			}
+			elseif(method_exists($app, $name)) {
+				$helper = array($app, $name);
 			}
 		}
 		if (!$helper) {
