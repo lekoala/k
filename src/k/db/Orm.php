@@ -320,7 +320,7 @@ class Orm implements JsonSerializable {
 	}
 
 	/**
-	 * Get all traits applied to this Orm
+	 * Get all traits applied to this object
 	 * 
 	 * @staticvar array $traits
 	 * @return array
@@ -330,12 +330,15 @@ class Orm implements JsonSerializable {
 
 		if ($traits === null) {
 			$ref = new ReflectionClass(get_called_class());
-			$trait = $ref->getTraitNames();
-			$name = explode('\\', $trait);
-			$name = end($name);
-			$traits[$trait] = $name;
+			$ts = $ref->getTraitNames();
+			$traits = array();
+			foreach($ts as $trait) {
+				$name = explode('\\', $trait);
+				$name = end($name);
+				$traits[$trait] = $name;
+			}
 		}
-
+		
 		return $traits;
 	}
 

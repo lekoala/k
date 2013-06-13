@@ -176,6 +176,14 @@ class App {
 	public function getControllerName() {
 		return $this->controllerName;
 	}
+	
+	public function getDefaultModule() {
+		return $this->defaultModule;
+	}
+	
+	public function getModules() {
+		return $this->modules;
+	}
 
 	public function getUrlSegment() {
 		$url = $this->moduleName;
@@ -269,6 +277,10 @@ class App {
 	 */
 	public function getView() {
 		return $this->view;
+	}
+	
+	public function setView($v) {
+		$this->view = $v;
 	}
 	
 	/**
@@ -544,7 +556,7 @@ class App {
 	 * @param string $module
 	 * @return View
 	 */
-	protected function createView($controller, $action = null, $module = null) {
+	public function createView($controller, $action = null, $module = null) {
 		$view = null;
 		$name = $controller;
 		if (is_array($name)) {

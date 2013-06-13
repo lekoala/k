@@ -4,12 +4,12 @@ namespace k;
 
 use \InvalidArgumentException;
 use \BadMethodCallException;
+use \stdClass;
 
 /**
  * Simple view wrapper
  */
 class View {
-	
 	use Bridge;
 
 	/**
@@ -24,13 +24,13 @@ class View {
 	 * @var array
 	 */
 	protected $vars = array();
-	
+
 	/**
 	 * Variables used by default by the view
 	 * @var array
 	 */
 	protected $escapedVars = array();
-	
+
 	/**
 	 * Registered helpers
 	 * @var array
@@ -42,7 +42,7 @@ class View {
 	 * @var View
 	 */
 	protected $parent = null;
-	
+
 	/**
 	 * Create a new template. You can pass multiple filenames like array('page','layout')
 	 * 
@@ -75,12 +75,22 @@ class View {
 		$this->filename = $filename;
 		return $this;
 	}
-	
+
+	public function get($name, $type = 'string') {
+		switch ($type) {
+			case 'object':
+				return new stdClass();
+			case 'array':
+				return [];
+			case 'string':
+				return '{{' . $name . '}}';
+		}
+	}
+
 	public function getVar($name) {
-		if(array_key_exists($name,$this->vars)) {
+		if (array_key_exists($name, $this->vars)) {
 			return $this->vars[$name];
 		}
-		return '{{' . $name . '}}';
 	}
 
 	public function getVars() {
@@ -91,20 +101,23 @@ class View {
 		if (!is_array($vars)) {
 			$vars = array('content' => $vars);
 		}
-		if($clean) {
+		if ($clean) {
 			$this->vars = array();
 		}
-		foreach($vars as $k => $v) {
+		foreach ($vars as $k => $v) {
 			$this->setVar($k, $v);
 		}
 		return $this;
 	}
 
 	public function setVar($k, $v) {
+		if (!array_key_exists($k, $this->vars)) {
+			$this->vars[$k] = '';
+		}
 		$this->vars[$k] = $v;
 		return $this;
 	}
-
+	
 	public function addVars($vars) {
 		$this->setVars($vars, false);
 		return $this;
@@ -123,7 +136,7 @@ class View {
 		$this->helpers[$name] = $helper;
 		return $this;
 	}
-	
+
 	public function getParent() {
 		return $this->parent;
 	}
@@ -133,11 +146,11 @@ class View {
 		$this->parent->content = $this;
 		return $this;
 	}
-	
+
 	protected function escapeString($str) {
 		return htmlspecialchars($str, ENT_QUOTES, "UTF-8");
 	}
-	
+
 	public function e($name) {
 		echo $this->escapeString($this->getVar($name));
 	}
@@ -145,20 +158,20 @@ class View {
 	public function t($name) {
 		//TODO: translate
 	}
-	
+
 	public static function errorHandler($errno, $errstr, $errfile, $errline, $errcontext) {
-		if($errno == 8) {
-			$name = str_replace('Undefined variable: ','',$errstr);
+		if ($errno == 8) {
+			$name = str_replace('Undefined variable: ', '', $errstr);
 			echo '{{' . $name . '}}';
 			return true;
 		}
 		echo $errstr;
 	}
-	
+
 	protected function escapeVars() {
-		foreach($this->vars as $k => $v) {
+		foreach ($this->vars as $k => $v) {
 			$ev = $v;
-			if(is_string($v)) {
+			if (is_string($v)) {
 				$ev = $this->escapeString($v);
 			}
 			$this->escapedVars[$k] = $ev;
@@ -207,18 +220,17 @@ class View {
 	 */
 	public function callHelper($name, $arguments) {
 		$helper = null;
-		if(isset($this->helpers[$name])) {
+		if (isset($this->helpers[$name])) {
 			$helper = $this->helpers[$name];
-		}
-		else {
+		} else {
 			$controller = $this->getApp()->getController();
-			if(method_exists($controller, $name)) {
-				$helper  = array($controller,$name);
+			if (method_exists($controller, $name)) {
+				$helper = array($controller, $name);
 			}
 		}
-		if(!$helper) {
+		if (!$helper) {
 			$parent = $this->getParent();
-			if($parent) {
+			if ($parent) {
 				return $parent->callHelper($name, $arguments);
 			}
 			throw new BadMethodCallException("Helpers '$name' does not exist");
@@ -226,11 +238,11 @@ class View {
 		$res = call_user_func_array($helper, $arguments);
 		return $res;
 	}
-	
+
 	public function __get($name) {
-		return $this->getVar($name);
+		return $this->get($name);
 	}
-	
+
 	public function __set($name, $value) {
 		$this->setVar($name, $value);
 	}

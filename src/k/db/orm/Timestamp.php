@@ -21,17 +21,4 @@ trait Timestamp {
 		}
 	}
 
-	public static function onInsert(&$data) {
-		$data['created_at'] = date('Y-m-d H:i:s');
-		$data['updated_at'] = date('Y-m-d H:i:s');
-	}
-
-	public static function onUpdate(&$data) {
-		$data['updated_at'] = date('Y-m-d H:i:s');
-	}
-
-	public function onPreSave() {
-		$this->onPreSaveTimestamp();
-	}
-
 }

@@ -20,22 +20,12 @@ trait Log {
 			'message',
 			'created_at'
 		);
+		//TODO : add extra fields
 		return static::getPdo()->createTable($ttable, $fields, array(), null, $execute);
-	}
-	
-	public static function createTable($execute = true, $foreignKeys = true) {
-		$sql = parent::createTable($execute, $foreignKeys);
-		$sql .= static::createTableLog($execute);
-		return $sql;
 	}
 	
 	public static function dropTableLog() {
 		return static::getPdo()->dropTable(static::getTableLog());
-	}
-	
-	public static function dropTable() {
-		static::dropTableLog();
-		return parent::dropTable();
 	}
 	
 	public function log($message) {
