@@ -277,6 +277,13 @@ class App {
 	public function getController() {
 		return $this->controller;
 	}
+	
+	/**
+	 * @return \k\Module
+	 */
+	public function getModule() {
+		return $this->module;
+	}
 
 	/////////////////////////////
 	// app directories getters //
@@ -425,7 +432,9 @@ class App {
 		}
 
 		//if we have an ajax request, we don't want a layout
-		if ($this->getRequest()->isAjax() || $this->getRequest()->accept('application/json')) {
+		if ($this->getRequest()->isAjax() 
+			|| $this->getRequest()->accept('application/json')
+		) {
 			$this->useLayout = false;
 			$response->type('application/json');
 		}
@@ -477,7 +486,7 @@ class App {
 		if ($this->view) {
 			$this->view->addVars($responseData);
 		}
-		if ($this->useLayout) {
+		if ($this->useLayout && php_sapi_name() !== 'cli') {
 			$this->log[] = 'Use layout';
 			$this->view = $this->getLayout($this->view);
 		}
@@ -572,13 +581,15 @@ class App {
 		if (array_key_exists($name,$this->modules)) {
 			return $this->modules[$name];
 		}
-		$class = self::classize($name) . '_Module';
+		$classname  =self::classize($name);
+		$class = $classname . '_Module';
 		$this->log[] = __METHOD__ . ': ' . $class;
+		$dir = $this->getDir() . '/src/' . $classname;
 		if (!class_exists($class)) {
-			$o = null;
+			$o = new Module($dir);
 		}
 		else {
-			$o = new $class();
+			$o = new $class($dir);
 			$this->log[] = "Module $name created";
 		}
 		$this->modules[$name] = $o;

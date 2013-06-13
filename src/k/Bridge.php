@@ -19,30 +19,58 @@ trait Bridge {
 		return App::getInstance();
 	}
 
+	/**
+	 * @return Service
+	 */
 	public function getService($name) {
 		return $this->getApp()->createService($name);
 	}
 
+	/**
+	 * @return View
+	 */
 	public function getLayout() {
 		return $this->getApp()->getLayout();
 	}
 
+	/**
+	 * @return View
+	 */
 	public function getView() {
 		return $this->getApp()->getView();
 	}
+	
+	/**
+	 * @return Module
+	 */
+	public function getModule() {
+		return $this->getApp()->getModule();
+	}
 
+	/**
+	 * @return \k\db\Pdo
+	 */
 	public function getDb() {
 		return $this->getApp()->getDb();
 	}
 
+	/**
+	 * @return \k\session\Session
+	 */
 	public function getSession() {
 		return $this->getApp()->getSession();
 	}
 	
+	/**
+	 * @return Response
+	 */
 	public function getResponse() {
 		return $this->getApp()->getResponse();
 	}
 	
+	/**
+	 * @return Request
+	 */
 	public function getRequest() {
 		return $this->getApp()->getRequest();
 	}
@@ -71,6 +99,26 @@ trait Bridge {
 	
 	public function deny($message = 'Forbidden') {
 		throw new AppException($message);
+	}
+	
+	/**
+	 * @return Image
+	 */
+	public function getFile($file) {
+		$ext = strtolower(pathinfo($file,PATHINFO_EXTENSION));
+		if(in_array($ext, array('jpg','jpeg','png','gif'))) {
+			return new Image($file);
+		}
+		else {
+			return new File($file);
+		}
+	}
+	
+	/**
+	 * @return \k\Directory
+	 */
+	public function getDir($dir) {
+		return new Directory($dir);
 	}
 	
 	/**

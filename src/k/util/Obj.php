@@ -1,9 +1,10 @@
 <?php
 
-namespace k;
+namespace k\util;
 
 use \InvalidArgumentException;
 use \ReflectionClass;
+use \ReflectionMethod;
 
 class Obj {
 
@@ -32,12 +33,13 @@ class Obj {
 	 * @param string $filename
 	 * @return array
 	 */
-	protected static function getClassesInFile($filename) {
+	public static function getClassesInFile($filename) {
 		$content = file_get_contents($filename);
 		$classes = array();
 		$tokens = token_get_all($content);
 		$count = count($tokens);
 		$buildNs = false;
+		$ns = '';
 		for ($i = 2; $i < $count; $i++) {
 			if ($tokens[$i][0] == T_NAMESPACE) {
 				$ns = '';
@@ -59,6 +61,21 @@ class Obj {
 			}
 		}
 		return $classes;
+	}
+
+	public static function getDeclaredMethods($className, $noMagic = true) {
+		$reflector = new ReflectionClass($className);
+		$methodNames = array();
+		$lowerClassName = strtolower($className);
+		foreach ($reflector->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+			if (strtolower($method->class) == $lowerClassName) {
+				if($noMagic && strpos($method->name,'__') === 0) {
+					continue;
+				}
+				$methodNames[] = $method->name;
+			}
+		}
+		return $methodNames;
 	}
 
 	/**
@@ -87,7 +104,7 @@ class Obj {
 	public function getClass() {
 		return self::getClassName(get_called_class());
 	}
-	
+
 	public static function getTraits($class) {
 		$refl = new ReflectionClass($class);
 		return $refl->getTraitNames();

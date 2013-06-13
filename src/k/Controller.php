@@ -51,7 +51,7 @@ abstract class Controller {
 	public function method($v = null) {
 		return $this->getRequest()->method($v);
 	}
-
+	
 	protected function file($filename, $name = null, $force = false) {
 		if (!is_file($filename)) {
 			//TODO
@@ -79,6 +79,10 @@ abstract class Controller {
 			$url = preg_replace('#^\./#', $name . '/', $url);
 		}
 		$this->getApp()->getResponse()->redirect($url, 302, true);
+	}
+	
+	protected function line($v) {
+		echo "$v\n";
 	}
 
 	protected function redirectBack() {

@@ -841,7 +841,7 @@ HAVING ( COUNT(*) > 1 )";
 	 */
 	public function listTables() {
 		// use database specific statement to get the list of tables
-		$mysql = 'SHOW FULL TABLES';
+		$mysql = "SHOW FULL TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
 		$pgsql = 'SELECT * FROM pg_tables';
 		$mssql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
 		$sqlite = "SELECT * FROM sqlite_master WHERE type='table'";
