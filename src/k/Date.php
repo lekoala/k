@@ -8,17 +8,27 @@ use \DateTimeZone;
 /**
  * Extend datetime to allow to use it as a string
  * 
+ * Various date helpers worth checking:
  * @link http://flourishlib.com/docs/fDate
  * @link https://github.com/fightbulc/moment.php
+ * @link https://github.com/herrera-io/php-date-interval
  */
 class Date extends DateTime {
 
-	const WEEK = 604800;
-	const DAY = 86400;
-	const HOUR = 3600;
-	const MINUTE = 60;
+	/**
+	 * Fixed constants for number of seconds for a given period
+	 */
+	const SECONDS_YEAR = 31556874;
+	const SECONDS_MONTH = 2629740;
+	const SECONDS_WEEK = 604800;
+	const SECONDS_DAY = 86400;
+	const SECONDS_HOUR = 3600;
+	const SECONDS_MINUTE = 60;
 
-	protected static $defaultFormat = 'Y-m-d H:i:s';
+	/**
+	 * ISO8601 format for a date : 1985-01-16 02:00:15
+	 */
+	const ISO_FORMAT = 'Y-m-d H:i:s';
 
 	/**
 	 * Return Date in ISO8601 format
@@ -26,7 +36,7 @@ class Date extends DateTime {
 	 * @return String
 	 */
 	public function __toString() {
-		return $this->format(static::$defaultFormat);
+		return $this->format(self::ISO_FORMAT);
 	}
 
 	public static function create($date) {

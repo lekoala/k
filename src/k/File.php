@@ -2,7 +2,7 @@
 
 namespace k;
 
-use \SplFileInfo;
+use \SplFileObject;
 use \InvalidArgumentException;
 
 /**
@@ -11,11 +11,12 @@ use \InvalidArgumentException;
  * @link https://github.com/symfony/symfony/blob/master/src/Symfony/Component/HttpFoundation/File/File.php
  * @link http://www.php.net/manual/en/class.splfileinfo.php
  * @link http://flourishlib.com/docs/fFile
+ * @link https://github.com/onemightyroar/php-filemanager/blob/master/src/OneMightyRoar/PhpFileManager/FileObject.php
  * 
  * @author lekoala
  */
-class File extends SplFileInfo {
-
+class File extends SplFileObject {
+	
 	/**
 	 * Constructs a file for a given path
 	 * 

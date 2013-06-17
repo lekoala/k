@@ -11,6 +11,8 @@ use \Exception;
  * Image
  *
  * @link http://flourishlib.com/docs/fImage
+ * @link https://github.com/onemightyroar/php-filemanager/blob/master/src/OneMightyRoar/PhpFileManager/ImageObject.php
+ * 
  * @author lekoala
  */
 class Image extends File {
