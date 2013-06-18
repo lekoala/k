@@ -36,16 +36,21 @@ trait Permissions {
 	 * @return string
 	 */
 	public function hasPermission($permission) {
-		$systemPermissions = self::getPermissions();
 		if (is_array($permission)) {
 			foreach ($permission as $p) {
-				if (!self::hasPermission($permission, $this->permissions)) {
+				if (!$this->hasPermission($p)) {
 					return false;
 				}
 			}
 			return true;
 		}
-		if ($this->permissions & $systemPermissions[$permission]) {
+		
+		if(!is_int($permission)) {
+			$systemPermissions = self::getPermissions();
+			$permission = $systemPermissions[$permission];
+		}
+		
+		if ($this->perms & $permission) {
 			return true;
 		}
 		return false;
@@ -57,11 +62,11 @@ trait Permissions {
 	 */
 	public function addAllPermissions() {
 		$systemPermissions = self::getPermissions();
-		$this->permissions = 0;
+		$this->perms = 0;
 		foreach($systemPermissions as $k => $v) {
-			$this->addPermission($k);
+			$this->addPermission($v);
 		}
-		return $this->permissions;
+		return $this->perms;
 	}
 
 	/**
@@ -70,15 +75,18 @@ trait Permissions {
 	 * @return string
 	 */
 	public function addPermission($permission) {
-		$systemPermissions = self::getPermissions();
 		if (is_array($permission)) {
 			foreach ($permission as $p) {
-				$userPermissions = self::addPermission($permission, $userPermissions);
+				$userPermissions = $this->addPermission($p);
 			}
 			return $userPermissions;
 		}
-		$this->permissions |= $systemPermissions[$permission];
-		return $this->permissions;
+		if(!is_int($permission)) {
+			$systemPermissions = self::getPermissions();
+			$permission = $systemPermissions[$permission];
+		}
+		$this->perms |= $permission;
+		return $this->perms;
 	}
 	
 	/**
@@ -86,7 +94,7 @@ trait Permissions {
 	 * @return int
 	 */
 	public function removeAllPermissions() {
-		$this->permissions = 0;
+		$this->perms = 0;
 		return 0;
 	}
 
@@ -96,15 +104,18 @@ trait Permissions {
 	 * @return string
 	 */
 	public function removePermission($permission) {
-		$systemPermissions = self::getPermissions();
 		if (is_array($permission)) {
 			foreach ($permission as $p) {
-				$userPermissions = self::removePermission($permission, $userPermissions);
+				$userPermissions = $this->emovePermission($p);
 			}
 			return $userPermissions;
 		}
-		$this->permissions ^= $systemPermissions[$permission];
-		return $this->permissions;
+		if(!is_int($permission)) {
+			$systemPermissions = self::getPermissions();
+			$permission = $systemPermissions[$permission];
+		}
+		$this->perms ^= $permission;
+		return $this->perms;
 	}
 
 	/**
@@ -115,7 +126,7 @@ trait Permissions {
 		$systemPermissions = self::getPermissions();
 		$p = array();
 		foreach ($systemPermissions as $k => $v) {
-			if ($this->hasPermission($k)) {
+			if ($this->hasPermission($v)) {
 				$p[] = $k;
 			}
 		}

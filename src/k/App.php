@@ -450,7 +450,7 @@ class App {
 			$response->type('application/json');
 		}
 		//if we are requesting json data, don't create a view
-		if (!$this->getRequest()->accept('application/json')) {
+		if (!$this->getRequest()->accept('application/json') && php_sapi_name() != 'cli') {
 			$this->view = $this->createView($this->controllerName, $this->actionName, $this->moduleName);
 		}
 

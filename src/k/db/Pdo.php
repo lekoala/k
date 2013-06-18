@@ -404,7 +404,7 @@ class Pdo extends NativePdo {
 			$this->log($statement, $time);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e);
+			throw new PdoException($e,$this);
 		}
 		return $result;
 	}
@@ -423,7 +423,7 @@ class Pdo extends NativePdo {
 			$this->log($statement, $time);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e);
+			throw new PdoException($e,$this);
 		}
 
 		return $result;
@@ -441,7 +441,7 @@ class Pdo extends NativePdo {
 			return $this->getPdo()->prepare($statement, $driver_options);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e);
+			throw new PdoException($e,$this);
 		}
 	}
 
@@ -765,7 +765,7 @@ HAVING ( COUNT(*) > 1 )";
 
 		//foreign keys
 		foreach ($fkFields as $key => $reference) {
-			$fk_name = 'fk_' . $table . '_' . preg_replace('/[^a-z]/', '', $reference);
+			$fk_name = 'fk_' . $table . '_' . $key . '_' . preg_replace('/[^a-z]/', '', $reference);
 			$sql .= "\t" . 'CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference . ",\n";
 		}
 
@@ -792,7 +792,7 @@ HAVING ( COUNT(*) > 1 )";
 	public function alterTable($table, array $addFields = array(), array $removeFields = array(), $execute = true) {
 
 		$addFields = $this->guessTypes($addFields);
-
+		
 		$sql = 'ALTER TABLE ' . $table . "\n";
 
 		foreach ($addFields as $field => $type) {

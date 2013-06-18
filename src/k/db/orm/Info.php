@@ -25,12 +25,6 @@ trait Info {
 		return static::getPdo()->createTable($ttable, $fields, array(), null, $execute);
 	}
 
-	public static function createTable($execute = true, $foreignKeys = true) {
-		$sql = parent::createTable($execute, $foreignKeys);
-		$sql .= static::createTableInfo($execute);
-		return $sql;
-	}
-
 	public static function dropTableInfo() {
 		return static::getPdo()->dropTable(static::getTableInfo());
 	}

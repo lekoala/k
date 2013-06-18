@@ -10,7 +10,7 @@ use \PDOException as NativePdoException;
  */
 class PdoException extends NativePdoException {
 
-	public function __construct($e,$pdo = null) {
+	public function __construct($e,$pdo) {
 		if (is_string($e)) {
 			$this->code = 0;
 			$this->message = $e;
@@ -23,8 +23,16 @@ class PdoException extends NativePdoException {
 				if (!empty($matches)) {
 					$this->code = $matches[1];
 					$this->message = $matches[2];
-					if($this->code == '42000' && $pdo->getLastQuery()) {
-						$this->message = 'Syntax error ' . preg_replace("#^(.*)(near '.*')(.*)$#","$2",$this->message). ' in ' . $pdo->getLastQuery();
+					$q = $pdo->highlight($pdo->getLastQuery());
+					if($q) {
+						switch($this->code) {
+							case '42000':
+								$this->message = 'Syntax error ' . preg_replace("#^(.*)(near '.*')(.*)$#","$2",$this->message). ' in ' . $q;
+								break;
+							default:
+								$this->message .= ' in query ' . $q;
+								break;
+						}
 					}
 				}
 			}

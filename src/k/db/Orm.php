@@ -332,13 +332,13 @@ class Orm implements JsonSerializable {
 			$ref = new ReflectionClass(get_called_class());
 			$ts = $ref->getTraitNames();
 			$traits = array();
-			foreach($ts as $trait) {
+			foreach ($ts as $trait) {
 				$name = explode('\\', $trait);
 				$name = end($name);
 				$traits[$trait] = $name;
 			}
 		}
-		
+
 		return $traits;
 	}
 
@@ -947,7 +947,7 @@ class Orm implements JsonSerializable {
 	public static function getPdo() {
 		return Pdo::get(static::$connection);
 	}
-
+	
 	public static function getConnection() {
 		return static::$connection;
 	}
@@ -987,7 +987,7 @@ class Orm implements JsonSerializable {
 	 */
 	public static function getTableName() {
 		$name = str_replace(Table::$classPrefix, '', get_called_class());
-		return strtolower(preg_replace('/(?<=[a-z])([A-Z])/', '_$1', $name));
+		return strtolower($name);
 	}
 
 	/**
@@ -1015,6 +1015,7 @@ class Orm implements JsonSerializable {
 	protected static function singularize($word) {
 		$rules = array(
 			'ies' => 'y',
+			'ss' => 'sss',
 			's' => ''
 		);
 
@@ -1033,10 +1034,10 @@ class Orm implements JsonSerializable {
 	 * @param array $arr Fields definition
 	 * @return array
 	 */
-	protected static function buildRelationsArray($arr,$type = null) {
+	protected static function buildRelationsArray($arr, $type = null) {
 		$relations = array();
 
-		if($type) {
+		if ($type) {
 			//add extensions fields
 			foreach (static::getTraits() as $t => $name) {
 				$m = $type . $name;
@@ -1252,7 +1253,7 @@ class Orm implements JsonSerializable {
 		$pkField = static::getPrimaryKey();
 		$value = $this->$pkField;
 		if (empty($value) && $mustExist) {
-			throw new Exception('This record does not have an id yet');
+			throw new Exception('This record does not have an id yet in ' . get_called_class());
 		}
 		return $value;
 	}
@@ -1264,7 +1265,7 @@ class Orm implements JsonSerializable {
 	public static function getPrimaryKey() {
 		$pkFields = static::getPrimaryKeys();
 		if (count($pkFields) !== 1) {
-			throw new Exception('This method only support table with one primary key');
+			throw new Exception('This method only support table with one primary key in ' . get_called_class());
 		}
 
 		return $pkFields[0];
@@ -1320,7 +1321,7 @@ class Orm implements JsonSerializable {
 
 	/**
 	 * Get foreign keys based on naming conventions. No query is done on the db.
-	 * The foreign key fields must follow the class_field or class_[rel]_field convention
+	 * The foreign key fields must follow the class_field or [rel]_field convention
 	 * @staticvar array $fkFields
 	 * @return array
 	 */
@@ -1329,30 +1330,15 @@ class Orm implements JsonSerializable {
 
 		if ($fkFields === null) {
 			$fkFields = array();
-			$fields = static::getFields();
-			foreach ($fields as $field) {
-				$parts = explode('_', $field);
-				if (count($parts) < 2) {
-					continue;
+			$fields = static::getHasOneRelations();
+			foreach ($fields as $relation => $class) {
+				if (is_int($relation)) {
+					$relation = $class;
 				}
-				$table = $parts[0];
-				$relation = $parts[(count($parts) - 2)];
-				if ($table == $relation) {
-					$relation = '';
-				}
-				$pk = end($parts);
-
-				$class = ucfirst(str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $table))));
-				if (class_exists($class, false) && is_subclass_of($class, __CLASS__) && property_exists($class, $pk)) {
-					$table = $class::getTable();
-					$fk = array(
-						'name' => $field,
-						'table' => $table,
-						'column' => $pk,
-						'relation' => $relation
-					);
-					$fkFields[] = $fk;
-				}
+				$pk = $class::getPrimaryKey();
+				$field = strtolower($relation) . '_' . $pk;
+				$table = $class::getTableName();
+				$fkFields[$field] = $table . '(' . $pk . ')';
 			}
 		}
 
@@ -1394,11 +1380,23 @@ class Orm implements JsonSerializable {
 		} catch (PdoException $e) {
 			$exists = false;
 		}
+		$fieldsDef = static::getFields(false);
+		$fields = array_keys($fieldsDef);
+
 		if ($exists) {
-			$cols = $pdo->listColumns($table);
+			$cols = array_keys($pdo->listColumns($table));
+
+			$removeFields = array_diff($cols, $fields);
+			$addFields = array_diff($fields, $cols);
+			
+			if(empty($removeFields) && empty($addFields)) {
+				return;
+			}
 
 			return $pdo->alterTable($table, $addFields, $removeFields);
 		} else {
+			$pkFields = static::getPrimaryKeys();
+			$fkFields = static::getForeignKeys();
 			return $pdo->createTable($table, $fields, $pkFields, $fkFields);
 		}
 	}
