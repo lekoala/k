@@ -7,6 +7,6 @@
 /public/scripts/packages
 /public/scripts/components
 composer.lock
-*.DS_Store
+.DS_Store
 config.local.php
 [Tt]humbs.db
