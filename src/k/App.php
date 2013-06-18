@@ -70,6 +70,7 @@ class App {
 	protected $dataDirSegment = 'data';
 	protected $tmpDirSegment = 'tmp';
 	protected $publicDirSegment = 'public';
+	protected $moduleDirSegment = 'Module';
 
 	/**
 	 * Create a new app
@@ -386,6 +387,15 @@ class App {
 	public function getTmpDir() {
 		return $this->getBaseDir() . '/' . $this->tmpDirSegment;
 	}
+	
+	/**
+	 * Get module dir
+	 * 
+	 * @return string
+	 */
+	public function getModuleDir() {
+		return $this->getBaseDir() . '/' . $this->moduleDirSegment;
+	}
 
 	/////////////////////
 	// classes methods //
@@ -592,7 +602,7 @@ class App {
 			return $this->modules[$name];
 		}
 		$classname = self::classize($name);
-		$class = $classname . '_Module';
+		$class = $this->moduleDirSegment . '_' . $classname;
 		$this->log[] = __METHOD__ . ': ' . $class;
 		$dir = $this->getDir() . '/src/' . $classname;
 		if (!class_exists($class)) {
@@ -619,7 +629,7 @@ class App {
 		if ($module === null) {
 			$module = $this->moduleName;
 		}
-		$class = self::classize($module) . '_' . self::classize($name);
+		$class = $this->moduleDirSegment . '_' . self::classize($module) . '_' . self::classize($name);
 		$this->log[] = __METHOD__ . ': ' . $class;
 		if (!class_exists($class)) {
 			if($this->fallbackController) {
