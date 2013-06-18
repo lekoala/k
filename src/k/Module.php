@@ -17,6 +17,9 @@ class Module {
 	}
 
 	public function setDir($dir) {
+		if(empty($dir)) {
+			throw new Exception("Directory must not be empty");
+		}
 		$this->dir = $dir;
 		return $this;
 	}
@@ -33,21 +36,24 @@ class Module {
 		$arr = $this->getControllers(false);
 		$menu = [];
 		$name = $this->getName();
-		$prefix = ucfirst($this->getName()) . '_';
+		$prefix = 'Module_' . ucfirst($this->getName()) . '_';
 		foreach($arr as $item) {
 			$n = str_replace($prefix,'',$item);
 			$menu[$n] = array(
 				'name' => $n,
-				'link' => $name . '/' . strtolower($n)
+				'link' => '/' . $name . '/' . strtolower($n)
 			);
 		}
 		return $menu;
 	}
 
 	public function getControllers($withActions = true) {
-		$iter = new Directory($this->getDir());
+		$iter = $this->createDir($this->getDir());
 		$arr = array();
 		foreach ($iter as $fi) {
+			if($fi->isDir() || strpos($fi->getBasename(), '.') === 0) {
+				continue;
+			}
 			$classes = util\Obj::getClassesInFile($fi->getPathname());
 			if (empty($classes)) {
 				continue;

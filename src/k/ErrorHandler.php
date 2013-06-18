@@ -108,11 +108,18 @@ class ErrorHandler {
 	}
 
 	public function formatTrace($trace = null) {
+		$e = null;
 		if ($trace === null) {
 			$trace = debug_backtrace();
 		}
 		if ($trace instanceof Exception) {
-			$trace = $trace->getTrace();
+			$e = $trace;
+			$trace = $e->getTrace();
+		}
+		if ($e instanceof ErrorException) {
+			for ($i = count($trace) - 1; $i > 0; --$i) {
+				$trace[$i]['args'] = $trace[$i - 1]['args'];
+			}
 		}
 		$html = '<code><table>';
 

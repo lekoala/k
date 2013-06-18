@@ -104,7 +104,7 @@ trait Bridge {
 	/**
 	 * @return Image
 	 */
-	public function getFile($file) {
+	public function createFile($file) {
 		$ext = strtolower(pathinfo($file,PATHINFO_EXTENSION));
 		if(in_array($ext, array('jpg','jpeg','png','gif'))) {
 			return new Image($file);
@@ -117,7 +117,7 @@ trait Bridge {
 	/**
 	 * @return \k\Directory
 	 */
-	public function getDir($dir) {
+	public function createDir($dir) {
 		return new Directory($dir);
 	}
 	

@@ -309,7 +309,7 @@ class App {
 	public function getDir() {
 		if ($this->dir === null) {
 			$cl = new ReflectionClass($this);
-			$this->dir = dirname(dirname($cl->getFileName()));
+			$this->dir = dirname($cl->getFileName());
 		}
 		return $this->dir;
 	}
@@ -394,7 +394,7 @@ class App {
 	 * @return string
 	 */
 	public function getModuleDir() {
-		return $this->getBaseDir() . '/' . $this->moduleDirSegment;
+		return $this->getDir() . '/' . $this->moduleDirSegment;
 	}
 
 	/////////////////////
@@ -575,7 +575,7 @@ class App {
 		}
 		$filename = $this->getDir();
 		if ($module) {
-			$filename .= '/src/' . ucfirst($module);
+			$filename .= '/Module/' . ucfirst($module);
 		}
 		$filename .= '/' . $this->viewDir;
 		$filename .= '/' . $name;
@@ -594,7 +594,7 @@ class App {
 	 * @param string $name
 	 * @return Module
 	 */
-	protected function createModule($name = null) {
+	public function createModule($name = null) {
 		if ($name === null) {
 			$name = $this->moduleName;
 		}
@@ -604,7 +604,7 @@ class App {
 		$classname = self::classize($name);
 		$class = $this->moduleDirSegment . '_' . $classname;
 		$this->log[] = __METHOD__ . ': ' . $class;
-		$dir = $this->getDir() . '/src/' . $classname;
+		$dir = $this->getDir() . '/Module/' . $classname;
 		if (!class_exists($class)) {
 			$o = new Module($dir);
 		} else {

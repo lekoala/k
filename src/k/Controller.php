@@ -52,6 +52,10 @@ abstract class Controller {
 		return $this->getRequest()->method($v);
 	}
 	
+	public function title() {
+		return $this->config('title','My app');
+	}
+	
 	protected function file($filename, $name = null, $force = false) {
 		if (!is_file($filename)) {
 			//TODO
