@@ -118,7 +118,7 @@ class Table extends HtmlWriter {
 	}
 
 	public function setSortableHeaders($sortableHeaders) {
-		$this->sortableHeaders = $sortableHeaders;
+		$this->sortableHeaders = $this->arrayCollapse($sortableHeaders);
 		return $this;
 	}
 
@@ -259,7 +259,7 @@ class Table extends HtmlWriter {
 			foreach ($this->headers as $header => $label) {
 				if(is_int($header)) {
 					$header = $label;
-					$label = ucwords(str_replace('_', ' ', $label));
+					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
 				}
 				$atts = [];
 				if($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {

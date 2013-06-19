@@ -98,6 +98,8 @@ abstract class HtmlWriter {
 	 * @return string
 	 */
 	protected function tag($tag, $value = null, $attributes = array()) {
+		$attr = $str = '';
+		
 		//allow attr as 1nd element
 		if (is_array($tag)) {
 			$attributes = $tag;
@@ -120,6 +122,13 @@ abstract class HtmlWriter {
 			$value = $attributes['value'];
 			unset($attributes['value']);
 		}
+		
+		//comments support
+		
+		if(isset($attributes['comments'])) {
+			$str = $attributes['comments'];
+			unset($attributes['comments']);
+		}
 
 		//value as text key
 		if (isset($attributes['text'])) {
@@ -128,8 +137,6 @@ abstract class HtmlWriter {
 		}
 
 		//prepare html
-		$str = '';
-		$attr = '';
 		foreach ($attributes as $k => $v) {
 			if (empty($v)) {
 				continue;
@@ -148,7 +155,7 @@ abstract class HtmlWriter {
 		} else {
 			$str .= '<' . $tag . $attr . ' />';
 		}
-
+		$str .= "\n";
 		return $str;
 	}
 

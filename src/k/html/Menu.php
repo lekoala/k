@@ -7,7 +7,7 @@ namespace k\html;
  *
  * @author lekoala
  */
-class Menu {
+class Menu extends HtmlWriter {
 
 	public function __construct() {
 		

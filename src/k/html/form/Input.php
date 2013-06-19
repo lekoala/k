@@ -1,5 +1,5 @@
 <?php
-namespace K\Form;
+namespace k\form;
 
 /**
  * Base input. Split label and field generation for easy extension.

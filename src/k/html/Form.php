@@ -5,24 +5,24 @@ namespace k\html;
 /**
  * Chainable form builder
  * 
- * @method Form\Input class()
- * @method Form\Input type()
- * @method Form\Input label()
- * @method Form\Input value()
- * @method Form\Input defaultValue()
- * @method Form\Input size()
- * @method Form\Input append()
- * @method Form\Input prepend()
- * @method Form\Input placeholder()
- * @method Form\Input disabled()
- * @method Form\Input options()
- * @method Form\File multiple()
- * @method Form\File accept()
- * @method Form\Textarea rows()
- * @method Form\Textarea cols()
- * @method Form\Textarea readonly()
+ * @method \k\form\Input class()
+ * @method \k\form\Input type()
+ * @method \k\form\Input label()
+ * @method \k\form\Input value()
+ * @method \k\form\Input defaultValue()
+ * @method \k\form\Input size()
+ * @method \k\form\Input append()
+ * @method \k\form\Input prepend()
+ * @method \k\form\Input placeholder()
+ * @method \k\form\Input disabled()
+ * @method \k\form\Input options()
+ * @method \k\form\File multiple()
+ * @method \k\form\File accept()
+ * @method \k\form\Textarea rows()
+ * @method \k\form\Textarea cols()
+ * @method \k\form\Textarea readonly()
  */
-class Form {
+class Form extends HtmlWriter {
 
 	const FORM_SEARCH = 'search';
 	const FORM_INLINE = 'inline';
@@ -239,7 +239,7 @@ class Form {
 	}
 
 	public function input($name, $label = null) {
-		$element = new Form\Input($name);
+		$element = new \k\form\Input($name);
 		return $this->add($element, $label);
 	}
 
@@ -247,43 +247,43 @@ class Form {
 		if (empty($name)) {
 			$name = 'email';
 		}
-		$element = new Form\Input($name);
+		$element = new \k\form\Input($name);
 		$element->type('email');
 		return $this->add($element, $label);
 	}
 
 	public function textarea($name, $label = null) {
-		$element = new Form\Textarea($name);
+		$element = new \k\form\Textarea($name);
 		return $this->add($element, $label);
 	}
 
 	public function file($name, $label = null) {
-		$element = new Form\File($name);
+		$element = new \k\form\File($name);
 		return $this->add($element, $label);
 	}
 
 	public function select($name, $label = null) {
-		$element = new Form\Select($name);
+		$element = new \k\form\Select($name);
 		return $this->add($element, $label);
 	}
 
 	public function checkbox($name, $label = null) {
-		$element = new Form\Checkbox($name);
+		$element = new \k\form\Checkbox($name);
 		return $this->add($element, $label);
 	}
 
 	public function radio($name, $label = null) {
-		$element = new Form\Radio($name);
+		$element = new \k\form\Radio($name);
 		return $this->add($element, $label);
 	}
 	
 	public function multicheckbox($name, $label = null) {
-		$element = new Form\Multicheckbox($name);
+		$element = new \k\form\Multicheckbox($name);
 		return $this->add($element, $label);
 	}
 
 	public function button($label, $class = null) {
-		$element = new Form\Button();
+		$element = new \k\form\Button();
 		if ($class) {
 			$element->class('btn-' . $class);
 		}
@@ -296,12 +296,12 @@ class Form {
 		} else {
 			$name = 'address_' . $name;
 		}
-		$element = new Form\Address($name);
+		$element = new \k\form\Address($name);
 		return $this->add($element, $label);
 	}
 
 	public function submit($label = 'Submit') {
-		$element = new Form\Button();
+		$element = new \k\form\Button();
 		$element->type('submit');
 		$element->label($label);
 		return $this->add($element);
@@ -323,10 +323,10 @@ class Form {
 	}
 	
 	/**
-	 * @return Form\OpenFieldset
+	 * @return \k\form\OpenFieldset
 	 */
 	public function openFieldset($legend = null) {
-		$element = new Form\OpenFieldset();
+		$element = new \k\form\OpenFieldset();
 		if ($legend) {
 			$element->legend($legend);
 		}
@@ -334,37 +334,37 @@ class Form {
 	}
 	
 	/**
-	 * @return Form\CloseFieldset
+	 * @return \k\form\CloseFieldset
 	 */
 	public function closeFieldset() {
-		return $this->add(new Form\CloseFieldset());
+		return $this->add(new \k\form\CloseFieldset());
 	}
 	
 	/**
-	 * @return Form\OpenActions
+	 * @return \k\form\OpenActions
 	 */
 	public function openActions() {
-		$element = new Form\OpenActions();
+		$element = new \k\form\OpenActions();
 		return $this->add($element);
 	}
 
 	/**
-	 * @return Form\CloseActions
+	 * @return \k\form\CloseActions
 	 */
 	public function closeActions() {
-		$element = new Form\CloseActions();
+		$element = new \k\form\CloseActions();
 		return $this->add($element);
 	}
 
 	/**
-	 * @return Form\Element
+	 * @return \k\form\Element
 	 */
 	public function add($element, $label = null) {
 		if (is_string($element)) {
-			$element = new Form\Element($element);
+			$element = new \k\form\Element($element);
 		}
 		$element->setForm($this);
-		if ($element instanceof Form\Input) {
+		if ($element instanceof \k\form\Input) {
 			$element->setGroups($this->groups);
 		}
 		if ($label) {
@@ -374,7 +374,7 @@ class Form {
 		return $element;
 	}
 
-	public function render() {
+	public function renderHtml() {
 		$class = '';
 		if ($this->layout) {
 			$class = 'form-' . $this->layout;
@@ -393,7 +393,7 @@ class Form {
 					'id' => $this->id
 				));
 		foreach ($this->elements as $element) {
-			if ($element instanceof Form\Input) {
+			if ($element instanceof \k\form\Input) {
 				if ($this->getWrap()) {
 					$html .= Form::makeTag('div.control-group');
 				}
