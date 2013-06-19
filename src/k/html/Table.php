@@ -306,7 +306,7 @@ class Table extends HtmlWriter {
 				if ($this->headers) {
 					$j = 0;
 					//if we have headers, display only headers
-					foreach ($this->headers as $header) {
+					foreach ($headersCollapsed as $header) {
 						$v = isset($data[$header]) ? $data[$header] : null;
 						$atts = [];
 						//add class to make it sortable
