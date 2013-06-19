@@ -1,5 +1,5 @@
 <?php
-namespace k\form;
+namespace k\html\form;
 
 class CloseFieldset extends Element {
 

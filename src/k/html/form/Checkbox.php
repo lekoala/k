@@ -1,5 +1,5 @@
 <?php
-namespace k\form;
+namespace k\html\form;
 
 class Checkbox extends Input {
 
