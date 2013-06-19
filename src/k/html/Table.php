@@ -1,355 +1,291 @@
 <?php
 
-namespace k;
+namespace k\html;
 
 /**
  * Dynamic table
- *
+ * 
+ * Js integration expect to be using listjs
+ * Css integration expect to be using twitter bootstrap compatible html and css
+ * 
+ * @link http://listjs.com/
  * @author lekoala
  */
-class Table {
+class Table extends HtmlWriter {
 
 	const MODE_APPEND = 'append';
 	const MODE_QS = 'qs';
 	const MODE_REPLACE = 'replace';
 
 	protected static $instances = 0;
-	protected static $script_inserted = false;
+	protected static $scriptInserted = false;
 	protected $identifier = 'id';
 	protected $selectable;
-	protected $selectable_actions = array();
+	protected $selectableActions;
 	protected $headers;
 	protected $pagination;
 	protected $data;
-	protected $html = '';
-	protected $class;
+	protected $class = 'table table-striped';
 	protected $id;
 	protected $indent;
 	protected $actions;
-	protected $actions_mode = 'append';
-	protected $searchable_headers;
-	protected $searchable_key = 'filters';
-	protected $searchable_input = '<input type="submit" value="filter">';
-	protected $form_method = 'post';
+	protected $baseActionClass = 'btn';
+	protected $actionsMode = 'append';
+	protected $actionsClass = [
+		'remove' => 'btn-danger confirm',
+		'delete' => 'btn-danger confirm'
+	];
+	protected $actionConfirm = [];
+	protected $confirmScript = "return confirm('Are you sure?');";
+	protected $searchableHeaders;
+	protected $sortableHeaders;
+	protected $searchableKey = 'filters';
+	protected $searchableInput = [
+		'type' => 'submit',
+		'value' => 'filter'
+	];
+	protected $formMethod = 'post';
+	protected $tableSearch = true;
+	protected $tableSearchInput = [
+		'type' => 'text',
+		'class' => 'search search-query',
+		'placeholder' => 'search'
+	];
 
 	public function __construct() {
 		self::$instances++;
 	}
 
-	public function get_identifier() {
+	public function getIdentifier() {
 		return $this->identifier;
 	}
 
-	public function set_identifier($id) {
+	public function setIdentifier($id) {
 		$this->identifier = $id;
 		return $this;
 	}
-
-	public function get_selectable() {
+	
+	public function getSelectable() {
 		return $this->selectable;
 	}
 
-	public function set_selectable($v = true) {
+	public function setSelectable($v = true) {
 		$this->selectable = $v;
 		return $this;
 	}
 
-	public function get_selectable_actions() {
-		return $this->selectable_actions;
+	public function getSelectableActions() {
+		return $this->selectableActions;
 	}
 
-	public function set_selectable_actions($v = array()) {
+	public function setSelectableActions($v = array()) {
 		$this->selectable = true;
-		$this->selectable_actions = _::arrayify($v);
+		$this->selectableActions = $this->arrayify($v);
 		return $this;
 	}
 
-	public function get_pagination() {
+	public function getPagination() {
 		return $this->pagination;
 	}
 
-	public function set_pagination($current, $total, $collapse = null) {
+	public function setPagination($current, $total, $collapse = null) {
 		$this->pagination = compact('current', 'total', 'collapse');
 		return $this;
 	}
 
-	public function get_headers() {
+	public function getHeaders() {
 		return $this->headers;
 	}
 
-	public function set_headers($headers = null) {
-		$headers = _::arrayify($headers);
+	public function setHeaders($headers = null) {
+		$headers = $this->arrayify($headers);
 		$this->headers = $headers;
 		return $this;
 	}
 
-	public function get_searchable_headers() {
-		return $this->searchable_headers;
+	public function getSearchableHeaders() {
+		return $this->searchableHeaders;
 	}
 
-	public function set_searchable_headers($headers = null) {
-		$headers = _::arrayify($headers);
-		$this->searchable_headers = $headers;
+	public function setSearchableHeaders($headers = null) {
+		$headers = $this->arrayify($headers);
+		$this->searchableHeaders = $headers;
 		return $this;
 	}
 
-	public function get_data() {
+	public function getSortableHeaders() {
+		return $this->sortableHeaders;
+	}
+
+	public function setSortableHeaders($sortableHeaders) {
+		$this->sortableHeaders = $sortableHeaders;
+		return $this;
+	}
+
+	public function getData() {
 		return $this->data;
 	}
 
-	public function set_data($data) {
+	public function setData($data) {
 		$this->data = $data;
 		return $this->data;
 	}
 
-	public function get_class() {
+	public function getClass() {
 		return $this->class;
 	}
 
-	public function set_class($class) {
-		$this->class = _::stringify($class, ' ');
+	public function setClass($class) {
+		$this->class = $this->stringify($class, ' ');
 		return $this;
 	}
 
-	public function get_id() {
+	public function getId() {
 		return $this->id;
 	}
 
-	public function set_id($class) {
+	public function setId($class) {
 		$this->id = $class;
 		return $this;
 	}
 
-	public function get_actions() {
+	public function getActions() {
 		return $this->actions;
 	}
 
-	public function set_actions($actions, $mode = 'append') {
+	public function setActions($actions, $mode = 'append') {
 		$this->actions = $actions;
-		$this->actions_mode = $mode;
+		$this->actionsMode = $mode;
 		return $this;
 	}
 
-	public function get_actions_mode() {
-		return $this->actions_mode;
+	public function getActionsMode() {
+		return $this->actionsMode;
 	}
 
-	public function set_actions_mode($mode) {
-		$this->actions_mode = $mode;
+	public function setActionsMode($mode) {
+		$this->actionsMode = $mode;
 		return $this;
 	}
 	
-	public function get_form_method() {
-		return $this->form_method;
+	public function getActionConfirm() {
+		return $this->actionConfirm;
 	}
-	
-	public function set_form_method($v) {
-		$this->form_method = $v;
+
+	public function getConfirmScript() {
+		return $this->confirmScript;
+	}
+
+	public function setActionConfirm($actionConfirm) {
+		$this->actionConfirm = $actionConfirm;
 		return $this;
 	}
 
-	protected function format_xml($xml, $spaces = 4, $escape = false) {
-
-		$xml = preg_replace('/(>)(<)(\/*)/', "$1\n$2$3", $xml);
-
-		$token = strtok($xml, "\n");
-		$result = '';
-		$pad = 0;
-		$matches = array();
-
-		while ($token !== false) :
-
-			// 1. open and closing tags on same line - no change
-			if (preg_match('/.+<\/\w[^>]*>$/', $token, $matches)) :
-				$indent = 0;
-			// 2. closing tag - outdent now
-			elseif (preg_match('/^<\/\w/', $token, $matches)) :
-				$pad -= $spaces;
-			// 3. opening tag - don't pad this one, only subsequent tags
-			elseif (preg_match('/^<\w[^>]*[^\/]>.*$/', $token, $matches)) :
-				$indent = 1;
-			// 4. no indentation needed
-			else :
-				$indent = 0;
-			endif;
-
-			// pad the line with the required number of leading spaces
-			$line = str_pad($token, strlen($token) + $pad, ' ', STR_PAD_LEFT);
-			$result .= $line . "\n";
-			$token = strtok("\n");
-			$pad += $indent * $spaces;
-		endwhile;
-
-		$result = rtrim($result, "\n");
-
-		if ($escape) {
-			$result = htmlentities($result, ENT_QUOTES, "UTF-8");
-		}
-
-		return $result;
+	public function setConfirmScript($confirmScript) {
+		$this->confirmScript = $confirmScript;
+		return $this;
 	}
 
-	protected function tag($name, $value = null, $attributes = array()) {
-		//allow attr as 2nd element
-		if(is_array($value)) {
-			$attributes = $value;
-			$value = null;
-		}
-		
-		//sub elements
-		$els = explode('>', $name);
-		while (count($els) > 1) {
-			//recursively call on each element
-			$el = array_pop($els);
-			$value = $this->tag($el, $value);
-		}
-		$name = $els[0];
-
-		//siblings elements
-		$els = explode('+', $name);
-		$results = array();
-		while (count($els) > 1) {
-			//recursively call on each element
-			$el = array_shift($els);
-			$results[] = $this->tag($el);
-		}
-		$name = $els[0];
-
-		//support multiple tags
-		$pattern = '/
-			\*				# times operator
-			(?P<mul>\d*)	# digit
-			\z				# end of line
-		/x';
-		preg_match($pattern, $name, $matches);
-		$mul = 1;
-		if (!empty($matches['mul'])) {
-			$name = preg_replace($pattern, '', $name);
-			$mul = $matches['mul'];
-		}
-
-		//attributes
-		$parts = preg_split('/
-			(?=\.|\#|\[|\{|\()				# separators
-			(?=(?:[^"]*"[^"]*")*[^"]*$)		# no match between quotes
-		/x', $name, 0, PREG_SPLIT_DELIM_CAPTURE);
-		$name = $parts[0];
-		foreach ($parts as $part) {
-			if (empty($part)) {
-				continue;
-			}
-			$mod = $part[0];
-			$len = strlen($part) - 1;
-			if (in_array($mod, array('[', '{'))) {
-				$len--;
-			}
-			$v = substr($part, 1, $len);
-			switch ($part[0]) {
-				case '#':
-					$attributes['id'] = $v;
-					break;
-				case '.':
-					if (!empty($attributes['class'])) {
-						$attributes['class'] .= ' ';
-					} else {
-						$attributes['class'] = '';
-					}
-					$attributes['class'] .= $v;
-					break;
-				case '[':
-					$exp = explode('=', $v);
-					$v = '';
-					if (isset($exp[1])) {
-						$v = $exp[1];
-					}
-					$attributes[$exp[0]] = trim($v, '"');
-					break;
-				case '{':
-					$value = $v;
-					break;
-			}
-		}
-
-		//default as div
-		if (empty($name)) {
-			$name = 'div';
-		}
-
-		//prepare html
-		$str = '';
-		$i = 0;
-		while ($mul--) {
-			$i++;
-			$attr = '';
-			foreach ($attributes as $k => $v) {
-				if (is_int($k)) {
-					$k = $v;
-					$v = '';
-				}
-				if (empty($v)) {
-					continue;
-				}
-				$attr .= ' ' . $k . '="' . $v . '"';
-			}
-			$attr = str_replace('$', $i, $attr);
-			if($value) {
-				$str .= '<' . $name . $attr . '>' . $value . '</' . $name . '>';
-			}
-			else {
-				$str .= '<' . $name . $attr . ' />';
-			}
-		}
-
-		$results[] = $str;
-		$str = implode("", $results);
-
-		return $str;
+	public function getFormMethod() {
+		return $this->formMethod;
 	}
 
-	protected function array_collapse(array $arr) {
-		$a = array();
-		foreach ($arr as $k => $v) {
-			if (is_int($k)) {
-				$k = $v;
-			}
-			$a[] = $k;
-		}
-		return $a;
+	public function setFormMethod($v) {
+		$this->formMethod = $v;
+		return $this;
 	}
 
-	protected function array_stretch(array $arr) {
-		$a = array();
-		foreach ($arr as $k => $v) {
-			if (is_int($k) && is_string($v)) {
-				$k = $v;
-			}
-			$a[$k] = $v;
-		}
-		return $a;
+	public function getTableSearch() {
+		return $this->tableSearch;
 	}
 
-	public function render($return = false) {
+	public function setTableSearch($tableSearch = true) {
+		$this->tableSearch = $tableSearch;
+		return $this;
+	}
+
+	public function getTableSearchInput() {
+		return $this->tableSearchInput;
+	}
+
+	public function setTableSearchInput($tableSearchInput) {
+		$this->tableSearchInput = $tableSearchInput;
+		return $this;
+	}
+
+	public function getBaseActionClass() {
+		return $this->baseActionClass;
+	}
+
+	public function setBaseActionClass($baseActionClass) {
+		$this->baseActionClass = $baseActionClass;
+		return $this;
+	}
+
+	public function getActionClass($k) {
+		if (isset($this->actionsClass[$k])) {
+			return $this->actionsClass[$k];
+		}
+	}
+
+	public function setActionClass($k, $v) {
+		$this->actionsClass[$k] = $v;
+		return $this;
+	}
+
+	public function getActionsClass() {
+		return $this->actionsClass;
+	}
+
+	public function setActionsClass($actionsClass) {
+		$this->actionsClass = $actionsClass;
+		return $this;
+	}
+	
+	protected function getFormName() {
+		return 'table_form_' . self::$instances;
+	}
+
+	public function renderHtml() {
+		$html = '';
 		if ($this->headers) {
 			$headers = '';
+			$headersCollapsed = $this->arrayCollapse($this->headers);
+
 			if ($this->selectable) {
 				//un-check all
-				$headers .= $this->tag('th', '<input type="checkbox" onclick="toggleSelectable(this,document.tableform' . self::$instances . ');" />');
+				$headers .= $this->tag('th', '<input type="checkbox" onclick="toggleSelectable(this,document.' . $this->getFormName() . ');" />');
 			}
-			foreach ($this->headers as $header) {
-				$headers .= $this->tag('th', $header);
+			foreach ($this->headers as $header => $label) {
+				if(is_int($header)) {
+					$header = $label;
+					$label = ucwords(str_replace('_', ' ', $label));
+				}
+				$atts = [];
+				if($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
+					$atts['class'] = 'sort';
+					$atts['data-sort'] = $header;
+					$label .= '<span></span>';
+				}
+				$headers .= $this->tag('th', $label, $atts);
 			}
 			if ($this->actions) {
-				$headers .= $this->tag('th');
+				$search = null;
+				if ($this->tableSearch) {
+					$search = $this->tag('input', $this->tableSearchInput);
+				}
+				$headers .= $this->tag('th', $search);
 			}
+
 			$headers = $this->tag('tr', $headers);
-			if ($this->searchable_headers) {
-				$searchable_headers = $this->make_searchable_headers();
+			if ($this->searchableHeaders) {
+				$searchable_headers = $this->makeSearchableHeaders();
 				$headers .= $this->tag('tr', $searchable_headers);
 			}
-			$this->html .= $this->tag('thead', $headers);
+			$html .= $this->tag('thead', $headers);
 		}
 		if ($this->data) {
-			$this->html .= '<tbody>';
+			$html .= '<tbody class="list">';
 			$i = 0;
 
 			foreach ($this->data as $data) {
@@ -362,62 +298,72 @@ class Table {
 				if (is_object($data)) {
 					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($data)));
 				}
-
-				$this->html .= '<tr>';
+				$html .= '<tr>';
 				if ($this->selectable) {
 					//check item
-					$this->html .= $this->tag('td', '<input type="checkbox" name="selectable[]" value="' . $value . '" />');
+					$html .= $this->tag('td', '<input type="checkbox" name="selectable[]" value="' . $value . '" />');
 				}
 				if ($this->headers) {
+					$j = 0;
 					//if we have headers, display only headers
 					foreach ($this->headers as $header) {
 						$v = isset($data[$header]) ? $data[$header] : null;
-						$this->html .= $this->tag('td', $v);
+						$atts = [];
+						//add class to make it sortable
+						if ($this->sortableHeaders && $this->headers) {
+							$atts['class'] = $headersCollapsed[$j];
+						}
+						$html .= $this->tag('td',$v,$atts);
+						$j++;
 					}
 				}
 				//or display everything
 				else {
 					foreach ($data as $k => $v) {
-						$this->html .= $this->tag('td', $v);
+						$html .= $this->tag('td', $v);
 					}
 				}
 				if ($this->actions) {
-					$actions = $this->make_actions($value);
-					$this->html .= $this->tag('td', $actions);
+					$actions = $this->makeActions($value);
+					$actions = '<div class="btn-group">' . $actions . '</div>';
+					$html .= $this->tag('td', $actions,['class' => 'actions']);
 				}
-				$this->html .= '</tr>';
+				$html .= '</tr>';
 			}
-			$this->html .= '</tbody>';
+			$html .= '</tbody>';
 		}
 
 		//wrap table
 		$class = $this->class;
 		$id = $this->id;
 		$table_attr = compact('class', 'id');
-		$this->html = $this->tag('table', $this->html, $table_attr);
+		$html = $this->tag('table', $html, $table_attr);
 
 		if ($this->actions || $this->selectable) {
 			//append selectable actions
 			if ($this->selectable) {
-				$selectable_actions = $this->make_selectable_actions();
-				$this->html .= $selectable_actions;
+				$selectable_actions = $this->makeSelectableActions();
+				$html .= $selectable_actions;
 			}
-
-			$this->html = $this->tag('form[name=tableform' . self::$instances . '][method='.$this->form_method.']', $this->html);
+			$atts = [
+				'name' => $this->getFormName(),
+				'method' => $this->formMethod
+			];
+			$html = $this->tag('form', $html, $atts);
 		}
 
 		//pagination
 		if ($this->pagination) {
-			$pagination = $this->make_pagination();
-			$this->html = $pagination . $this->html . $pagination;
+			$pagination = $this->makePagination();
+			$html = $pagination . $html . $pagination;
 		}
 
-		//format 
-		$this->html = $this->format_xml($this->html);
+		return $html;
+	}
 
-		//append script
+	protected function getScript() {
 		if ($this->selectable) {
-			if (!self::$script_inserted) {
+			if (!self::$scriptInserted) {
 				$this->html .= <<<'SCRIPT'
 <script type="text/javascript">
 function toggleSelectable(el,fields) {
@@ -427,18 +373,12 @@ function toggleSelectable(el,fields) {
 }
 </script>
 SCRIPT;
-				self::$script_inserted = true;
+				self::$scriptInserted = true;
 			}
 		}
-
-		//output
-		if ($return) {
-			return $this->html;
-		}
-		echo $this->html;
 	}
 
-	protected function make_searchable_headers() {
+	protected function makeSearchableHeaders() {
 		$headers_keys = $this->array_collapse($this->headers);
 		$searchable_headers = '';
 		if ($this->selectable) {
@@ -446,19 +386,19 @@ SCRIPT;
 		}
 		foreach ($headers_keys as $header) {
 			$input = '';
-			if (in_array($header, $this->searchable_headers)) {
-				$value = isset($_GET[$this->searchable_key][$header]) ? $_GET[$this->searchable_key][$header] : null;
-				$input = '<input name="' . $this->searchable_key . '[' . $header . ']" value="' . $value . '" style="width:auto" />';
+			if (in_array($header, $this->searchableHeaders)) {
+				$value = isset($_GET[$this->searchableKey][$header]) ? $_GET[$this->searchableKey][$header] : null;
+				$input = '<input name="' . $this->searchableKey . '[' . $header . ']" value="' . $value . '" style="width:auto" />';
 			}
 			$searchable_headers .= $this->tag('th', $input);
 		}
 		if ($this->actions) {
-			$searchable_headers .= $this->tag('th', $this->searchable_input);
+			$searchable_headers .= $this->tag('th', $this->tag('input',$this->searchableInput));
 		}
 		return $searchable_headers;
 	}
 
-	protected function make_pagination() {
+	protected function makePagination() {
 		$li = '';
 		$current = $this->pagination['current'];
 		$total = ceil($this->pagination['total']);
@@ -491,8 +431,11 @@ SCRIPT;
 		return $pagination;
 	}
 
-	protected function make_selectable_actions() {
-		foreach ($this->selectable_actions as $action => $value) {
+	protected function makeSelectableActions() {
+		if(empty($this->selectableActions)) {
+			return '';
+		}
+		foreach ($this->selectableActions as $action => $value) {
 			if (is_int($action)) {
 				$action = $value;
 				$value = ucwords(str_replace('_', ' ', $action));
@@ -500,14 +443,14 @@ SCRIPT;
 			$class = 'btn';
 			$type = 'submit';
 			$name = 'action[' . $action . ']';
-			$btn = $this->tag('input',compact('type', 'class','name','value'));
+			$btn = $this->tag('input', compact('type', 'class', 'name', 'value'));
 			$actions[] = $btn;
 		}
 		$actions = implode('', $actions);
 		return $actions;
 	}
 
-	protected function make_actions($value = null) {
+	protected function makeActions($value = null) {
 		if (is_array($this->actions)) {
 			$actions = array();
 			foreach ($this->actions as $action => $label) {
@@ -516,13 +459,20 @@ SCRIPT;
 					$label = ucwords(str_replace('_', ' ', $action));
 				}
 
-				$class = 'btn';
+				$atts = [];
+				$atts['class'] = $this->baseActionClass;
+				if(isset($this->actionsClass[$action])) {
+					$atts['class'] .= ' ' . $this->actionsClass[$action];
+				}
+				if(in_array($action,$this->actionConfirm)) {
+					$atts['onclick'] = $this->confirmScript;
+				}
 				if (is_string($action)) {
-					$href = _::url(true);
-					if ($this->actions_mode == self::MODE_REPLACE) {
+					$href = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
+					if ($this->actionsMode == self::MODE_REPLACE) {
 						$href = dirname($href);
 					}
-					if ($this->actions_mode == self::MODE_QS) {
+					if ($this->actionsMode == self::MODE_QS) {
 						$href .= '?action=' . $action;
 						if ($value) {
 							$href .= '&id=' . urlencode($value);
@@ -533,8 +483,9 @@ SCRIPT;
 							$href .= '/' . urlencode($value);
 						}
 					}
+					$atts['href'] = $href;
 				}
-				$btn = $this->tag('a', $label, compact('href', 'class'));
+				$btn = $this->tag('a', $label, $atts);
 				$actions[] = $btn;
 			}
 			$actions = implode('', $actions);
@@ -550,14 +501,6 @@ SCRIPT;
 			}
 		}
 		return $actions;
-	}
-
-	public function __toString() {
-		try {
-			return $this->render(true);
-		} catch (Exception $e) {
-			return $e->getMessage();
-		}
 	}
 
 }

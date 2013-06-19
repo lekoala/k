@@ -1,6 +1,6 @@
 <?php
 
-namespace k\menu;
+namespace k\html;
 
 /**
  * Menu

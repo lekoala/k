@@ -30,6 +30,19 @@ trait Permissions {
 	}
 
 	/**
+	 * Check if the permission exists
+	 * 
+	 * @param string|int
+	 * @return bool
+	 */
+	public function permissionExists($permission) {
+		if(!is_int($permission)) {
+			return array_key_exists($permission, self::getPermissions());
+		}
+		return in_array($permission, array_values(self::getPermissions()));
+	}
+	
+	/**
 	 * Does the user has this perm / theses perms
 	 * 
 	 * @param string|array $permission

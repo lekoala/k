@@ -39,6 +39,9 @@ class Module {
 		$prefix = 'Module_' . ucfirst($this->getName()) . '_';
 		foreach($arr as $item) {
 			$n = str_replace($prefix,'',$item);
+			if($n == 'Home') {
+				continue;
+			}
 			$menu[$n] = array(
 				'name' => $n,
 				'link' => '/' . $name . '/' . strtolower($n)
@@ -48,18 +51,17 @@ class Module {
 	}
 
 	public function getControllers($withActions = true) {
-		$iter = $this->createDir($this->getDir());
+		$dir = $this->getDir();
+		$appdir = $this->getApp()->getDir();
+		$iter = $this->createDir($dir);
 		$arr = array();
 		foreach ($iter as $fi) {
 			if($fi->isDir() || strpos($fi->getBasename(), '.') === 0) {
 				continue;
 			}
-			$classes = util\Obj::getClassesInFile($fi->getPathname());
-			if (empty($classes)) {
-				continue;
-			}
-			$name = $classes[0];
-
+			$name = trim(str_replace($appdir,'',$fi->getPath() . '/' . $fi->getBasename('.php')),'/');
+			$name = str_replace('/', '_', $name);
+			
 			if ($withActions) {
 				$actions = array();
 

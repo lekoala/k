@@ -2,10 +2,12 @@
 
 namespace k\db;
 
-use ReflectionClass;
-use Exception;
+use \ReflectionClass;
+use \Exception;
 use \JsonSerializable;
 use \InvalidArgumentException;
+use \ArrayAccess;
+use \Iterator;
 
 /**
  * Orm class
@@ -24,7 +26,7 @@ use \InvalidArgumentException;
  *
  * @author LeKoala
  */
-class Orm implements JsonSerializable {
+class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
@@ -947,7 +949,7 @@ class Orm implements JsonSerializable {
 	public static function getPdo() {
 		return Pdo::get(static::$connection);
 	}
-	
+
 	public static function getConnection() {
 		return static::$connection;
 	}
@@ -1388,8 +1390,8 @@ class Orm implements JsonSerializable {
 
 			$removeFields = array_diff($cols, $fields);
 			$addFields = array_diff($fields, $cols);
-			
-			if(empty($removeFields) && empty($addFields)) {
+
+			if (empty($removeFields) && empty($addFields)) {
 				return;
 			}
 
@@ -1443,4 +1445,55 @@ class Orm implements JsonSerializable {
 		return $q;
 	}
 
+	/* array access */
+
+	public function offsetSet($offset, $value) {
+		$this->setField($offset, $value);
+	}
+
+	public function offsetExists($offset) {
+		return $this->hasField($offset);
+	}
+
+	public function offsetUnset($offset) {
+		if ($this->hasField($offset)) {
+			$this->setField($offset, null);
+		}
+	}
+
+	public function offsetGet($offset) {
+		return $this->getField($offset);
+	}
+	
+	/* iterator */
+	
+	public function rewind()
+    {
+        reset($this->data);
+    }
+  
+    public function current()
+    {
+        $var = current($this->data);
+		return $var;
+    }
+  
+    public function key() 
+    {
+        $var = key($this->data);
+        return $var;
+    }
+  
+    public function next() 
+    {
+        $var = next($this->data);
+        return $var;
+    }
+  
+    public function valid()
+    {
+        $key = key($this->data);
+        $var = ($key !== null && $key !== false);
+        return $var;
+    }
 }

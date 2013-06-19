@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace k\html;
 
 /**
  * Chainable form builder

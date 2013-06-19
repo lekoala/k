@@ -64,10 +64,22 @@ class View {
 		$this->setVars($vars);
 	}
 
+	/**
+	 * Get view filename
+	 * 
+	 * @return string
+	 */
 	public function getFilename() {
 		return $this->filename;
 	}
 
+	/**
+	 * Set view filename
+	 * 
+	 * @param string $filename
+	 * @return \k\View
+	 * @throws InvalidArgumentException
+	 */
 	public function setFilename($filename) {
 		if (!is_file($filename)) {
 			throw new InvalidArgumentException($filename . ' does not exist');
@@ -76,27 +88,99 @@ class View {
 		return $this;
 	}
 
+	/**
+	 * Get a typed var
+	 * 
+	 * @param string $name
+	 * @param string $type string,array,object
+	 * @return \stdClass
+	 */
 	public function get($name, $type = 'string') {
+		$var = $this->getEscapedVar($name);
+		
 		switch ($type) {
 			case 'object':
-				return new stdClass();
+				if(!is_object($var)) {
+					return new stdClass();
+				}
 			case 'array':
-				return [];
+				if(!is_array($var)) {
+					return [];
+				}
 			case 'string':
-				return '{{' . $name . '}}';
+				if(!is_string($var)) {
+					return '{{' . $name . '}}';
+				}
 		}
+		
+		return $var;
+	}
+	
+	/**
+	 * Create a menu
+	 * 
+	 * @return \k\html\Menu
+	 */
+	public function createMenu() {
+		return new \k\html\Menu();
+	}
+	
+	/**
+	 * Create a table
+	 * 
+	 * @return \k\html\Table
+	 */
+	public function createTable() {
+		return new \k\html\Table();
+	}
+	
+	/**
+	 * Create a form
+	 * 
+	 * @return \k\html\Form
+	 */
+	public function createForm() {
+		return new \k\html\Form();
 	}
 
+	/**
+	 * Get a var from the view
+	 * 
+	 * @param string $name
+	 * @return mixed
+	 */
 	public function getVar($name) {
 		if (array_key_exists($name, $this->vars)) {
 			return $this->vars[$name];
 		}
 	}
+	
+	/**
+	 * Get an escape var
+	 * 
+	 * @param string $name
+	 * @return mixed
+	 */
+	public function getEscapedVar($name) {
+		return $this->escape($this->getVar($name));
+	}
 
+	/**
+	 * Get all vars
+	 * 
+	 * @return array
+	 */
 	public function getVars() {
 		return $this->vars;
 	}
 
+	/**
+	 * Set all vars
+	 * 
+	 * @param array $vars
+	 * @param bool $clean Reset existing vars?
+	 * @return \k\View
+	 */
 	public function setVars($vars, $clean = true) {
 		if (!is_array($vars)) {
 			$vars = array('content' => $vars);
@@ -110,6 +194,13 @@ class View {
 		return $this;
 	}
 
+	/**
+	 * Set a variable
+	 * 
+	 * @param string $k
+	 * @param mixed $v
+	 * @return \k\View
+	 */
 	public function setVar($k, $v) {
 		if (!array_key_exists($k, $this->vars)) {
 			$this->vars[$k] = '';
@@ -118,47 +209,105 @@ class View {
 		return $this;
 	}
 	
+	/**
+	 * Alias setVars($vars,false)
+	 * 
+	 * @param array $vars
+	 * @return \k\View
+	 */
 	public function addVars($vars) {
 		$this->setVars($vars, false);
 		return $this;
 	}
 
+	/**
+	 * Get registered helpers
+	 * 
+	 * @return array
+	 */
 	public function getHelpers() {
 		return $this->helpers;
 	}
 
+	/**
+	 * Set helpers
+	 * 
+	 * @param array $helpers
+	 * @return \k\View
+	 */
 	public function setHelpers($helpers) {
 		$this->helpers = $helpers;
 		return $this;
 	}
 
+	/**
+	 * Add an helper
+	 * 
+	 * @param string $name
+	 * @param array|callable $helper
+	 * @return \k\View
+	 */
 	public function addHelper($name, $helper) {
 		$this->helpers[$name] = $helper;
 		return $this;
 	}
 
+	/**
+	 * Get parent view
+	 * 
+	 * @return \k\View
+	 */
 	public function getParent() {
 		return $this->parent;
 	}
 
+	/**
+	 * Set parent view
+	 * 
+	 * @param \k\View $parent
+	 * @return \k\View
+	 */
 	public function setParent(View $parent) {
 		$this->parent = $parent;
 		$this->parent->content = $this;
 		return $this;
 	}
-
-	protected function escapeString($str) {
-		return htmlspecialchars($str, ENT_QUOTES, "UTF-8");
+	
+	/**
+	 * Escape a variable
+	 * 
+	 * @param mixed $str
+	 * @return mixed
+	 */
+	protected function escape($str) {
+		//TODO: wrap array in 
+		if(is_string($str)) {
+			return htmlspecialchars($str, ENT_QUOTES, "UTF-8");
+		}
 	}
 
+	/**
+	 * Shortcut to echo escaped vars in the view
+	 * @param string $name
+	 */
 	public function e($name) {
-		echo $this->escapeString($this->getVar($name));
+		echo $this->getEscapedVar($name);
 	}
 
 	public function t($name) {
 		//TODO: translate
 	}
 
+	/**
+	 * Fail nicely in view
+	 * 
+	 * @param type $errno
+	 * @param type $errstr
+	 * @param type $errfile
+	 * @param type $errline
+	 * @param type $errcontext
+	 * @return boolean
+	 */
 	public static function errorHandler($errno, $errstr, $errfile, $errline, $errcontext) {
 		if ($errno == 8) {
 			$name = str_replace('Undefined variable: ', '', $errstr);
@@ -168,11 +317,14 @@ class View {
 		echo $errstr;
 	}
 
+	/**
+	 * Escape all vars
+	 */
 	protected function escapeVars() {
 		foreach ($this->vars as $k => $v) {
 			$ev = $v;
 			if (is_string($v)) {
-				$ev = $this->escapeString($v);
+				$ev = $this->getEscapedVar($v);
 			}
 			$this->escapedVars[$k] = $ev;
 		}
@@ -186,7 +338,7 @@ class View {
 		$this->escapeVars();
 		extract(array_merge($this->escapedVars), EXTR_REFS);
 
-		set_error_handler(array(__CLASS__, 'errorHandler'));
+//		set_error_handler(array(__CLASS__, 'errorHandler'));
 
 		ob_start();
 		include($this->filename);
