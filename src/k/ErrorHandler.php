@@ -11,13 +11,24 @@ use Exception;
  * @author lekoala
  */
 class ErrorHandler {
-
+	
+	protected $enabled = true;
+	
 	public function __construct($log = null) {
 		if ($log) {
 			ini_set('error_log', $log);
 		}
 		set_error_handler(array($this, 'throwError'));
 		register_shutdown_function(array($this, 'onError'));
+	}
+	
+	public function getEnabled() {
+		return $this->enabled;
+	}
+
+	public function setEnabled($enabled = true) {
+		$this->enabled = $enabled;
+		return $this;
 	}
 
 	public function throwError($code, $message, $file, $line) {
@@ -28,6 +39,9 @@ class ErrorHandler {
 	}
 
 	public function onError($e = null) {
+		if(!$this->enabled) {
+			return;
+		}
 		if ($e === null) {
 			$err = error_get_last();
 			if ($err) {
@@ -46,6 +60,10 @@ class ErrorHandler {
 	public function wrap($func) {
 		try {
 			$func();
+			$app = App::getInstance();
+			if($app) {
+				$app->setErrorHandler($this);
+			}
 		} catch (\k\AppException $e) {
 			switch ($e->getCode()) {
 				case \k\AppException::NOT_INSTALLED:
@@ -115,11 +133,6 @@ class ErrorHandler {
 		if ($trace instanceof Exception) {
 			$e = $trace;
 			$trace = $e->getTrace();
-		}
-		if ($e instanceof ErrorException) {
-			for ($i = count($trace) - 1; $i > 0; --$i) {
-				$trace[$i]['args'] = $trace[$i - 1]['args'];
-			}
 		}
 		$html = '<code><table>';
 

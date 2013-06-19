@@ -45,6 +45,7 @@ class App {
 	protected $session;
 	protected $layout;
 	protected $profiler;
+	protected $errorHandler;
 	//
 	// conventions
 	//
@@ -223,10 +224,24 @@ class App {
 		}
 		return $this->request;
 	}
-
+	
 	/**
 	 * 
-	 * @return k\app\Response
+	 * @return \k\ErrorHandler
+	 */
+	public function getErrorHandler() {
+		return $this->errorHandler;
+	}
+
+	public function setErrorHandler($errorHandler) {
+		$this->errorHandler = $errorHandler;
+		return $this;
+	}
+
+	
+	/**
+	 * 
+	 * @return k\Response
 	 */
 	public function getResponse() {
 		if ($this->response === null) {
@@ -348,7 +363,7 @@ class App {
 	 */
 	public function getFrameworkDir($dir = null) {
 		if ($this->frameworkDir === null) {
-			$cl = new ReflectionClass('\\k\\app\\App');
+			$cl = new ReflectionClass('\\k\\App');
 			$this->frameworkDir = dirname($cl->getFilename());
 		}
 		if ($this->frameworkDir) {

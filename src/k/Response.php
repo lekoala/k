@@ -177,6 +177,10 @@ class Response {
 	public function data($data) {
 		$this->data = $data;
 	}
+	
+	public function setData($k, $data) {
+		$this->data[$k] = $data;
+	}
 
 	public function addData($k, $data) {
 		if (!isset($this->data[$k]) || !is_array($this->data[$k])) {
