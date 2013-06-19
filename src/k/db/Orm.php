@@ -137,12 +137,24 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	/**
 	 * Get a property or a virtual property.
 	 * 
+	 * $o->getField('firstname') -> data['firstname']
+	 * $o->getField('virtual') => get_virtual
+	 * $o->getField('Employee') => getRelated('Employee')
+	 * $o->getField('Employee.name') => getRelated('Employee')->name
+	 * 
 	 * @param string $name
 	 * @return string
 	 */
 	public function getField($name) {
-		$method = 'get_' . $name;
+		if(strpos($name, '.') !== false) {
+			$parts = explode('.', $name);
+			$part = array_shift($parts);
+			if($this->isRelated($part)) {
+				return $this->getRelated($part)->getField(implode('.',$parts));
+			}
+		}
 		//virtual field
+		$method = 'get_' . $name;
 		if (method_exists($this, $method)) {
 			return $this->$method();
 		}
@@ -223,10 +235,19 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return boolean
 	 */
 	public function hasField($name) {
+		if(strpos($name, '.') !== false) {
+			$parts = explode('.',$name);
+			if($this->isRelated($parts[0])) {
+				return true;
+			}
+		}
 		if ($this->hasRawField($name)) {
 			return true;
 		}
 		if (method_exists($this, 'get_' . $name)) {
+			return true;
+		}
+		if($this->isRelated($name)){
 			return true;
 		}
 		return false;
@@ -678,8 +699,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			case static::HAS_ONE:
 				$pkField = $class::getPrimaryKey();
 				$field = $class::getForForeignKey($name);
-				$q = $class::query()->where($pkField, $this->$field);
-				$data = $q->fetchOne();
+				$value = $this->$field;
+				$data = null;
+				if($value) {
+					$q = $class::query()->where($pkField, $value);
+					$data = $q->fetchOne();
+				}
 				if (!$data) {
 					$data = new $class;
 				}
