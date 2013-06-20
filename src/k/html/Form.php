@@ -254,11 +254,21 @@ class Form extends HtmlWriter {
 		return $this;
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Input
+	 */
 	public function input($name, $label = null) {
 		$element = new \k\html\form\Input($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Email
+	 */
 	public function email($name = null, $label = null) {
 		if (empty($name)) {
 			$name = 'email';
@@ -268,36 +278,81 @@ class Form extends HtmlWriter {
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Textarea
+	 */
 	public function textarea($name, $label = null) {
 		$element = new \k\html\form\Textarea($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\File
+	 */
 	public function file($name, $label = null) {
 		$element = new \k\html\form\File($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\File
+	 */
+	public function upload($name, $label = null) {
+		$element = new \k\html\form\Upload($name);
+		return $this->add($element, $label);
+	}
+
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Select
+	 */
 	public function select($name, $label = null) {
 		$element = new \k\html\form\Select($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Checkbox
+	 */
 	public function checkbox($name, $label = null) {
 		$element = new \k\html\form\Checkbox($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Radio
+	 */
 	public function radio($name, $label = null) {
 		$element = new \k\html\form\Radio($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Multicheckbox
+	 */
 	public function multicheckbox($name, $label = null) {
 		$element = new \k\html\form\Multicheckbox($name);
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Button
+	 */
 	public function button($label, $class = null) {
 		$element = new \k\html\form\Button();
 		if ($class) {
@@ -306,6 +361,11 @@ class Form extends HtmlWriter {
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Address
+	 */
 	public function address($name = null, $label = null) {
 		if (empty($name)) {
 			$name = 'address';
@@ -316,6 +376,11 @@ class Form extends HtmlWriter {
 		return $this->add($element, $label);
 	}
 
+	/**
+	 * @param string $name
+	 * @param string $label
+	 * @return \k\html\form\Button
+	 */
 	public function submit($label = 'Submit') {
 		$element = new \k\html\form\Button();
 		$element->type('submit');
@@ -334,6 +399,11 @@ class Form extends HtmlWriter {
 		return $el;
 	}
 
+	/**
+	 * @param string $class
+	 * @param string $closure
+	 * @return \k\html\form\Div
+	 */
 	public function div($class = null, Closure $closure = null) {
 		$element = new \k\html\form\Div();
 		if ($closure === null) {
@@ -349,6 +419,8 @@ class Form extends HtmlWriter {
 	}
 
 	/**
+	 * @param string $legend
+	 * @param string $closure
 	 * @return \k\html\form\Fieldset
 	 */
 	public function fieldset($legend = null, Closure $closure = null) {
@@ -372,6 +444,8 @@ class Form extends HtmlWriter {
 	}
 
 	/**
+	 * @param string $element
+	 * @param string $label
 	 * @return \k\html\form\Element
 	 */
 	public function add($element, $label = null) {

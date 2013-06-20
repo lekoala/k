@@ -2,7 +2,7 @@
 namespace k\html\form;
 
 /**
- * @method Radio options()
+ * @method \k\html\form\Radio options()
  */
 class Radio extends Input {
 
@@ -13,7 +13,7 @@ class Radio extends Input {
 		$html = '';
 		if (!empty($this->label)) {
 			$this->form->t($this->label);
-			$html = '<p class="label">' . $this->label . '</p>';
+			$html = '<p>' . $this->label . '</p>';
 		}
 		foreach ($this->options as $k => $v) {
 			if (is_int($k)) {
@@ -26,9 +26,6 @@ class Radio extends Input {
 			$this->form->t($v);
 			$attributes = array('type' => 'radio', 'class' => $this->class, 'name' => $this->getName() . '[]', 'value' => $k, 'checked' => $checked);
 			$html .= '<label class="radio">';
-			echo '<pre>';
-			var_dump($attributes);
-			exit();
 			$html .= $this->renderHtmlTag('input', $attributes);
 			$html .= ' ' . $v . '</label>';
 		}

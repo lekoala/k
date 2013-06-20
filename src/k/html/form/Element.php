@@ -4,6 +4,19 @@ namespace k\html\form;
 
 use \Exception;
 
+
+/**
+ * Base element that can contain any html
+ * 
+ * @method \k\html\form\Element content()
+ * @method \k\html\form\Element tag()
+ * @method \k\html\form\Element attributes()
+ * @method \k\html\form\Element form()
+ * @method \k\html\Form input()
+ * @method \k\html\Form fieldset()
+ * @method \k\html\Form div()
+ * @method \k\html\Form add()
+ */
 class Element {
 
 	/**
@@ -75,9 +88,24 @@ class Element {
 		return $this->getAttribute($name);
 	}
 
-	protected function renderHtmlAttributes($atts) {
+	protected function renderHtmlAttributes($attributes) {
 		$atts = array();
-		foreach ($this->attributes as $k => $v) {
+
+		//size without width
+		if (!empty($attributes['size'])) {
+			if (isset($attributes['style'])) {
+				$attributes['style'] = rtrim($attributes['style'], ';');
+				$attributes['style'] .= ';width:auto';
+			} else {
+				$attributes['style'] = 'width:auto';
+			}
+		}
+		foreach ($attributes as $k => $v) {
+			if ($k == 'selected' || $k == 'checked') {
+				if ($v) {
+					$v = $k;
+				}
+			}
 			$atts[] = $k . '="' . $v . '"';
 		}
 		return implode(' ', $atts);
@@ -119,9 +147,9 @@ class Element {
 	 * @return \k\html\form\Element
 	 */
 	public function __call($name, $arguments) {
-		if(property_exists($this, $name)) {
+		if (property_exists($this, $name)) {
 			$this->$name = $arguments[0];
-			return true;
+			return $this;
 		}
 		if (!$this->form) {
 			throw new Exception('Element ' . get_called_class() . ' not linked to a form. Trying to call ' . $name);
