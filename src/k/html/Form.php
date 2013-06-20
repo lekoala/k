@@ -342,7 +342,7 @@ class Form extends HtmlWriter {
 			if (is_array($class)) {
 				$element->setAttributes($class);
 			} elseif ($class) {
-				$element->cls($class);
+				$element->class($class);
 			}
 		}
 		return $this->executeGroupCallback($element, $closure);
@@ -395,7 +395,7 @@ class Form extends HtmlWriter {
 		$html = '';
 		if ($element instanceof \k\html\form\Input) {
 			if ($this->getWrap()) {
-				$html .= Form::makeTag('div.control-group');
+				$html .= '<div class="control-group">';
 			}
 			$html .= $element->renderElement();
 			if ($this->getWrap()) {
@@ -403,8 +403,11 @@ class Form extends HtmlWriter {
 			}
 		} elseif ($element instanceof \k\html\form\Group) {
 			$html .= $element->renderElement();
-			foreach ($element->getElements() as $el) {
-				$html .= $this->renderElement($el);
+			$els = $element->getElements();
+			if (!empty($els)) {
+				foreach ($els as $el) {
+					$html .= $this->renderElement($el);
+				}
 			}
 			$html .= $element->renderCloseTag();
 		} else {

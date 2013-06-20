@@ -338,13 +338,17 @@ class View {
 		$this->escapeVars();
 		extract(array_merge($this->escapedVars), EXTR_REFS);
 
-//		set_error_handler(array(__CLASS__, 'errorHandler'));
-
+		if(!$this->config('debug')) {
+			set_error_handler(array(__CLASS__, 'errorHandler'));
+		}
+		
 		ob_start();
 		include($this->filename);
 		$output = ob_get_clean();
 
-		restore_error_handler();
+		if(!$this->config('debug')) {
+			restore_error_handler();
+		}
 
 		return $output;
 	}

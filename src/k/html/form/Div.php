@@ -8,21 +8,12 @@ namespace k\html\form;
 class Div extends Group {
 
 	protected $tag = 'div';
-
-	public function cls($v = null) {
-		return $this->attribute('class',$v);
-	}
+	protected $class;
 	
-	public function getClass() {
-		return $this->getAttribute('class');
-	}
-
-	public function setClass($class) {
-		return $this->setAttribute('class', $class);
-	}
-
 	public function renderElement() {
-		return $this->renderHtmlTag($this->tag, $this->getAttributes());
+		$this->attributes['class'] = $this->class;
+		
+		return $this->renderHtmlTag($this->tag,$this->attributes);
 	}
 
 }

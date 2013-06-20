@@ -39,26 +39,18 @@ class Table extends HtmlWriter {
 	];
 	protected $actionConfirm = [];
 	protected $confirmScript = "return confirm('Are you sure?');";
-	protected $searchableHeaders;
 	protected $sortableHeaders;
-	protected $filterableHeaders;
-	protected $filterableHeadersSize = [
+	protected $searchableHeaders;
+	protected $searchableHeadersSize = [
 		'id' => 4,
 		'day' => 2,
 		'week' => 2
 	];
-	protected $searchableKey = 'filters';
-	protected $searchableInput = [
-		'type' => 'submit',
-		'value' => 'filter'
-	];
-	protected $formMethod = 'post';
+	protected $searchableKey;
+	protected $searchableInput = '<input type="submit" value="filter" class="btn">';
+	protected $formMethod;
 	protected $tableSearch = true;
-	protected $tableSearchInput = [
-		'type' => 'text',
-		'class' => 'search search-query',
-		'placeholder' => 'search'
-	];
+	protected $tableSearchInput = '<input type="text" class="search search-query" placeholder="search">';
 
 	public function __construct() {
 		self::$instances++;
@@ -72,7 +64,7 @@ class Table extends HtmlWriter {
 		$this->identifier = $id;
 		return $this;
 	}
-	
+
 	public function getSelectable() {
 		return $this->selectable;
 	}
@@ -91,7 +83,7 @@ class Table extends HtmlWriter {
 		$this->selectableActions = $this->arrayify($v);
 		return $this;
 	}
-	
+
 	public function getDetailRow() {
 		return $this->detailRow;
 	}
@@ -114,7 +106,9 @@ class Table extends HtmlWriter {
 	}
 
 	public function setHeaders($headers = null) {
-		$headers = $this->arrayify($headers);
+		if (!is_array($headers)) {
+			throw new Exception('Headers must be an array');
+		}
 		$this->headers = $headers;
 		return $this;
 	}
@@ -124,8 +118,34 @@ class Table extends HtmlWriter {
 	}
 
 	public function setSearchableHeaders($headers = null) {
-		$headers = $this->arrayify($headers);
 		$this->searchableHeaders = $headers;
+		return $this;
+	}
+
+	public function getSearchableHeadersSize() {
+		return $this->searchableHeadersSize;
+	}
+
+	public function setSearchableHeadersSize($searchableHeadersSize) {
+		$this->searchableHeadersSize = $searchableHeadersSize;
+		return $this;
+	}
+
+	public function getSearchableKey() {
+		return $this->searchableKey;
+	}
+
+	public function getSearchableInput() {
+		return $this->searchableInput;
+	}
+
+	public function setSearchableKey($searchableKey) {
+		$this->searchableKey = $searchableKey;
+		return $this;
+	}
+
+	public function setSearchableInput($searchableInput) {
+		$this->searchableInput = $searchableInput;
 		return $this;
 	}
 
@@ -135,15 +155,6 @@ class Table extends HtmlWriter {
 
 	public function setSortableHeaders($sortableHeaders = true) {
 		$this->sortableHeaders = $sortableHeaders;
-		return $this;
-	}
-	
-	public function getFilterableHeaders() {
-		return $this->filterableHeaders;
-	}
-
-	public function setFilterableHeaders($filterableHeaders = true) {
-		$this->filterableHeaders = $filterableHeaders;
 		return $this;
 	}
 
@@ -162,6 +173,11 @@ class Table extends HtmlWriter {
 
 	public function setClass($class) {
 		$this->class = $this->stringify($class, ' ');
+		return $this;
+	}
+
+	public function addClass($class) {
+		$this->class .= ' ' . $class;
 		return $this;
 	}
 
@@ -192,7 +208,7 @@ class Table extends HtmlWriter {
 		$this->actionsMode = $mode;
 		return $this;
 	}
-	
+
 	public function getActionConfirm() {
 		return $this->actionConfirm;
 	}
@@ -212,6 +228,14 @@ class Table extends HtmlWriter {
 	}
 
 	public function getFormMethod() {
+		if ($this->formMethod === null) {
+			if ($this->searchableHeaders) {
+				$this->formMethod = 'get';
+			}
+			if ($this->selectable) {
+				$this->formMethod = 'post';
+			}
+		}
 		return $this->formMethod;
 	}
 
@@ -266,44 +290,44 @@ class Table extends HtmlWriter {
 		$this->actionsClass = $actionsClass;
 		return $this;
 	}
-	
+
 	protected function getFormName() {
 		return 'table_form_' . self::$instances;
 	}
 
 	public function renderHtml() {
 		$html = '';
-		
+
 		//normalize data
-		if($this->actions) {
+		if ($this->actions) {
 			$actions = [];
-			foreach($this->actions as $action => $label) {
+			foreach ($this->actions as $action => $label) {
 				if (is_int($action)) {
 					$action = $label;
-					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
+					$label = ucwords(str_replace(array('_', '.', '-'), ' ', $label));
 				}
 				$actions[$action] = $label;
 			}
 			$this->actions = $actions;
 		}
-		
+
 		//build headers
-		if($this->headers) {
+		if ($this->headers) {
 			$headers = [];
-			foreach($this->headers as $header => $label) {
+			foreach ($this->headers as $header => $label) {
 				if (is_int($header)) {
 					$header = $label;
-					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
+					$label = ucwords(str_replace(array('_', '.', '-'), ' ', $label));
 				}
 				$headers[$header] = $label;
 			}
 			$this->headers = $headers;
 			$headersKeys = array_keys($this->headers);
-			if($this->sortableHeaders === true) {
+			if ($this->sortableHeaders === true) {
 				$this->sortableHeaders = $headersKeys;
 			}
-			if($this->filterableHeaders === true) {
-				$this->filterableHeaders = $headersKeys;
+			if ($this->searchableHeaders === true) {
+				$this->searchableHeaders = $headersKeys;
 			}
 			$headers = '';
 
@@ -313,8 +337,8 @@ class Table extends HtmlWriter {
 			}
 			foreach ($this->headers as $header => $label) {
 				$tag = '<th';
-				if($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
-					$tag .= ' class="sort" data-sort="'.$header.'"';
+				if ($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
+					$tag .= ' class="sort" data-sort="' . $header . '"';
 					$label .= '<span></span>';
 				}
 				$tag .= '>' . $label . '</th>';
@@ -323,38 +347,17 @@ class Table extends HtmlWriter {
 			if ($this->actions) {
 				$search = null;
 				if ($this->tableSearch) {
-					$search = $this->tag('input', $this->tableSearchInput);
+					$search = $this->tableSearchInput;
 				}
 				$headers .= '<th>' . $search . '</th>';
 			}
 
 			$headers = '<tr>' . $headers . '</tr>';
 			if ($this->searchableHeaders) {
-				$searchable_headers = $this->makeSearchableHeaders();
-				$headers .= '<tr>' . $searchable_headers . '</tr>';
+				$searchableHeaders = $this->makeSearchableHeaders();
+				$headers .= '<tr class="filter">' . $searchableHeaders . '</tr>';
 			}
-			
-			if($this->filterableHeaders) {
-				$headers .= '<tr class="filter">';
-				foreach ($this->headers as $header => $label) {
-					$tag = '<td';
-					$v = '';
-					if(in_array($header, $this->filterableHeaders)) {
-						$size = 10;
-						if(isset($this->filterableHeadersSize[$header])) {
-							$size = $this->filterableHeadersSize[$header];
-						}
-						$v = '<input type="text" style="width:auto" data-filter="'.$header.'" size="'.$size.'">';
-					}
-					$tag .= '>'.$v. '</td>';
-					$headers .= $tag;
-				}
-				if($this->actions) {
-					$headers .= '<td></td>';
-				}
-				$headers .= '</tr>';
-			}
-			
+
 			$html .= $this->tag('thead', $headers);
 		}
 		if ($this->data) {
@@ -371,7 +374,7 @@ class Table extends HtmlWriter {
 					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($data)));
 				}
 				$html .= '<tr';
-				if($this->detailRow) {
+				if ($this->detailRow) {
 					$html .= ' onclick="toggleDetailRow(this)"';
 				}
 				$html .= '>';
@@ -407,35 +410,34 @@ class Table extends HtmlWriter {
 					$html .= '<td class="actions">' . $actions . '</td>';
 				}
 				$html .= '</tr>';
-				
-				if($this->detailRow) {
+
+				if ($this->detailRow) {
 					$html .= '<tr class="detail" style="display:none">';
 					$colspan = $j;
-					if($this->actions) {
+					if ($this->actions) {
 						$colspan++;
 					}
 					$v = $this->detailRow;
-					if(is_callable($this->detailRow)) {
-						$v = $v($data,$this);
+					if (is_callable($this->detailRow)) {
+						$v = $v($data, $this);
 					}
-					$html .= '<td colspan="'.$colspan.'">' . $v. '</td>';
+					$html .= '<td colspan="' . $colspan . '">' . $v . '</td>';
 					$html .= '</tr>';
 				}
-				
 			}
 			$html .= '</tbody>';
 		}
 
 		//wrap table
-		$html = '<table class="'.$this->class.'" id="'.$this->id . '">' . $html . '</table>' ;
-		
+		$html = '<table class="' . $this->class . '" id="' . $this->id . '">' . $html . '</table>';
+
 		if ($this->actions || $this->selectable) {
 			//append selectable actions
 			if ($this->selectable) {
 				$selectable_actions = $this->makeSelectableActions();
 				$html .= $selectable_actions;
 			}
-			$html = '<form name="'.$this->getFormName().'" method="'.$this->getFormMethod().'">' . $html . '</form>';
+			$html = '<form name="' . $this->getFormName() . '" method="' . $this->getFormMethod() . '">' . $html . '</form>';
 		}
 
 		//pagination
@@ -475,23 +477,40 @@ SCRIPT;
 	}
 
 	protected function makeSearchableHeaders() {
-		$headers_keys = $this->array_collapse($this->headers);
-		$searchable_headers = '';
+		$headersKey = array_keys($this->headers);
+		$searchableHeaders = '';
 		if ($this->selectable) {
-			$searchable_headers .= $this->tag('th');
+			$searchableHeaders .= '<td></td>';
 		}
-		foreach ($headers_keys as $header) {
+
+		$data = $_GET;
+		if ($this->getFormMethod() == 'post') {
+			$data = $_POST;
+		}
+		if ($this->searchableKey && isset($data[$this->searchableKey])) {
+			$data = $data[$this->searchableKey];
+		}
+
+		foreach ($headersKey as $header) {
 			$input = '';
 			if (in_array($header, $this->searchableHeaders)) {
-				$value = isset($_GET[$this->searchableKey][$header]) ? $_GET[$this->searchableKey][$header] : null;
-				$input = '<input name="' . $this->searchableKey . '[' . $header . ']" value="' . $value . '" style="width:auto" />';
+				$size = 10;
+				if (isset($this->searchableHeadersSize[$header])) {
+					$size = $this->searchableHeadersSize[$header];
+				}
+				$value = isset($data[$header]) ? $data[$header] : null;
+				$name = $header;
+				if($this->searchableKey) {
+					$name = $this->searchableKey . '[' . $name . ']';
+				}
+				$input = '<input type="text" name="' . $name . '" value="' . $value . '" style="width:auto" data-filter="' . $header . '" size="' . $size . '" />';
 			}
-			$searchable_headers .= $this->tag('th', $input);
+			$searchableHeaders .= '<td>' . $input . '</td>';
 		}
 		if ($this->actions) {
-			$searchable_headers .= $this->tag('th', $this->tag('input',$this->searchableInput));
+			$searchableHeaders .= '<td>' . $this->searchableInput . '</td>';
 		}
-		return $searchable_headers;
+		return $searchableHeaders;
 	}
 
 	protected function makePagination() {
@@ -528,7 +547,7 @@ SCRIPT;
 	}
 
 	protected function makeSelectableActions() {
-		if(empty($this->selectableActions)) {
+		if (empty($this->selectableActions)) {
 			return '';
 		}
 		foreach ($this->selectableActions as $action => $value) {
@@ -545,9 +564,9 @@ SCRIPT;
 		$actions = implode('', $actions);
 		return $actions;
 	}
-	
+
 	protected function getBaseHref() {
-		if($this->baseHref === null) {
+		if ($this->baseHref === null) {
 			$this->baseHref = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
 		}
 		return $this->baseHref;
@@ -557,12 +576,12 @@ SCRIPT;
 		if (is_array($this->actions)) {
 			$actions = array();
 			foreach ($this->actions as $action => $label) {
-				$tag = '<a class="'.$this->baseActionClass ;
-				if(isset($this->actionsClass[$action])) {
+				$tag = '<a class="' . $this->baseActionClass;
+				if (isset($this->actionsClass[$action])) {
 					$tag .= ' ' . $this->actionsClass[$action];
 				}
 				$tag .= '"';
-				if(in_array($action,$this->actionConfirm)) {
+				if (in_array($action, $this->actionConfirm)) {
 					$tag .= ' onclick="' . $this->confirmScript . '"';
 				}
 				if (is_string($action)) {

@@ -119,8 +119,12 @@ class Element {
 	 * @return \k\html\form\Element
 	 */
 	public function __call($name, $arguments) {
+		if(property_exists($this, $name)) {
+			$this->$name = $arguments[0];
+			return true;
+		}
 		if (!$this->form) {
-			throw new Exception('Element not linked to a form');
+			throw new Exception('Element ' . get_called_class() . ' not linked to a form. Trying to call ' . $name);
 		}
 		if (!method_exists($this->form, $name)) {
 			throw new Exception('Invalid method called : ' . $name);

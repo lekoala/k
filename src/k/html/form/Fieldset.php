@@ -1,26 +1,18 @@
 <?php
 namespace k\html\form;
 
+/**
+ * @method Fieldset legend()
+ */
 class Fieldset extends Group {
 
 	protected $tag = 'fieldset';
-	
-	public function legend($v = null) {
-		return $this->attribute('legend',$v);
-	}
-	
-	public function getLegend() {
-		return $this->getAttribute('legend');
-	}
-	
-	public function setLegend($value) {
-		return $this->setAttribute('legend', $value);
-	}
+	protected $legend;
 	
 	public function renderElement() {
-		$legend = $this->getLegend();
+		$legend = $this->legend;
 		if ($legend) {
-			$this->form->t($this->legend);
+			$this->form->t($legend);
 			$legend = '<legend>'  . $legend . '</legend>';
 		}
 		return "<fieldset>\n" . $legend;

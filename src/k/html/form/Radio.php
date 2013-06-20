@@ -1,10 +1,13 @@
 <?php
 namespace k\html\form;
 
+/**
+ * @method Radio options()
+ */
 class Radio extends Input {
 
 	protected $options = array();
-
+	
 	public function renderElement() {
 		$value = $this->getValue();
 		$html = '';
@@ -21,8 +24,12 @@ class Radio extends Input {
 				$checked = 1;
 			}
 			$this->form->t($v);
+			$attributes = array('type' => 'radio', 'class' => $this->class, 'name' => $this->getName() . '[]', 'value' => $k, 'checked' => $checked);
 			$html .= '<label class="radio">';
-			$html .= static::makeTag('input', array('type' => 'radio', 'class' => $this->class, 'name' => $this->getName() . '[]', 'value' => $k, 'checked' => $checked));
+			echo '<pre>';
+			var_dump($attributes);
+			exit();
+			$html .= $this->renderHtmlTag('input', $attributes);
 			$html .= ' ' . $v . '</label>';
 		}
 		return $html;

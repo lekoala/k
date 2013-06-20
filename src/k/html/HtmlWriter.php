@@ -2,6 +2,8 @@
 
 namespace k\html;
 
+use \Exception;
+
 /**
  * HtmlWriter
  *
