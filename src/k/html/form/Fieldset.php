@@ -9,6 +9,14 @@ class Fieldset extends Group {
 		return $this->attribute('legend',$v);
 	}
 	
+	public function getLegend() {
+		return $this->getAttribute('legend');
+	}
+	
+	public function setLegend($value) {
+		return $this->setAttribute('legend', $value);
+	}
+	
 	public function renderElement() {
 		$legend = $this->getLegend();
 		if ($legend) {

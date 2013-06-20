@@ -9,6 +9,10 @@ class Div extends Group {
 
 	protected $tag = 'div';
 
+	public function cls($v = null) {
+		return $this->attribute('class',$v);
+	}
+	
 	public function getClass() {
 		return $this->getAttribute('class');
 	}

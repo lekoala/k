@@ -2,6 +2,8 @@
 
 namespace k\html;
 
+use \Closure;
+
 /**
  * Chainable form builder
  * 
@@ -27,9 +29,8 @@ class Form extends HtmlWriter {
 	const FORM_SEARCH = 'search';
 	const FORM_INLINE = 'inline';
 	const FORM_HORIZONTAL = 'horizontal';
-
 	const ENCTYPE_MULTIPART_FORM_DATA = 'multipart/form-data';
-	
+
 	protected $action;
 	protected $method;
 	protected $elements = [];
@@ -38,8 +39,8 @@ class Form extends HtmlWriter {
 	protected $enctype;
 	protected $translations;
 	protected $id;
-	protected $attributes = [];
 	protected $groups = [];
+	protected $attributes = [];
 
 	public function __construct($action = null, $method = 'POST') {
 		$this->action = $action;
@@ -74,16 +75,16 @@ class Form extends HtmlWriter {
 		//attributes can be an array or just some text to put inside the tag
 		if (is_array($attributes)) {
 			//auto id
-			if (in_array($name, array('input','select')) && !isset($attributes['id']) && isset($attributes['name'])) {
+			if (in_array($name, array('input', 'select')) && !isset($attributes['id']) && isset($attributes['name'])) {
 				$attributes['id'] = 'input-' . $attributes['name'];
 			}
-			if(isset($attributes['id'])) {
+			if (isset($attributes['id'])) {
 				$attributes['id'] = preg_replace('/[^a-z0-9._-]/i', '_', $attributes['id']);
-				$attributes['id'] = rtrim($attributes['id'],'_');
+				$attributes['id'] = rtrim($attributes['id'], '_');
 			}
-			if(isset($attributes['for'])) {
+			if (isset($attributes['for'])) {
 				$attributes['for'] = preg_replace('/[^a-z0-9._-]/i', '_', $attributes['for']);
-				$attributes['for'] = rtrim($attributes['for'],'_');
+				$attributes['for'] = rtrim($attributes['for'], '_');
 			}
 
 			//size without width
@@ -142,8 +143,8 @@ class Form extends HtmlWriter {
 	}
 
 	public function getId() {
-		if(empty($this->id)) {
-			$name = str_replace('/','-',strtolower(trim($_SERVER['PATH_INFO'],'/')));
+		if (empty($this->id)) {
+			$name = str_replace('/', '-', strtolower(trim($_SERVER['PATH_INFO'], '/')));
 			return 'form-' . $name;
 		}
 		return $this->id;
@@ -165,7 +166,7 @@ class Form extends HtmlWriter {
 		$this->layout = $value;
 		return $this;
 	}
-	
+
 	public function getAttributes() {
 		return $this->attributes;
 	}
@@ -214,7 +215,7 @@ class Form extends HtmlWriter {
 		}
 		return $this;
 	}
-	
+
 	public function dumpTranslationsArray() {
 		$translations = array();
 		foreach ($this->elements as $element) {
@@ -223,26 +224,26 @@ class Form extends HtmlWriter {
 			}
 			$name = $element->getName();
 			$translations[$name] = $name;
-			if($element instanceof FormAddress) {
+			if ($element instanceof FormAddress) {
 				$translations['street'] = 'street';
 				$translations['number'] = 'number';
 				$translations['zip'] = 'zip';
 				$translations['city'] = 'city';
-			} 
-			if(method_exists($element, 'getOptions')) {
+			}
+			if (method_exists($element, 'getOptions')) {
 				$opts = $element->getOptions();
 				//skip large arr
-				if(count($opts) > 20) {
+				if (count($opts) > 20) {
 					continue;
 				}
-				foreach($opts as $i => $o) {
-					if(is_numeric($o) || empty($o)) {
+				foreach ($opts as $i => $o) {
+					if (is_numeric($o) || empty($o)) {
 						continue;
 					}
 					$translations[$o] = $o;
 				}
 			}
-			if($element instanceof FormStartFieldset) {
+			if ($element instanceof FormStartFieldset) {
 				$legend = $element->getLegend();
 				$translations[$legend] = $legend;
 			}
@@ -291,7 +292,7 @@ class Form extends HtmlWriter {
 		$element = new \k\html\form\Radio($name);
 		return $this->add($element, $label);
 	}
-	
+
 	public function multicheckbox($name, $label = null) {
 		$element = new \k\html\form\Multicheckbox($name);
 		return $this->add($element, $label);
@@ -321,58 +322,55 @@ class Form extends HtmlWriter {
 		$element->label($label);
 		return $this->add($element);
 	}
-	
-	protected function executeGroupCallback($el,$cb) {
-		$el = $this->add($element);
-		//
-		if(is_callable($callable)) {
-			$callable();
+
+	protected function executeGroupCallback(\k\html\form\Group $el, Closure $closure) {
+		$el = $this->add($el);
+		array_push($this->groups, $el);
+		if (is_callable($closure)) {
+			$closure = $closure->bindTo($el, $el);
+			$closure();
 		}
+		array_pop($this->groups);
 		return $el;
 	}
 
-	public function div($class = null, $callable = null) {
+	public function div($class = null, Closure $closure = null) {
 		$element = new \k\html\form\Div();
-		
-		if($callable === null) {
-			$callable = $class;
-		}
-		else {
-			if(is_array($class)) {
+		if ($closure === null) {
+			$closure = $class;
+		} else {
+			if (is_array($class)) {
 				$element->setAttributes($class);
-			}
-			elseif ($class) {
-				$element->class($class);
+			} elseif ($class) {
+				$element->cls($class);
 			}
 		}
-		return $this->executeGroupCallback($element, $callable);
+		return $this->executeGroupCallback($element, $closure);
 	}
-	
+
 	/**
 	 * @return \k\html\form\Fieldset
 	 */
-	public function fieldset($legend = null, $callable = null) {
+	public function fieldset($legend = null, Closure $closure = null) {
 		$element = new \k\html\form\Fieldset();
-		
-		if($callable === null) {
-			$callable = $legend;
-		}
-		else {
-			if(is_array($legend)) {
+
+		if ($closure === null) {
+			$closure = $legend;
+		} else {
+			if (is_array($legend)) {
 				$element->setAttributes($legend);
-			}
-			elseif ($legend) {
+			} elseif ($legend) {
 				$element->legend($legend);
 			}
 		}
 		$el = $this->add($element);
 		//
-		if(is_callable($callable)) {
-			$callable();
+		if (is_callable($closure)) {
+			$closure();
 		}
 		return $el;
 	}
-	
+
 	/**
 	 * @return \k\html\form\Element
 	 */
@@ -382,10 +380,40 @@ class Form extends HtmlWriter {
 		}
 		$element->setForm($this);
 		if ($label) {
-			$element->attribute('label',$label);
+			$element->attribute('label', $label);
 		}
-		$this->elements[] = $element;
+		if (!empty($this->groups)) {
+			$last = end($this->groups);
+			$last->addElement($element);
+		} else {
+			$this->elements[] = $element;
+		}
 		return $element;
+	}
+
+	public function renderElement($element) {
+		$html = '';
+		if ($element instanceof \k\html\form\Input) {
+			if ($this->getWrap()) {
+				$html .= Form::makeTag('div.control-group');
+			}
+			$html .= $element->renderElement();
+			if ($this->getWrap()) {
+				$html .= '</div>';
+			}
+		} elseif ($element instanceof \k\html\form\Group) {
+			$html .= $element->renderElement();
+			foreach ($element->getElements() as $el) {
+				$html .= $this->renderElement($el);
+			}
+			$html .= $element->renderCloseTag();
+		} else {
+			$html .= (string) $element;
+		}
+		$html .= "\n";
+
+
+		return $html;
 	}
 
 	public function renderHtml() {
@@ -398,52 +426,19 @@ class Form extends HtmlWriter {
 		if ($this->enctype) {
 			$enctype = 'multipart/form-data';
 		}
-
 		$html = self::makeTag('form', array(
-					'action' => $this->action,
-					'method' => $this->method,
-					'class' => $class,
-					'enctype' => $enctype,
-					'id' => $this->getId()
-				));
+			'action' => $this->action,
+			'method' => $this->method,
+			'class' => $class,
+			'enctype' => $enctype,
+			'id' => $this->getId()
+		));
 		foreach ($this->elements as $element) {
-			if ($element instanceof \k\html\form\Input) {
-				if ($this->getWrap()) {
-					$html .= Form::makeTag('div.control-group');
-				}
-				$html .= $element->renderElement();
-				if ($this->getWrap()) {
-					$html .= '</div>';
-				}
-			} 
-			elseif ($element instanceof \k\html\form\Group) {
-				
-			}
-			else {
-				$html .= (string) $element;
-			}
-			$html .= "\n";
+			$html .= $this->renderElement($element);
 		}
 
 		return $html;
 	}
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

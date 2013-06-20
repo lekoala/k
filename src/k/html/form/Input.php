@@ -96,7 +96,7 @@ class Input extends Element {
 				));
 	}
 
-	protected function getAttributes($add = array(), $remove = array()) {
+	protected function getInputAttributes($add = array(), $remove = array()) {
 		if (!is_array($add)) {
 			$add = array($add);
 		}
@@ -123,7 +123,7 @@ class Input extends Element {
 
 	protected function renderField() {
 		$this->form->t($this->placeholder);
-		return static::makeTag('input', $this->getAttributes(), true);
+		return static::makeTag('input', $this->getInputAttributes(), true);
 	}
 
 	public function renderElement() {
