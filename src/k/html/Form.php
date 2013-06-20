@@ -137,12 +137,15 @@ class Form extends HtmlWriter {
 				$label = $this->translations[$label];
 			}
 			return true;
-			;
 		}
 		return false;
 	}
 
 	public function getId() {
+		if(empty($this->id)) {
+			$name = str_replace('/','-',strtolower(trim($_SERVER['PATH_INFO'],'/')));
+			return 'form-' . $name;
+		}
 		return $this->id;
 	}
 
@@ -319,55 +322,57 @@ class Form extends HtmlWriter {
 		return $this->add($element);
 	}
 	
-	public function openGroup($name) {
-		$this->groups[] = $name;
-		return $this;
-	}
-	
-	public function closeGroup() {
-		array_pop($this->groups);
-		return $this;
-	}
-	
-	public function closeAllGroups() {
-		$this->groups = array();
-		return $this;
-	}
-	
-	/**
-	 * @return \k\html\form\OpenFieldset
-	 */
-	public function openFieldset($legend = null) {
-		$element = new \k\html\form\OpenFieldset();
-		if ($legend) {
-			$element->legend($legend);
+	protected function executeGroupCallback($el,$cb) {
+		$el = $this->add($element);
+		//
+		if(is_callable($callable)) {
+			$callable();
 		}
-		return $this->add($element);
+		return $el;
+	}
+
+	public function div($class = null, $callable = null) {
+		$element = new \k\html\form\Div();
+		
+		if($callable === null) {
+			$callable = $class;
+		}
+		else {
+			if(is_array($class)) {
+				$element->setAttributes($class);
+			}
+			elseif ($class) {
+				$element->class($class);
+			}
+		}
+		return $this->executeGroupCallback($element, $callable);
 	}
 	
 	/**
-	 * @return \k\html\form\CloseFieldset
+	 * @return \k\html\form\Fieldset
 	 */
-	public function closeFieldset() {
-		return $this->add(new \k\html\form\CloseFieldset());
+	public function fieldset($legend = null, $callable = null) {
+		$element = new \k\html\form\Fieldset();
+		
+		if($callable === null) {
+			$callable = $legend;
+		}
+		else {
+			if(is_array($legend)) {
+				$element->setAttributes($legend);
+			}
+			elseif ($legend) {
+				$element->legend($legend);
+			}
+		}
+		$el = $this->add($element);
+		//
+		if(is_callable($callable)) {
+			$callable();
+		}
+		return $el;
 	}
 	
-	/**
-	 * @return \k\html\form\OpenActions
-	 */
-	public function openActions() {
-		$element = new \k\html\form\OpenActions();
-		return $this->add($element);
-	}
-
-	/**
-	 * @return \k\html\form\CloseActions
-	 */
-	public function closeActions() {
-		$element = new \k\html\form\CloseActions();
-		return $this->add($element);
-	}
-
 	/**
 	 * @return \k\html\form\Element
 	 */
@@ -376,11 +381,8 @@ class Form extends HtmlWriter {
 			$element = new \k\html\form\Element($element);
 		}
 		$element->setForm($this);
-		if ($element instanceof \k\html\form\Input) {
-			$element->setGroups($this->groups);
-		}
 		if ($label) {
-			$element->label($label);
+			$element->attribute('label',$label);
 		}
 		$this->elements[] = $element;
 		return $element;
@@ -402,7 +404,7 @@ class Form extends HtmlWriter {
 					'method' => $this->method,
 					'class' => $class,
 					'enctype' => $enctype,
-					'id' => $this->id
+					'id' => $this->getId()
 				));
 		foreach ($this->elements as $element) {
 			if ($element instanceof \k\html\form\Input) {
@@ -413,7 +415,11 @@ class Form extends HtmlWriter {
 				if ($this->getWrap()) {
 					$html .= '</div>';
 				}
-			} else {
+			} 
+			elseif ($element instanceof \k\html\form\Group) {
+				
+			}
+			else {
 				$html .= (string) $element;
 			}
 			$html .= "\n";

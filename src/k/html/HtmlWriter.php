@@ -124,7 +124,6 @@ abstract class HtmlWriter {
 		}
 		
 		//comments support
-		
 		if(isset($attributes['comments'])) {
 			$str = $attributes['comments'];
 			unset($attributes['comments']);
