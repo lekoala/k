@@ -1,5 +1,5 @@
 <?php
-namespace k\form;
+namespace k\html\form;
 
 class Button extends Element {
 	protected $class = 'btn';
