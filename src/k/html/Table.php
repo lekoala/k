@@ -41,6 +41,12 @@ class Table extends HtmlWriter {
 	protected $confirmScript = "return confirm('Are you sure?');";
 	protected $searchableHeaders;
 	protected $sortableHeaders;
+	protected $filterableHeaders;
+	protected $filterableHeadersSize = [
+		'id' => 4,
+		'day' => 2,
+		'week' => 2
+	];
 	protected $searchableKey = 'filters';
 	protected $searchableInput = [
 		'type' => 'submit',
@@ -127,8 +133,17 @@ class Table extends HtmlWriter {
 		return $this->sortableHeaders;
 	}
 
-	public function setSortableHeaders($sortableHeaders) {
-		$this->sortableHeaders = $this->arrayCollapse($sortableHeaders);
+	public function setSortableHeaders($sortableHeaders = true) {
+		$this->sortableHeaders = $sortableHeaders;
+		return $this;
+	}
+	
+	public function getFilterableHeaders() {
+		return $this->filterableHeaders;
+	}
+
+	public function setFilterableHeaders($filterableHeaders = true) {
+		$this->filterableHeaders = $filterableHeaders;
 		return $this;
 	}
 
@@ -265,26 +280,38 @@ class Table extends HtmlWriter {
 			foreach($this->actions as $action => $label) {
 				if (is_int($action)) {
 					$action = $label;
-					$label = ucwords(str_replace('_', ' ', $action));
+					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
 				}
 				$actions[$action] = $label;
 			}
 			$this->actions = $actions;
 		}
 		
-		if ($this->headers) {
+		//build headers
+		if($this->headers) {
+			$headers = [];
+			foreach($this->headers as $header => $label) {
+				if (is_int($header)) {
+					$header = $label;
+					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
+				}
+				$headers[$header] = $label;
+			}
+			$this->headers = $headers;
+			$headersKeys = array_keys($this->headers);
+			if($this->sortableHeaders === true) {
+				$this->sortableHeaders = $headersKeys;
+			}
+			if($this->filterableHeaders === true) {
+				$this->filterableHeaders = $headersKeys;
+			}
 			$headers = '';
-			$headersCollapsed = $this->arrayCollapse($this->headers);
 
 			if ($this->selectable) {
 				//un-check all
 				$headers .= '<th><input type="checkbox" onclick="toggleSelectable(this,document.' . $this->getFormName() . ');" /></th>';
 			}
 			foreach ($this->headers as $header => $label) {
-				if(is_int($header)) {
-					$header = $label;
-					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
-				}
 				$tag = '<th';
 				if($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
 					$tag .= ' class="sort" data-sort="'.$header.'"';
@@ -298,14 +325,36 @@ class Table extends HtmlWriter {
 				if ($this->tableSearch) {
 					$search = $this->tag('input', $this->tableSearchInput);
 				}
-				$headers .= $this->tag('th', $search);
+				$headers .= '<th>' . $search . '</th>';
 			}
 
-			$headers = $this->tag('tr', $headers);
+			$headers = '<tr>' . $headers . '</tr>';
 			if ($this->searchableHeaders) {
 				$searchable_headers = $this->makeSearchableHeaders();
-				$headers .= $this->tag('tr', $searchable_headers);
+				$headers .= '<tr>' . $searchable_headers . '</tr>';
 			}
+			
+			if($this->filterableHeaders) {
+				$headers .= '<tr class="filter">';
+				foreach ($this->headers as $header => $label) {
+					$tag = '<td';
+					$v = '';
+					if(in_array($header, $this->filterableHeaders)) {
+						$size = 10;
+						if(isset($this->filterableHeadersSize[$header])) {
+							$size = $this->filterableHeadersSize[$header];
+						}
+						$v = '<input type="text" style="width:auto" data-filter="'.$header.'" size="'.$size.'">';
+					}
+					$tag .= '>'.$v. '</td>';
+					$headers .= $tag;
+				}
+				if($this->actions) {
+					$headers .= '<td></td>';
+				}
+				$headers .= '</tr>';
+			}
+			
 			$html .= $this->tag('thead', $headers);
 		}
 		if ($this->data) {
@@ -333,12 +382,12 @@ class Table extends HtmlWriter {
 				$j = 0;
 				if ($this->headers) {
 					//if we have headers, display only headers
-					foreach ($headersCollapsed as $header) {
+					foreach ($headersKeys as $header) {
 						$v = isset($data[$header]) ? $data[$header] : null;
 						$tag = '<td';
 						//add class to make it sortable
 						if ($this->sortableHeaders && $this->headers) {
-							$tag .= ' class="' . $headersCollapsed[$j] . '"';
+							$tag .= ' class="' . $headersKeys[$j] . '"';
 						}
 						$tag .= '>' . $v . '</td>';
 						$html .= $tag;

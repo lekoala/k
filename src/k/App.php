@@ -229,7 +229,7 @@ class App {
 	
 	public function getCache($group = null, $data = null, $callback = null) {
 		if($this->cache === null) {
-			$this->cache = new \k\cache\NullCacher();
+			$this->cache = new \k\cache\NullCache();
 		}
 		if($group !== null) {
 			if(is_array($data)) {
