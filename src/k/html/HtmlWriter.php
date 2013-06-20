@@ -19,17 +19,15 @@ abstract class HtmlWriter {
 	/**
 	 * Return the html content
 	 */
-	public function render($return = false) {
+	public function render($format = true) {
 		$this->html = $this->renderHtml();
-		$this->html = $this->formatXml($this->html);
+		if($format) {
+			$this->html = $this->formatXml($this->html);
+		}
 		if ($this->getScript()) {
 			$this->html .= $this->getScript();
 		}
-		//output
-		if ($return) {
-			return $this->html;
-		}
-		echo $this->html;
+		return $this->html;
 	}
 
 	public function __toString() {

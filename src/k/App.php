@@ -36,6 +36,10 @@ class App {
 	//
 	// classes
 	//
+	/**
+	 * @var \k\cache\CacheInterface
+	 */
+	protected $cache;
 	protected $request;
 	protected $response;
 	protected $logger;
@@ -216,6 +220,37 @@ class App {
 			$this->logger = new \k\log\NullLogger();
 		}
 		return $this->logger;
+	}
+	
+	public function setLogger($logger) {
+		$this->logger = $logger;
+		return $this;
+	}
+	
+	public function getCache($group = null, $data = null, $callback = null) {
+		if($this->cache === null) {
+			$this->cache = new \k\cache\NullCacher();
+		}
+		if($group !== null) {
+			if(is_array($data)) {
+				$data = serialize($data);
+			}
+			$md5 = md5($data);
+			$key = $group . '_' . $md5;
+			$value = $this->cache->get($key);
+			if($value) {
+				return $value;
+			}
+			$value = $callback();
+			$this->cache->set($key,$value);
+			return $value;
+		}
+		return $this->cache;
+	}
+	
+	public function setCache($cache) {
+		$this->cache = $cache;
+		return $this;
 	}
 
 	public function getRequest() {

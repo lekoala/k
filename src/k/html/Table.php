@@ -29,6 +29,8 @@ class Table extends HtmlWriter {
 	protected $id;
 	protected $indent;
 	protected $actions;
+	protected $detailRow;
+	protected $baseHref;
 	protected $baseActionClass = 'btn';
 	protected $actionsMode = 'append';
 	protected $actionsClass = [
@@ -82,6 +84,14 @@ class Table extends HtmlWriter {
 		$this->selectable = true;
 		$this->selectableActions = $this->arrayify($v);
 		return $this;
+	}
+	
+	public function getDetailRow() {
+		return $this->detailRow;
+	}
+
+	public function setDetailRow($detailRow) {
+		$this->detailRow = $detailRow;
 	}
 
 	public function getPagination() {
@@ -248,26 +258,40 @@ class Table extends HtmlWriter {
 
 	public function renderHtml() {
 		$html = '';
+		
+		//normalize data
+		if($this->actions) {
+			$actions = [];
+			foreach($this->actions as $action => $label) {
+				if (is_int($action)) {
+					$action = $label;
+					$label = ucwords(str_replace('_', ' ', $action));
+				}
+				$actions[$action] = $label;
+			}
+			$this->actions = $actions;
+		}
+		
 		if ($this->headers) {
 			$headers = '';
 			$headersCollapsed = $this->arrayCollapse($this->headers);
 
 			if ($this->selectable) {
 				//un-check all
-				$headers .= $this->tag('th', '<input type="checkbox" onclick="toggleSelectable(this,document.' . $this->getFormName() . ');" />');
+				$headers .= '<th><input type="checkbox" onclick="toggleSelectable(this,document.' . $this->getFormName() . ');" /></th>';
 			}
 			foreach ($this->headers as $header => $label) {
 				if(is_int($header)) {
 					$header = $label;
 					$label = ucwords(str_replace(array('_','.','-'), ' ', $label));
 				}
-				$atts = [];
+				$tag = '<th';
 				if($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
-					$atts['class'] = 'sort';
-					$atts['data-sort'] = $header;
+					$tag .= ' class="sort" data-sort="'.$header.'"';
 					$label .= '<span></span>';
 				}
-				$headers .= $this->tag('th', $label, $atts);
+				$tag .= '>' . $label . '</th>';
+				$headers .= $tag;
 			}
 			if ($this->actions) {
 				$search = null;
@@ -287,7 +311,6 @@ class Table extends HtmlWriter {
 		if ($this->data) {
 			$html .= '<tbody class="list">';
 			$i = 0;
-
 			foreach ($this->data as $data) {
 				$i++;
 				$value = $i;
@@ -298,58 +321,72 @@ class Table extends HtmlWriter {
 				if (is_object($data)) {
 					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($data)));
 				}
-				$html .= '<tr>';
+				$html .= '<tr';
+				if($this->detailRow) {
+					$html .= ' onclick="toggleDetailRow(this)"';
+				}
+				$html .= '>';
 				if ($this->selectable) {
 					//check item
-					$html .= $this->tag('td', '<input type="checkbox" name="selectable[]" value="' . $value . '" />');
+					$html .= '<td><input type="checkbox" name="selectable[]" value="' . $value . '" /></td>';
 				}
+				$j = 0;
 				if ($this->headers) {
-					$j = 0;
 					//if we have headers, display only headers
 					foreach ($headersCollapsed as $header) {
 						$v = isset($data[$header]) ? $data[$header] : null;
-						$atts = [];
+						$tag = '<td';
 						//add class to make it sortable
 						if ($this->sortableHeaders && $this->headers) {
-							$atts['class'] = $headersCollapsed[$j];
+							$tag .= ' class="' . $headersCollapsed[$j] . '"';
 						}
-						$html .= $this->tag('td',$v,$atts);
+						$tag .= '>' . $v . '</td>';
+						$html .= $tag;
 						$j++;
 					}
 				}
 				//or display everything
 				else {
 					foreach ($data as $k => $v) {
-						$html .= $this->tag('td', $v);
+						$html .= '<td>' . $v . '</td>';
+						$j++;
 					}
 				}
 				if ($this->actions) {
 					$actions = $this->makeActions($value);
 					$actions = '<div class="btn-group">' . $actions . '</div>';
-					$html .= $this->tag('td', $actions,['class' => 'actions']);
+					$html .= '<td class="actions">' . $actions . '</td>';
 				}
 				$html .= '</tr>';
+				
+				if($this->detailRow) {
+					$html .= '<tr class="detail" style="display:none">';
+					$colspan = $j;
+					if($this->actions) {
+						$colspan++;
+					}
+					$v = $this->detailRow;
+					if(is_callable($this->detailRow)) {
+						$v = $v($data,$this);
+					}
+					$html .= '<td colspan="'.$colspan.'">' . $v. '</td>';
+					$html .= '</tr>';
+				}
+				
 			}
 			$html .= '</tbody>';
 		}
 
 		//wrap table
-		$class = $this->class;
-		$id = $this->id;
-		$table_attr = compact('class', 'id');
-		$html = $this->tag('table', $html, $table_attr);
-
+		$html = '<table class="'.$this->class.'" id="'.$this->id . '">' . $html . '</table>' ;
+		
 		if ($this->actions || $this->selectable) {
 			//append selectable actions
 			if ($this->selectable) {
 				$selectable_actions = $this->makeSelectableActions();
 				$html .= $selectable_actions;
 			}
-			$atts = [
-				'name' => $this->getFormName(),
-				'method' => $this->formMethod
-			];
-			$html = $this->tag('form', $html, $atts);
+			$html = '<form name="'.$this->getFormName().'" method="'.$this->getFormMethod().'">' . $html . '</form>';
 		}
 
 		//pagination
@@ -362,7 +399,7 @@ class Table extends HtmlWriter {
 	}
 
 	protected function getScript() {
-		if ($this->selectable) {
+		if ($this->selectable || $this->detailRow) {
 			if (!self::$scriptInserted) {
 				$this->html .= <<<'SCRIPT'
 <script type="text/javascript">
@@ -370,6 +407,16 @@ function toggleSelectable(el,fields) {
 	for(var i=0; i < fields.length; i++) {
 		if(fields[i].name === 'selectable[]') fields[i].checked = el.checked;
 	}
+}
+function toggleDetailRow(el) {
+	var sibling = el.nextSibling;
+	if(sibling.style.display == 'table-row') {
+		sibling.style.display = 'none';
+	}
+	else {
+		sibling.style.display = 'table-row';
+	}
+	
 }
 </script>
 SCRIPT;
@@ -449,26 +496,28 @@ SCRIPT;
 		$actions = implode('', $actions);
 		return $actions;
 	}
+	
+	protected function getBaseHref() {
+		if($this->baseHref === null) {
+			$this->baseHref = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
+		}
+		return $this->baseHref;
+	}
 
 	protected function makeActions($value = null) {
 		if (is_array($this->actions)) {
 			$actions = array();
 			foreach ($this->actions as $action => $label) {
-				if (is_int($action)) {
-					$action = $label;
-					$label = ucwords(str_replace('_', ' ', $action));
-				}
-
-				$atts = [];
-				$atts['class'] = $this->baseActionClass;
+				$tag = '<a class="'.$this->baseActionClass ;
 				if(isset($this->actionsClass[$action])) {
-					$atts['class'] .= ' ' . $this->actionsClass[$action];
+					$tag .= ' ' . $this->actionsClass[$action];
 				}
+				$tag .= '"';
 				if(in_array($action,$this->actionConfirm)) {
-					$atts['onclick'] = $this->confirmScript;
+					$tag .= ' onclick="' . $this->confirmScript . '"';
 				}
 				if (is_string($action)) {
-					$href = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
+					$href = $this->getBaseHref();
 					if ($this->actionsMode == self::MODE_REPLACE) {
 						$href = dirname($href);
 					}
@@ -483,10 +532,10 @@ SCRIPT;
 							$href .= '/' . urlencode($value);
 						}
 					}
-					$atts['href'] = $href;
+					$tag .= ' href="' . $href . '"';
 				}
-				$btn = $this->tag('a', $label, $atts);
-				$actions[] = $btn;
+				$tag .= '>' . $label . '</a>';
+				$actions[] = $tag;
 			}
 			$actions = implode('', $actions);
 		} else {
