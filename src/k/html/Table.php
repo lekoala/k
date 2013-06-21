@@ -57,12 +57,6 @@ class Table extends HtmlWriter {
 	}
 
 	public function getIdentifier() {
-		if($this->identifier === null && !empty($this->data)) {
-			$row = $this->data[0];
-			if(isset($row['id'])) {
-				$this->identifier = 'id';
-			}
-		}
 		return $this->identifier;
 	}
 
@@ -370,15 +364,28 @@ class Table extends HtmlWriter {
 		if ($this->data) {
 			$html .= '<tbody class="list">';
 			$i = 0;
+			$useIdentifier = false;
+			
+			//first row analysis
+			if(!empty($this->data)) {
+				$row = $this->data[0];
+				//auto id
+				if(is_object($row)) {
+					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($row)));
+				}
+				//identifier
+				if($this->identifier === null && isset($row['id'])) {
+					$this->identifier = 'id';
+				}
+				if(isset($row[$this->identifier])) {
+					$useIdentifier = true;
+				}
+			}
 			foreach ($this->data as $data) {
 				$i++;
 				$value = $i;
-				if (isset($data[$this->identifier])) {
+				if ($useIdentifier) {
 					$value = $data[$this->identifier];
-				}
-				//auto table id
-				if (is_object($data)) {
-					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($data)));
 				}
 				$html .= '<tr';
 				if ($this->detailRow) {
@@ -389,7 +396,6 @@ class Table extends HtmlWriter {
 					//check item
 					$html .= '<td><input type="checkbox" name="selectable[]" value="' . $value . '" /></td>';
 				}
-				$j = 0;
 				if ($this->headers) {
 					//if we have headers, display only headers
 					foreach ($headersKeys as $header) {
@@ -397,31 +403,30 @@ class Table extends HtmlWriter {
 						$tag = '<td';
 						//add class to make it sortable
 						if ($this->sortableHeaders && $this->headers) {
-							$tag .= ' class="' . $headersKeys[$j] . '"';
+							$tag .= ' class="' . $header . '"';
 						}
 						$tag .= '>' . $v . '</td>';
 						$html .= $tag;
-						$j++;
 					}
 				}
 				//or display everything
 				else {
 					foreach ($data as $k => $v) {
 						$html .= '<td>' . $v . '</td>';
-						$j++;
 					}
 				}
 				if ($this->actions) {
 					$actions = $baseActions;
 					//replace vars
-					preg_match_all('/{{(?P<var>.*)}}/', $actions, $matches);
+					preg_match_all('/{{(?P<var>[a-zA-Z0-9_]*)}}/', $actions, $matches);
 					if (!empty($matches['var'])) {
 						foreach ($matches['var'] as $var) {
 							if (isset($data[$var])) {
-								$actions = str_replace("{{" . $var . "}}", $data[$var], $actions);
+								$actions = str_replace('{{' . $var . '}}', urlencode($data[$var]), $actions);
 							}
 						}
 					}
+					//wrap in group
 					$actions = '<div class="btn-group">' . $actions . '</div>';
 					$html .= '<td class="actions">' . $actions . '</td>';
 				}
@@ -429,7 +434,7 @@ class Table extends HtmlWriter {
 
 				if ($this->detailRow) {
 					$html .= '<tr class="detail" style="display:none">';
-					$colspan = $j;
+					$colspan = count($headersKeys);
 					if ($this->actions) {
 						$colspan++;
 					}
