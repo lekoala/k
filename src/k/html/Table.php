@@ -19,7 +19,7 @@ class Table extends HtmlWriter {
 
 	protected static $instances = 0;
 	protected static $scriptInserted = false;
-	protected $identifier = 'id';
+	protected $identifier;
 	protected $selectable;
 	protected $selectableActions;
 	protected $headers;
@@ -57,10 +57,16 @@ class Table extends HtmlWriter {
 	}
 
 	public function getIdentifier() {
+		if($this->identifier === null && !empty($this->data)) {
+			$row = $this->data[0];
+			if(isset($row['id'])) {
+				$this->identifier = 'id';
+			}
+		}
 		return $this->identifier;
 	}
 
-	public function setIdentifier($id) {
+	public function setIdentifier($id = 'id') {
 		$this->identifier = $id;
 		return $this;
 	}
@@ -309,8 +315,9 @@ class Table extends HtmlWriter {
 				$actions[$action] = $label;
 			}
 			$this->actions = $actions;
+			$baseActions = $this->makeActions();
 		}
-
+		
 		//build headers
 		if ($this->headers) {
 			$headers = [];
@@ -405,7 +412,16 @@ class Table extends HtmlWriter {
 					}
 				}
 				if ($this->actions) {
-					$actions = $this->makeActions($value);
+					$actions = $baseActions;
+					//replace vars
+					preg_match_all('/{{(?P<var>.*)}}/', $actions, $matches);
+					if (!empty($matches['var'])) {
+						foreach ($matches['var'] as $var) {
+							if (isset($data[$var])) {
+								$actions = str_replace("{{" . $var . "}}", $data[$var], $actions);
+							}
+						}
+					}
 					$actions = '<div class="btn-group">' . $actions . '</div>';
 					$html .= '<td class="actions">' . $actions . '</td>';
 				}
@@ -500,7 +516,7 @@ SCRIPT;
 				}
 				$value = isset($data[$header]) ? $data[$header] : null;
 				$name = $header;
-				if($this->searchableKey) {
+				if ($this->searchableKey) {
 					$name = $this->searchableKey . '[' . $name . ']';
 				}
 				$input = '<input type="text" name="' . $name . '" value="' . $value . '" style="width:auto" data-filter="' . $header . '" size="' . $size . '" />';
@@ -567,12 +583,16 @@ SCRIPT;
 
 	protected function getBaseHref() {
 		if ($this->baseHref === null) {
-			$this->baseHref = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
+			$this->baseHref = strtok($_SERVER["REQUEST_URI"], '?');
 		}
 		return $this->baseHref;
 	}
 
-	protected function makeActions($value = null) {
+	protected function makeActions() {
+		if(is_string($this->actions)) {
+			return $this->actions;
+		}
+		$actions = '';
 		if (is_array($this->actions)) {
 			$actions = array();
 			foreach ($this->actions as $action => $label) {
@@ -591,13 +611,14 @@ SCRIPT;
 					}
 					if ($this->actionsMode == self::MODE_QS) {
 						$href .= '?action=' . $action;
-						if ($value) {
-							$href .= '&id=' . urlencode($value);
+						if($this->getIdentifier()) {
+							$href .= '&id={{'.$this->getIdentifier().'}}';
 						}
+						
 					} else {
 						$href .= '/' . $action;
-						if ($value) {
-							$href .= '/' . urlencode($value);
+						if($this->getIdentifier()) {
+							$href .= '/{{'.$this->getIdentifier().'}}';
 						}
 					}
 					$tag .= ' href="' . $href . '"';
@@ -606,16 +627,6 @@ SCRIPT;
 				$actions[] = $tag;
 			}
 			$actions = implode('', $actions);
-		} else {
-			$actions = $this->actions;
-			preg_match_all('/{{(?P<var>.*)}}/', $actions, $matches);
-			if (!empty($matches['var'])) {
-				foreach ($matches['var'] as $var) {
-					if (isset($data[$var])) {
-						$actions = str_replace("{{" . $var . "}}", $data[$var], $actions);
-					}
-				}
-			}
 		}
 		return $actions;
 	}
