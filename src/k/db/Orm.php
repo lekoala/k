@@ -508,6 +508,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 */
 	public function getFolder($create = false) {
 		$folder = static::getBaseFolder() . '/' . $this->getId();
+		
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
