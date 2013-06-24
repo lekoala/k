@@ -16,14 +16,18 @@ class Table extends HtmlWriter {
 	const MODE_APPEND = 'append';
 	const MODE_QS = 'qs';
 	const MODE_REPLACE = 'replace';
+	
+	const METHOD_GET = 'GET';
+	const METHOD_POST = 'POST';
 
 	protected static $instances = 0;
 	protected static $scriptInserted = false;
-	protected $identifier = 'id';
+	protected $identifier;
 	protected $selectable;
 	protected $selectableActions;
 	protected $headers;
 	protected $pagination;
+	protected $paginationKey = 'p';
 	protected $data;
 	protected $class = 'table table-striped';
 	protected $id;
@@ -40,16 +44,18 @@ class Table extends HtmlWriter {
 	protected $actionConfirm = [];
 	protected $confirmScript = "return confirm('Are you sure?');";
 	protected $sortableHeaders;
+	protected $sortData = false;
 	protected $searchableHeaders;
 	protected $searchableHeadersSize = [
 		'id' => 4,
 		'day' => 2,
 		'week' => 2
 	];
-	protected $searchableKey;
+	protected $searchableKey = 'filters';
 	protected $searchableInput = '<input type="submit" value="filter" class="btn">';
 	protected $formMethod;
 	protected $tableSearch = true;
+	protected $tableSearchKey = 'search';
 	protected $tableSearchInput = '<input type="text" class="search search-query" placeholder="search">';
 
 	public function __construct() {
@@ -60,7 +66,7 @@ class Table extends HtmlWriter {
 		return $this->identifier;
 	}
 
-	public function setIdentifier($id) {
+	public function setIdentifier($id = 'id') {
 		$this->identifier = $id;
 		return $this;
 	}
@@ -96,8 +102,17 @@ class Table extends HtmlWriter {
 		return $this->pagination;
 	}
 
-	public function setPagination($current, $total, $collapse = null) {
-		$this->pagination = compact('current', 'total', 'collapse');
+	public function setPagination($total, $collapse = null) {
+		$this->pagination = compact('total', 'collapse');
+		return $this;
+	}
+	
+	public function getPaginationKey() {
+		return $this->paginationKey;
+	}
+
+	public function setPaginationKey($paginationKey) {
+		$this->paginationKey = $paginationKey;
 		return $this;
 	}
 
@@ -155,6 +170,15 @@ class Table extends HtmlWriter {
 
 	public function setSortableHeaders($sortableHeaders = true) {
 		$this->sortableHeaders = $sortableHeaders;
+		return $this;
+	}
+	
+	public function getSortData() {
+		return $this->sortData;
+	}
+
+	public function setSortData($sortData = true) {
+		$this->sortData = $sortData;
 		return $this;
 	}
 
@@ -230,17 +254,17 @@ class Table extends HtmlWriter {
 	public function getFormMethod() {
 		if ($this->formMethod === null) {
 			if ($this->searchableHeaders) {
-				$this->formMethod = 'get';
+				$this->formMethod = self::METHOD_GET;
 			}
 			if ($this->selectable) {
-				$this->formMethod = 'post';
+				$this->formMethod = self::METHOD_POST;
 			}
 		}
 		return $this->formMethod;
 	}
 
 	public function setFormMethod($v) {
-		$this->formMethod = $v;
+		$this->formMethod = strtoupper($v);
 		return $this;
 	}
 
@@ -297,6 +321,11 @@ class Table extends HtmlWriter {
 
 	public function renderHtml() {
 		$html = '';
+		
+		//fetch data
+		if($this->data instanceof \k\db\Query) {
+			$this->data = $this->data->fetchAll();
+		}
 
 		//normalize data
 		if ($this->actions) {
@@ -309,8 +338,25 @@ class Table extends HtmlWriter {
 				$actions[$action] = $label;
 			}
 			$this->actions = $actions;
+			$baseActions = $this->makeActions();
 		}
-
+		
+		if($this->sortableHeaders) {
+			$sort = $this->getFromMethod('sort');
+			$dir = $this->getFromMethod('dir','asc');
+			if($this->sortData && $sort) {
+				usort($this->data,function($a,$b) use($sort,$dir) {
+					if($a[$sort] == $b[$sort]) {
+						return 0;
+					}
+					if($dir == 'asc') {
+						return $a[$sort] < $b[$sort] ? -1 : 1;
+					}
+					return $a[$sort] > $b[$sort] ? -1 : 1;
+				});
+			}
+		}
+			
 		//build headers
 		if ($this->headers) {
 			$headers = [];
@@ -335,11 +381,25 @@ class Table extends HtmlWriter {
 				//un-check all
 				$headers .= '<th><input type="checkbox" onclick="toggleSelectable(this,document.' . $this->getFormName() . ');" /></th>';
 			}
+			
 			foreach ($this->headers as $header => $label) {
 				$tag = '<th';
 				if ($this->sortableHeaders && in_array($header, $this->sortableHeaders)) {
-					$tag .= ' class="sort" data-sort="' . $header . '"';
+					$class = 'sort';
+					if($dir && $sort && $sort == $header) {
+						$class .= ' ' . $dir;
+					}
+					$tag .=  ' class="'.$class.'" data-sort="' . $header . '"';
 					$label .= '<span></span>';
+					if($sort && $sort == $header) {
+						if($dir == 'asc') {
+							$dir = 'desc';
+						}
+						else {
+							$dir = 'asc';
+						}
+					}
+					$label = '<a href="'.$this->getQueryStringUrl(['sort' => $header,'dir' => $dir]).'">'.$label.'</a>';
 				}
 				$tag .= '>' . $label . '</th>';
 				$headers .= $tag;
@@ -347,7 +407,9 @@ class Table extends HtmlWriter {
 			if ($this->actions) {
 				$search = null;
 				if ($this->tableSearch) {
-					$search = $this->tableSearchInput;
+					$value = $this->getFromMethod($this->tableSearchKey);
+					$search = trim($this->tableSearchInput,'>');
+					$search .= ' name="'.$this->tableSearchKey.'" value="'.$value.'">';
 				}
 				$headers .= '<th>' . $search . '</th>';
 			}
@@ -363,15 +425,28 @@ class Table extends HtmlWriter {
 		if ($this->data) {
 			$html .= '<tbody class="list">';
 			$i = 0;
+			$useIdentifier = false;
+			
+			//first row analysis
+			if(!empty($this->data)) {
+				$row = $this->data[0];
+				//auto id
+				if(is_object($row)) {
+					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($row)));
+				}
+				//identifier
+				if($this->identifier === null && isset($row['id'])) {
+					$this->identifier = 'id';
+				}
+				if(isset($row[$this->identifier])) {
+					$useIdentifier = true;
+				}
+			}
 			foreach ($this->data as $data) {
 				$i++;
 				$value = $i;
-				if (isset($data[$this->identifier])) {
+				if ($useIdentifier) {
 					$value = $data[$this->identifier];
-				}
-				//auto table id
-				if (is_object($data)) {
-					$this->id = 'table-' . strtolower(str_replace('\\', '-', get_class($data)));
 				}
 				$html .= '<tr';
 				if ($this->detailRow) {
@@ -382,7 +457,6 @@ class Table extends HtmlWriter {
 					//check item
 					$html .= '<td><input type="checkbox" name="selectable[]" value="' . $value . '" /></td>';
 				}
-				$j = 0;
 				if ($this->headers) {
 					//if we have headers, display only headers
 					foreach ($headersKeys as $header) {
@@ -390,22 +464,30 @@ class Table extends HtmlWriter {
 						$tag = '<td';
 						//add class to make it sortable
 						if ($this->sortableHeaders && $this->headers) {
-							$tag .= ' class="' . $headersKeys[$j] . '"';
+							$tag .= ' class="' . $header . '"';
 						}
 						$tag .= '>' . $v . '</td>';
 						$html .= $tag;
-						$j++;
 					}
 				}
 				//or display everything
 				else {
 					foreach ($data as $k => $v) {
 						$html .= '<td>' . $v . '</td>';
-						$j++;
 					}
 				}
 				if ($this->actions) {
-					$actions = $this->makeActions($value);
+					$actions = $baseActions;
+					//replace vars
+					preg_match_all('/{{(?P<var>[a-zA-Z0-9_]*)}}/', $actions, $matches);
+					if (!empty($matches['var'])) {
+						foreach ($matches['var'] as $var) {
+							if (isset($data[$var])) {
+								$actions = str_replace('{{' . $var . '}}', urlencode($data[$var]), $actions);
+							}
+						}
+					}
+					//wrap in group
 					$actions = '<div class="btn-group">' . $actions . '</div>';
 					$html .= '<td class="actions">' . $actions . '</td>';
 				}
@@ -413,7 +495,7 @@ class Table extends HtmlWriter {
 
 				if ($this->detailRow) {
 					$html .= '<tr class="detail" style="display:none">';
-					$colspan = $j;
+					$colspan = count($headersKeys);
 					if ($this->actions) {
 						$colspan++;
 					}
@@ -443,7 +525,7 @@ class Table extends HtmlWriter {
 		//pagination
 		if ($this->pagination) {
 			$pagination = $this->makePagination();
-			$html = $pagination . $html . $pagination;
+			$html = $html . $pagination;
 		}
 
 		return $html;
@@ -475,6 +557,13 @@ SCRIPT;
 			}
 		}
 	}
+	
+	protected function getFromMethod($key,$default = null) {
+		if ($this->getFormMethod() == self::METHOD_POST) {
+			return isset($_POST[$key]) ? $_POST[$key] : $default;
+		}
+		return isset($_GET[$key]) ? $_GET[$key] : $default;
+	}
 
 	protected function makeSearchableHeaders() {
 		$headersKey = array_keys($this->headers);
@@ -484,7 +573,7 @@ SCRIPT;
 		}
 
 		$data = $_GET;
-		if ($this->getFormMethod() == 'post') {
+		if ($this->getFormMethod() == self::METHOD_POST) {
 			$data = $_POST;
 		}
 		if ($this->searchableKey && isset($data[$this->searchableKey])) {
@@ -500,7 +589,7 @@ SCRIPT;
 				}
 				$value = isset($data[$header]) ? $data[$header] : null;
 				$name = $header;
-				if($this->searchableKey) {
+				if ($this->searchableKey) {
 					$name = $this->searchableKey . '[' . $name . ']';
 				}
 				$input = '<input type="text" name="' . $name . '" value="' . $value . '" style="width:auto" data-filter="' . $header . '" size="' . $size . '" />';
@@ -514,18 +603,18 @@ SCRIPT;
 	}
 
 	protected function makePagination() {
-		$li = '';
-		$current = $this->pagination['current'];
+		$html = '';
+		$current = isset($_GET[$this->paginationKey]) ? (int) $_GET[$this->paginationKey] : 0;
 		$total = ceil($this->pagination['total']);
 		if ($current > $total) {
 			$current = $total;
 		}
 		$collapse = $this->pagination['collapse'];
-
+		$class = '';
 		if ($current == 0) {
 			$class = 'disabled';
 		}
-		$li .= $this->tag('li', $this->tag('a', '&laquo;', array('href' => _::querystring('p', $current - 1))), array('class' => $class));
+		$html .= '<li class="'.$class.'"><a href="'.$this->getQueryStringUrl($this->paginationKey, $current - 1).'">&laquo;</a></li>';
 		for ($i = 0; $i < $total; $i++) {
 			if ($collapse) {
 				if ($total > $collapse && ($i > $current + $collapse / 2 && $i > $collapse) || ($i < $current - $collapse / 2 && $i < $total - $collapse)) {
@@ -536,13 +625,13 @@ SCRIPT;
 			if ($i == $current) {
 				$class = 'active';
 			}
-			$li .= $this->tag('li', $this->tag('a', $i + 1, array('href' => _::querystring('p', $i))), array('class' => $class));
+			$html .= '<li class="'.$class.'"><a href="'.$this->getQueryStringUrl($this->paginationKey, $i).'">'.($i+1).'</a></li>';
 		}
 		if ($current == $total) {
 			$class = 'disabled';
 		}
-		$li .= $this->tag('li', $this->tag('a', '&raquo;', array('href' => _::querystring('p', $current + 1))), array('class' => $class));
-		$pagination = $this->tag('div.pagination>ul', $li);
+		$html .= '<li class="'.$class.'"><a href="'.$this->getQueryStringUrl($this->paginationKey, $current + 1).'">&raquo;</a></li>';
+		$pagination = '<div data-table="'.$this->getId().'" class="pagination pagination-centered"><ul>'.$html.'</ul></div>';
 		return $pagination;
 	}
 
@@ -565,14 +654,42 @@ SCRIPT;
 		return $actions;
 	}
 
-	protected function getBaseHref() {
+	protected function getBaseUrl() {
 		if ($this->baseHref === null) {
-			$this->baseHref = preg_replace('#\?.*$#D', '', $_SERVER['REQUEST_URI']);
+			$this->baseHref = strtok($_SERVER["REQUEST_URI"], '?');
 		}
 		return $this->baseHref;
 	}
+	
+	protected function getQueryStringUrl($key, $value = null) {
+		$url = $this->getBaseUrl();
+		$sep = ini_get('arg_separator.output');
+		$qs = $_GET;
+		if (is_array($key)) {
+			$qs = array_merge($qs, $key);
+		} else {
+			if ($value === null) {
+				unset($qs[$key]);
+			} else {
+				$qs[$key] = $value;
+			}
+		}
+		$str = '';
+		foreach ($qs as $k => $v) {
+			if (is_array($v)) {
+				$str .= http_build_query(array($k => $v)) . $sep;
+			} else {
+				$str .= "$k=" . urlencode($v) . $sep;
+			}
+		}
+		return $url . '?' . substr($str, 0, -1); /* trim off trailing $sep */
+	}
 
-	protected function makeActions($value = null) {
+	protected function makeActions() {
+		if(is_string($this->actions)) {
+			return $this->actions;
+		}
+		$actions = '';
 		if (is_array($this->actions)) {
 			$actions = array();
 			foreach ($this->actions as $action => $label) {
@@ -585,19 +702,20 @@ SCRIPT;
 					$tag .= ' onclick="' . $this->confirmScript . '"';
 				}
 				if (is_string($action)) {
-					$href = $this->getBaseHref();
+					$href = $this->getBaseUrl();
 					if ($this->actionsMode == self::MODE_REPLACE) {
 						$href = dirname($href);
 					}
 					if ($this->actionsMode == self::MODE_QS) {
 						$href .= '?action=' . $action;
-						if ($value) {
-							$href .= '&id=' . urlencode($value);
+						if($this->getIdentifier()) {
+							$href .= '&id={{'.$this->getIdentifier().'}}';
 						}
+						
 					} else {
 						$href .= '/' . $action;
-						if ($value) {
-							$href .= '/' . urlencode($value);
+						if($this->getIdentifier()) {
+							$href .= '/{{'.$this->getIdentifier().'}}';
 						}
 					}
 					$tag .= ' href="' . $href . '"';
@@ -606,16 +724,6 @@ SCRIPT;
 				$actions[] = $tag;
 			}
 			$actions = implode('', $actions);
-		} else {
-			$actions = $this->actions;
-			preg_match_all('/{{(?P<var>.*)}}/', $actions, $matches);
-			if (!empty($matches['var'])) {
-				foreach ($matches['var'] as $var) {
-					if (isset($data[$var])) {
-						$actions = str_replace("{{" . $var . "}}", $data[$var], $actions);
-					}
-				}
-			}
 		}
 		return $actions;
 	}

@@ -266,7 +266,14 @@ class Request {
 	}
 
 	public function in($key, $default = null, $filter = '') {
-		if ($filter === '') {
+		//get value
+		$v = $this->post($key);
+		if (!$v) {
+			$v = $this->get($key);
+		}
+		
+		//set filter
+		if ($filter === '' && is_string($v)) {
 			$filter = FILTER_SANITIZE_SPECIAL_CHARS;
 
 			//smart default filter
@@ -286,19 +293,13 @@ class Request {
 			}
 		}
 
-		$v = $this->post($key);
-		if (!$v) {
-			$v = $this->get($key);
-		}
 		if ($v && $filter) {
-			if (is_string($v)) {
-				if (is_array($filter)) {
-					if (!in_array($v, $filter)) {
-						return $default;
-					}
-				} else {
-					$v = filter_var($v, $filter);
+			if (is_array($filter)) {
+				if (!in_array($v, $filter)) {
+					return $default;
 				}
+			} else {
+				$v = filter_var($v, $filter);
 			}
 		}
 		if (!$v) {

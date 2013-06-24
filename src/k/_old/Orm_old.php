@@ -73,7 +73,10 @@ class Orm implements JsonSerializable {
 	 */
 	protected static $validation = array();
 
-	public function __construct() {
+	public function __construct($o  = null) {
+		if($o !== null) {
+			if($o instanceof Q)
+		}
 		$this->original = $this->data;
 	}
 
@@ -411,7 +414,6 @@ class Orm implements JsonSerializable {
 			return;
 		}
 		$ids = array_unique($ids);
-
 		switch ($type) {
 			case 'has-one':
 				$injected = static::get()->where($pk, $ids)->orderBy($pk . ' ASC')->fetchAll();

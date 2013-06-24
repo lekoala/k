@@ -117,33 +117,6 @@ class View {
 	}
 	
 	/**
-	 * Create a menu
-	 * 
-	 * @return \k\html\Menu
-	 */
-	public function createMenu() {
-		return new \k\html\Menu();
-	}
-	
-	/**
-	 * Create a table
-	 * 
-	 * @return \k\html\Table
-	 */
-	public function createTable() {
-		return new \k\html\Table();
-	}
-	
-	/**
-	 * Create a form
-	 * 
-	 * @return \k\html\Form
-	 */
-	public function createForm() {
-		return new \k\html\Form();
-	}
-
-	/**
 	 * Get a var from the view
 	 * 
 	 * @param string $name
