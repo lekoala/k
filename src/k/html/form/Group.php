@@ -6,6 +6,7 @@ namespace k\html\form;
  */
 class Group extends Element {
 	protected $elements = array();
+	protected $autoclose = false;
 	
 	public function getElements() {
 		return $this->elements;
@@ -19,5 +20,28 @@ class Group extends Element {
 	public function addElement($element) {
 		$this->elements[] = $element;
 		return $this;
+	}
+	
+	public function autoclose($v = true) {
+		return $this->attribute('autoclose',$v);
+	}
+	
+	/**
+	 * Allows you to call a method directly on the parent form
+	 * @return \k\html\form\Element
+	 */
+	public function __call($name, $arguments) {
+		if (property_exists($this, $name)) {
+			$this->$name = $arguments[0];
+			return $this;
+		}
+		if (!$this->form) {
+			throw new Exception('Element ' . get_called_class() . ' not linked to a form. Trying to call ' . $name);
+		}
+		if (!method_exists($this->form, $name)) {
+			throw new Exception('Invalid method called : ' . $name);
+		}
+		$el = call_user_func_array(array($this->form, $name), $arguments);
+		return $el;
 	}
 }

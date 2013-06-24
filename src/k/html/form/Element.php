@@ -26,6 +26,7 @@ class Element {
 	protected $content;
 	protected $tag;
 	protected $attributes;
+	protected $group;
 
 	public function __construct($content = null, \k\html\Form $form = null) {
 		$this->content = $content;
@@ -40,6 +41,15 @@ class Element {
 
 	public function setForm(\k\html\Form $form) {
 		$this->form = $form;
+		return $this;
+	}
+	
+	public function getGroup() {
+		return $this->group;
+	}
+
+	public function setGroup($group) {
+		$this->group = $group;
 		return $this;
 	}
 

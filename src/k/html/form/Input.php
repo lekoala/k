@@ -128,10 +128,13 @@ class Input extends Element {
 
 	public function renderElement() {
 		$html = '';
+		$html .= $this->renderLabel();
+		if($this->getLayout() == 'horizontal') {
+			$html .= '<div class="controls">';
+		}
 		if ($this->prepend) {
 			$html .= static::makeTag('span.add-on', $this->prepend);
 		}
-		$html .= $this->renderLabel();
 		$html .= $this->renderField();
 		if ($this->append) {
 			$html .= static::makeTag('span.add-on', $this->append);
@@ -143,6 +146,9 @@ class Input extends Element {
 				$type = 'inline';
 			}
 			$html .= '<span class="help-' . $type . '">' . $this->help . '</span>';
+		}
+		if($this->getLayout() == 'horizontal') {
+			$html .= '</div>';
 		}
 		return $html;
 	}

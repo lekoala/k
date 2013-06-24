@@ -28,7 +28,7 @@ trait Permissions {
 		//feel free to implement something else in your model
 		return static::getDefaultPermissions();
 	}
-
+	
 	/**
 	 * Check if the permission exists
 	 * 
@@ -131,6 +131,19 @@ trait Permissions {
 		return $this->perms;
 	}
 
+	/**
+	 * Read one permission
+	 */
+	public function readPermission($permission) {
+		$systemPermissions = self::getPermissions();
+		foreach ($systemPermissions as $k => $v) {
+			if($v == $permission) {
+				return $k;
+			}
+		}
+		return false;
+	}
+	
 	/**
 	 * Decode the binary permissions to an array
 	 * @return array

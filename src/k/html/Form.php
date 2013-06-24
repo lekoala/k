@@ -267,6 +267,16 @@ class Form extends HtmlWriter {
 	/**
 	 * @param string $name
 	 * @param string $label
+	 * @return \k\html\form\Password
+	 */
+	public function password($name, $label = null) {
+		$element = new \k\html\form\Password($name);
+		return $this->add($element, $label);
+	}
+
+	/**
+	 * @param string $name
+	 * @param string $label
 	 * @return \k\html\form\Email
 	 */
 	public function email($name = null, $label = null) {
@@ -388,9 +398,16 @@ class Form extends HtmlWriter {
 		return $this->add($element);
 	}
 
-	protected function executeGroupCallback(\k\html\form\Group $el, Closure $closure) {
+	protected function executeGroupCallback(\k\html\form\Group $el, $closure = null) {
 		$el = $this->add($el);
 		array_push($this->groups, $el);
+		if ($closure === true) {
+			$el->autoclose(true);
+			$closure = null;
+		}
+		if ($closure === null) {
+			return $el;
+		}
 		if (is_callable($closure)) {
 			$closure = $closure->bindTo($el, $el);
 			$closure();
@@ -399,21 +416,24 @@ class Form extends HtmlWriter {
 		return $el;
 	}
 
+	public function close($i = 1) {
+		while ($i--) {
+			array_pop($this->groups);
+		}
+		return $this;
+	}
+
 	/**
 	 * @param string $class
 	 * @param string $closure
 	 * @return \k\html\form\Div
 	 */
-	public function div($class = null, Closure $closure = null) {
+	public function div($class = null, $closure = null) {
 		$element = new \k\html\form\Div();
-		if ($closure === null) {
-			$closure = $class;
-		} else {
-			if (is_array($class)) {
-				$element->setAttributes($class);
-			} elseif ($class) {
-				$element->class($class);
-			}
+		if (is_array($class)) {
+			$element->setAttributes($class);
+		} elseif ($class) {
+			$element->class($class);
 		}
 		return $this->executeGroupCallback($element, $closure);
 	}
@@ -423,24 +443,15 @@ class Form extends HtmlWriter {
 	 * @param string $closure
 	 * @return \k\html\form\Fieldset
 	 */
-	public function fieldset($legend = null, Closure $closure = null) {
+	public function fieldset($legend = null, $closure = null) {
 		$element = new \k\html\form\Fieldset();
 
-		if ($closure === null) {
-			$closure = $legend;
-		} else {
-			if (is_array($legend)) {
-				$element->setAttributes($legend);
-			} elseif ($legend) {
-				$element->legend($legend);
-			}
+		if (is_array($legend)) {
+			$element->setAttributes($legend);
+		} elseif ($legend) {
+			$element->legend($legend);
 		}
-		$el = $this->add($element);
-		//
-		if (is_callable($closure)) {
-			$closure();
-		}
-		return $el;
+		return $this->executeGroupCallback($element, $closure);
 	}
 
 	/**
@@ -455,6 +466,12 @@ class Form extends HtmlWriter {
 		$element->setForm($this);
 		if ($label) {
 			$element->attribute('label', $label);
+		}
+		if (!empty($this->groups) && $element instanceof \k\html\form\Group) {
+			$last = end($this->groups);
+			if($last->autoclose()) {
+				$this->close();
+			}
 		}
 		if (!empty($this->groups)) {
 			$last = end($this->groups);
@@ -503,13 +520,15 @@ class Form extends HtmlWriter {
 		if ($this->enctype) {
 			$enctype = 'multipart/form-data';
 		}
-		$html = self::makeTag('form', array(
+		$atts = array(
 			'action' => $this->action,
 			'method' => $this->method,
 			'class' => $class,
 			'enctype' => $enctype,
 			'id' => $this->getId()
-		));
+		);
+		$atts = array_merge($atts, $this->attributes);
+		$html = self::makeTag('form', $atts);
 		foreach ($this->elements as $element) {
 			$html .= $this->renderElement($element);
 		}

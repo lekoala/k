@@ -529,13 +529,14 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $folder;
 	}
 
-	public function getCache($name = null) {
+	public function getCache($name = null, $default = null) {
 		if (!$name) {
 			return $this->cache;
 		}
 		if (isset($this->cache[$name])) {
 			return $this->cache[$name];
 		}
+		return $default;
 	}
 
 	public function setCache($name = null, $value = null) {
@@ -684,7 +685,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if($this->query && $this->query->getPrefetch()) {
 			$this->query->prefetch($name, $class);
 			//record will be cached by prefetch if exists
-			return $this->getCache($name);
+			$data = $this->getCache($name);
+			if (!$data) {
+					$data = new $class;
+				}
+			return $data;
 		}
 		$data = null;
 		switch ($type) {
