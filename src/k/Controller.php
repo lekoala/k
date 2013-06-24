@@ -100,7 +100,35 @@ abstract class Controller {
 			$view->content = $c . $v . '<br/>'; 
 		}
 	}
+	
 
+		/**
+	 * Create a menu
+	 * 
+	 * @return \k\html\Menu
+	 */
+	public function createMenu() {
+		return new \k\html\Menu();
+	}
+	
+	/**
+	 * Create a table
+	 * 
+	 * @return \k\html\Table
+	 */
+	public function createTable() {
+		return new \k\html\Table();
+	}
+	
+	/**
+	 * Create a form
+	 * 
+	 * @return \k\html\Form
+	 */
+	public function createForm() {
+		return new \k\html\Form();
+	}
+	
 	protected function redirectBack() {
 		$this->getApp()->getResponse()->redirectBack();
 	}

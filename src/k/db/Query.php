@@ -3,20 +3,24 @@
 namespace k\db;
 
 use \Iterator;
+use \ArrayAccess;
 use \Countable;
 use \Exception;
 use \RuntimeException;
 use \InvalidArgumentException;
 
-/**o
+/**
  * Smart query builder 
  * 
  * Inspiration :
  * @link https://github.com/lichtner/fluentdb/blob/master/FluentPDO.php
  * @link https://github.com/monochromegane/QueryBuilder
  */
-class Query implements Iterator, Countable {
+class Query implements Iterator, ArrayAccess, Countable {
 
+	const FULL_TEXT_MAX_TOKENS = 6;
+	const FULL_TEXT_MAX_LENGTH = 255;
+	
 	/**
 	 * Store defaults for reset
 	 * @var array
@@ -38,12 +42,13 @@ class Query implements Iterator, Countable {
 		'collectionClass' => null,
 		'noCache' => false,
 		'position' => 0,
-		'fetchedData' => array(),
+		'fetchedData' => null,
 		'params' => array(),
 		'fetchMode' => 'fetchAll',
-		'fetchArgs' => array()
+		'fetchArgs' => array(),
+		'prefetch' => true
 	);
-	
+
 	/**
 	 * Pdo instance
 	 * @var PDO
@@ -78,7 +83,7 @@ class Query implements Iterator, Countable {
 	 * Joins like "type" => , "table" =>, "predicate" =>
 	 * @var array 
 	 */
-	protected $joins ;
+	protected $joins;
 
 	/**
 	 * Limit clause
@@ -149,7 +154,7 @@ class Query implements Iterator, Countable {
 	 * Use sql cache or not
 	 * @var bool
 	 */
-	protected $noCache ;
+	protected $noCache;
 
 	/**
 	 * Position (iterator)
@@ -174,6 +179,12 @@ class Query implements Iterator, Countable {
 	 * @var string|object
 	 */
 	protected $log;
+
+	/**
+	 * Should we prefetch orm models
+	 * @var bool
+	 */
+	protected $prefetch;
 
 	/**
 	 * Create a new Query object and allow passing directly the from
@@ -212,7 +223,7 @@ class Query implements Iterator, Countable {
 	 * @return \k\db\Query
 	 */
 	public function reset() {
-		foreach($this->defaults as $k => $v) {
+		foreach ($this->defaults as $k => $v) {
 			$this->$k = $v;
 		}
 		return $this;
@@ -239,8 +250,9 @@ class Query implements Iterator, Countable {
 	public function fetchAs($itemClass = null, $collectionClass = null) {
 		$this->fetchClass = $itemClass;
 		$this->collectionClass = $collectionClass;
-		if(is_subclass_of($itemClass, '\\k\\sql\\Orm')) {
-			$this->fields($itemClass::getTableName() . '.*');
+		if (is_subclass_of($itemClass, '\\k\\db\\Orm')) {
+			$table = $itemClass::getTableName();
+			$this->fields($table . '.*');
 		}
 		return $this;
 	}
@@ -348,18 +360,16 @@ class Query implements Iterator, Countable {
 		}
 		$db = $this->getPdo();
 
-		if(is_object($value)) {
-			if($value instanceof \k\db\Orm) {
+		if (is_object($value)) {
+			if ($value instanceof \k\db\Orm) {
 				$value = $value->getId();
-			}
-			elseif(method_exists($value, 'toArray()')) {
+			} elseif (method_exists($value, 'toArray()')) {
 				$value = $value->toArray();
-			}
-			else {
+			} else {
 				throw new InvalidArgumentException('Can not use object as value');
 			}
 		}
-		
+
 		if ($value === '') {
 			if (is_array($key)) {
 				//simple filter
@@ -406,6 +416,78 @@ class Query implements Iterator, Countable {
 		return $this;
 	}
 
+	/**
+	 * Apply filter with a value
+	 * @param array|string $filter
+	 * @param mixed $value
+	 */
+	public function filter($filter, $value = null) {
+		if (is_array($filter)) {
+			foreach ($filter as $f => $v) {
+				$this->filter($f, $v);
+			}
+			return;
+		}
+		if (!$value) {
+			return;
+		}
+		$operator = null;
+		if(is_string($value)) {
+			$pattern = '/^([><=])*/';
+			if(preg_match($pattern, $value,$matches)) {
+				if(!empty($matches)) {
+					$operator = $matches[0];
+					$value = preg_replace($pattern, '', $value);
+				}
+			}
+		}
+		$this->where($filter, $value, $operator);
+	}
+
+	public function fullTextSearch($column, $text) {
+		// Multi-column
+		if(!is_array($column)) {
+			$column = explode('|', $column);
+		}
+		foreach($column as $col) {
+			$this->detectForeignKey($col);
+		}
+		$columns = array_map(function($value) { return "{$value}"; }, $column);
+		$column = "replace(concat_ws(' ', ".implode(',', $columns)."), ' ', '')";
+
+		// Slugify and tokenize
+		$text = strtolower($text);
+		$text = iconv('utf-8', 'us-ascii//translit', $text);
+
+		$text = preg_replace(':[^a-z0-9]+:', ' ', $text);
+		$text = preg_replace(':([a-z])([0-9]):', '$1 $2', $text);
+		$text = preg_replace(':([0-9])([a-z]):', '$1 $2', $text);
+
+		$text = preg_replace(':(^|[^0-9])0+:', '$1', $text);
+		$tokens = preg_split(':\\s+:', $text);
+
+		// Token limits
+		if (! count($tokens)) {
+			return;
+		}
+		if (count($tokens) > self::FULL_TEXT_MAX_TOKENS) {
+			$tokens = array_slice($tokens, 0, self::FULL_TEXT_MAX_TOKENS);
+		}
+		// Filter length
+		$length = 0;
+		$maxLength = self::FULL_TEXT_MAX_LENGTH;
+		$tokens = array_filter($tokens, function($token) use (& $length, $maxLength) {
+			return ($length += strlen($token)) <= $maxLength;
+		});
+		
+		$text = '%'.implode('%', $tokens).'%';
+		$param = $this->replaceByPlaceholder($text);
+		$this->where[] = sprintf("concat(%s) like {$param}",
+			implode(',', array_fill(0, count($tokens), $column))
+		);
+		return $this;
+	}
+	
 	/**
 	 * Replace value by placeholder
 	 * @param type $value
@@ -539,7 +621,15 @@ class Query implements Iterator, Countable {
 	 */
 	public function orderBy($columns) {
 		if (is_array($columns)) {
-			$columns = $columns[0] . ' ' . $columns[1];
+			$cols = [];
+			foreach ($columns as $k => $v) {
+				$cols .= $k . ' ' . $v;
+			}
+			$columns = implode(',', $cols);
+		}
+		$columns = trim($columns);
+		if (empty($columns)) {
+			return $this;
 		}
 		$columns = $this->detectForeignKey($columns);
 		$this->orderBy = $columns;
@@ -825,7 +915,7 @@ class Query implements Iterator, Countable {
 		$results = $this->query();
 		if ($results) {
 			if ($fetchArgument) {
-				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument);
+				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument, array($this));
 			} else {
 				$this->fetchedData = $results->fetchAll($fetchType);
 			}
@@ -836,7 +926,7 @@ class Query implements Iterator, Countable {
 		}
 		return $this->fetchedData;
 	}
-	
+
 	/**
 	 * Fetch all records index by column
 	 * 
@@ -845,14 +935,13 @@ class Query implements Iterator, Countable {
 	 * @param mixed $fetchArgument
 	 * @return array
 	 */
-	public function fetchBy($column = 'id',$fetchType = null, $fetchArgument = null) {
+	public function fetchBy($column = 'id', $fetchType = null, $fetchArgument = null) {
 		$data = $this->fetchAll($fetchType, $fetchArgument);
 		$dataBy = array();
-		foreach($data as $row) {
-			if(is_object($row)) {
+		foreach ($data as $row) {
+			if (is_object($row)) {
 				$dataBy[$row->$column] = $row;
-			}
-			else {
+			} else {
 				$dataBy[$row[$column]] = $row;
 			}
 		}
@@ -920,7 +1009,7 @@ class Query implements Iterator, Countable {
 		}
 		return $res;
 	}
-	
+
 	/**
 	 * Fetch one record (limit)
 	 * 
@@ -1007,27 +1096,42 @@ class Query implements Iterator, Countable {
 	 * @return string 
 	 */
 	protected function detectForeignKey($key) {
-		if (strpos($key, '.') !== false) {
-			$key_parts = explode('.', $key);
+		preg_match_all('/[a-zA-Z0-9_]*\.[a-zA-Z0-9_]*/', $key, $matches);
+		if (!empty($matches[0])) {
+			foreach ($matches[0] as $match) {
+				$parts = explode('.', $match);
+				$table = $parts[0];
 
-			//do not create joins when they are already there
-			$table = $key_parts[0];
-			if (isset($this->aliases[$table])) {
-				$table = $this->aliases[$table];
-			}
-			foreach ($this->joins as $join) {
-				if ($join['table'] === $table) {
+				//can use relation name instead of table
+				if ($this->fetchClass && is_subclass_of($this->fetchClass, '\\k\\db\\Orm')) {
+					$class = $this->fetchClass;
+					$relations = $class::getHasOneRelations();
+					if (isset($relations[$table])) {
+						$newClass = $relations[$table];
+						$table = $newClass::getTableName();
+					}
+				}
+
+				//do not create joins when they are already there
+				if (isset($this->aliases[$table])) {
+					$table = $this->aliases[$table];
+				}
+				foreach ($this->joins as $join) {
+					if ($join['table'] === $table) {
+						continue;
+					}
+				}
+				if ($table == $this->from) {
 					return $key;
 				}
+				$this->leftJoin($table);
+				if (empty($this->fields)) {
+					$this->fields($this->from . '.*');
+				}
+				$this->addField($table . '.' . $parts[1]);
+				$newValue = $table . '.' . $parts[1];
+				$key = str_replace($match, $newValue, $key);
 			}
-			if ($table == $this->from) {
-				return $key;
-			}
-			$this->leftJoin($table);
-			if (empty($this->fields)) {
-				$this->fields($this->from . '.*');
-			}
-			$this->addField($table . '.' . $key_parts[1]);
 		}
 		return $key;
 	}
@@ -1045,6 +1149,44 @@ class Query implements Iterator, Countable {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Prefetch records for orm
+	 * 
+	 * @param string $relation
+	 * @param string $injectedClass
+	 * @return boolean
+	 * @throws Exception
+	 */
+	public function prefetch($relation = null, $injectedClass = null) {
+		if ($injectedClass) {
+			return $injectedClass::inject($this->fetchedData, $relation);
+		}
+		$row = $this->fetchedData[0];
+		if (!$row instanceof Orm) {
+			throw new Exception('Prefetch only works for records of class Orm');
+		}
+		$class = get_class($row);
+		$rels = $class::getHasOneRelations();
+		if ($relation) {
+			$injectedClass = $rels[$relation];
+		}
+		if ($injectedClass) {
+			return $injectedClass::inject($this->fetchedData, $relation);
+		}
+		foreach ($rels as $relation => $injectedClass) {
+			$injectedClass::inject($this->fetchedData, $relation);
+		}
+		return true;
+	}
+
+	public function getFetchedData() {
+		return $this->fetchedData;
+	}
+
+	public function getPrefetch() {
+		return $this->prefetch;
 	}
 
 	/* --- iterator --- */
@@ -1066,17 +1208,57 @@ class Query implements Iterator, Countable {
 	}
 
 	public function valid() {
-		if (empty($this->fetchedData)) {
+		if ($this->fetchedData === null) {
 			$this->fetchedData = $this->fetchAll();
 		}
 		return isset($this->fetchedData[$this->position]);
 	}
 
+	/* --- countable --- */
+
+	public function quickcount($query = 'count(*)') {
+		$original = $this->fields;
+		$this->fields = array($query);
+		$res = $this->query();
+		$this->fields = $original;
+		return $res->fetchColumn();
+	}
+
 	public function count() {
-		if (empty($this->fetchedData)) {
+		if ($this->fetchedData === null) {
 			$this->fetchedData = $this->fetchAll();
 		}
 		return count($this->fetchedData);
+	}
+
+	/* --- arrayaccess --- */
+
+	public function offsetSet($offset, $value) {
+		if ($this->fetchedData === null) {
+			$this->fetchedData = $this->fetchAll();
+		}
+		if (is_null($offset)) {
+			$this->fetchedData[] = $value;
+		} else {
+			$this->fetchedData[$offset] = $value;
+		}
+	}
+
+	public function offsetExists($offset) {
+		if ($this->fetchedData === null) {
+			$this->fetchedData = $this->fetchAll();
+		}
+		return isset($this->fetchedData[$offset]);
+	}
+
+	public function offsetUnset($offset) {
+		unset($this->fetchedData[$offset]);
+	}
+
+	public function offsetGet($offset) {
+		if ($this->offsetExists($offset)) {
+			return $this->fetchedData[$offset];
+		}
 	}
 
 }

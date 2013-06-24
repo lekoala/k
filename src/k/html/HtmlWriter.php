@@ -21,7 +21,7 @@ abstract class HtmlWriter {
 	/**
 	 * Return the html content
 	 */
-	public function render($format = true) {
+	public function render($format = false) {
 		$this->html = $this->renderHtml();
 		if($format) {
 			$this->html = $this->formatXml($this->html);
@@ -34,7 +34,7 @@ abstract class HtmlWriter {
 
 	public function __toString() {
 		try {
-			return $this->render(true);
+			return $this->render();
 		} catch (\Exception $e) {
 			return $e->getMessage();
 		}

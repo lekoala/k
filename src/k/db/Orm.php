@@ -66,6 +66,17 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @var null|array 
 	 */
 	protected static $fields = null;
+	
+	
+	/**
+	 * Specify custom sql fields to add when requesting the model
+	 * 
+	 * Example: [
+	 *  'name' => "CONCAT(firstname,' ',lastname)"
+	 * ]
+	 * @var type 
+	 */
+	protected static $sqlFields = [];
 
 	/**
 	 * Store has-one relations.
@@ -109,15 +120,27 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	protected static $validation = array();
 
 	/**
+	 * Is the model part of a query
+	 * @var query
+	 */
+	protected $query;
+	
+	/**
 	 * Default additionnal fields to export with toArray()
 	 * @var array
 	 */
 	protected static $exportableFields = array();
 
-	public function __construct($data = null) {
-		if (is_array($data)) {
-			$this->data = $data;
+	public function __construct($o = null) {
+		if($o !== null) {
+			if (is_array($o)) {
+				$this->data = $data;
+			}
+			else if($o instanceof Query) {
+				$this->query = $o;
+			}
 		}
+		
 		$this->original = $this->data;
 	}
 
@@ -159,8 +182,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if (strpos($name, '.') !== false) {
 			$parts = explode('.', $name);
 			$part = array_shift($parts);
-			if ($this->isRelated($part)) {
-				return $this->getRelated($part)->getField(implode('.', $parts));
+			if (static::isRelated($part)) {
+				$o = $this->getRelated($part);
+				if(!$o) {
+					return null;
+				}
+				return $o->getField(implode('.', $parts));
 			}
 		}
 		return $this->getRelated($name);
@@ -217,13 +244,13 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 //				$this->$name = $value;
 //			} else {
 //		$name = str_replace('_id', '', $name); //we might try to set this because of a join
-//		if ($this->isRelated($name) && isset($object)) {
+//		if (static::isRelated($name) && isset($object)) {
 //			return $this->addRelated($object);
 //		}
 //			}
 		return false;
 	}
-
+	
 	/**
 	 * Check if the field exists or is available as a virtual field
 	 * @param type $name
@@ -243,7 +270,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if (strpos($name, '.') !== false) {
 			return true;
 		}
-		if ($this->isRelated($name)) {
+		if (static::isRelated($name)) {
 			return true;
 		}
 		return false;
@@ -295,6 +322,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$arr[$k] = $this->getField($k);
 		}
 		return $arr;
+	}
+	
+	public function getQuery() {
+		return $this->query;
+	}
+
+	public function setQuery(query $query) {
+		$this->query = $query;
+		return $this;
 	}
 
 	/**
@@ -530,7 +566,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		$class = get_called_class();
 		$modelName = $class::getModelName();
 		$injectClass = get_class($first);
-		$type = $first->isRelated($modelName, $relation);
+		$type = $injectClass::isRelated($modelName, $relation);
 		if (!$type) {
 			return;
 		}
@@ -543,7 +579,6 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$recordColumn = $pk;
 			$column = $injectClass::getForForeignKey($relation);
 		}
-
 		$ids = array();
 		foreach ($array as $record) {
 			$key = $record->$recordColumn;
@@ -646,6 +681,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$relations = static::getAllRelations();
 			$class = $relations[$name];
 		}
+		if($this->query && $this->query->getPrefetch()) {
+			$this->query->prefetch($name, $class);
+			//record will be cached by prefetch if exists
+			return $this->getCache($name);
+		}
 		$data = null;
 		switch ($type) {
 			case static::HAS_ONE:
@@ -700,7 +740,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			return;
 		}
 		$class = get_class($o);
-		$type = $this->isRelated($class, $relation);
+		$type = static::isRelated($class, $relation);
 		switch ($type) {
 			case 'hasOne':
 				$field = $class::getForForeignKey($relation);
@@ -743,7 +783,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 
 		$class = get_class($o);
-		$type = $this->isRelated($class, $relation);
+		$type = static::isRelated($class, $relation);
 
 		switch ($type) {
 			case 'hasOne':
@@ -1199,6 +1239,14 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 
 		return $fields;
+	}
+	
+	/**
+	 * Sql fields
+	 * @return array
+	 */
+	public static function getSqlFields() {
+		return static::$sqlFields;
 	}
 
 	/**
