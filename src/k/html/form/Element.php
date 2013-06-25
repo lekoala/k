@@ -158,7 +158,8 @@ class Element {
 	 */
 	public function __call($name, $arguments) {
 		if (property_exists($this, $name)) {
-			$this->$name = $arguments[0];
+			$v = isset($arguments[0]) ? $arguments[0] : true;
+			$this->$name = $v;
 			return $this;
 		}
 		if (!$this->form) {

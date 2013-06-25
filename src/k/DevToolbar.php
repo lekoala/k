@@ -8,6 +8,7 @@ use \RuntimeException;
 /**
  * Debug bar that can be displayed at the bottom of a page or collect raw data
  * to be sent through ajax
+ * @link http://phpdebugbar.com/ 
  */
 class DevToolbar {
 

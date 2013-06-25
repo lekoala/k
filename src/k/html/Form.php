@@ -143,9 +143,9 @@ class Form extends HtmlWriter {
 	}
 
 	public function getId() {
-		if (empty($this->id)) {
+		if ($this->id === null) {
 			$name = str_replace('/', '-', strtolower(trim($_SERVER['PATH_INFO'], '/')));
-			return 'form-' . $name;
+			$this->id = 'form-' . $name;
 		}
 		return $this->id;
 	}
@@ -416,7 +416,25 @@ class Form extends HtmlWriter {
 		return $el;
 	}
 
+	/**
+	 * Close any number of opened groups
+	 * @param int $i
+	 * @return \k\html\Form
+	 */
 	public function close($i = 1) {
+		if(empty($this->groups)) {
+			return $this;
+		}
+		$autoclose = true;
+		while($autoclose) {
+			$last = end($this->groups);
+			if($last && $last->autoclose()) {
+				array_pop($this->groups);
+			}
+			else {
+				$autoclose = false;
+			}
+		}
 		while ($i--) {
 			array_pop($this->groups);
 		}
@@ -467,10 +485,11 @@ class Form extends HtmlWriter {
 		if ($label) {
 			$element->attribute('label', $label);
 		}
+		//if we have groups and we add a new group, check for autoclose
 		if (!empty($this->groups) && $element instanceof \k\html\form\Group) {
 			$last = end($this->groups);
 			if($last->autoclose()) {
-				$this->close();
+				array_pop($this->groups);
 			}
 		}
 		if (!empty($this->groups)) {

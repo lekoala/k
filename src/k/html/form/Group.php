@@ -3,6 +3,7 @@ namespace k\html\form;
 
 /**
  * Base group class
+ * @method Group autoclose()
  */
 class Group extends Element {
 	protected $elements = array();
@@ -22,16 +23,15 @@ class Group extends Element {
 		return $this;
 	}
 	
-	public function autoclose($v = true) {
-		return $this->attribute('autoclose',$v);
-	}
-	
 	/**
 	 * Allows you to call a method directly on the parent form
 	 * @return \k\html\form\Element
 	 */
 	public function __call($name, $arguments) {
 		if (property_exists($this, $name)) {
+			if(empty($arguments)) {
+				return $this->$name;
+			}
 			$this->$name = $arguments[0];
 			return $this;
 		}

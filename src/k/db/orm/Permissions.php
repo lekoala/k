@@ -7,28 +7,28 @@ namespace k\db\orm;
  * @link http://codingrecipes.com/how-to-write-a-permission-system-using-bits-and-bitwise-operations-in-php
  */
 trait Permissions {
-	
+
 	public static $fieldsPermissions = array(
 		'perms' => 'INT'
 	);
-	
+
 	public static function getDefaultPermissions() {
 		return array(
 			'view' => 1,
-			'comment' => 2,
-			'post' => 4,
-			'edit' => 8,
-			'delete' => 16,
-			'admin' => 32,
-			'developer' => 64
+			'comment' => 2 << 0,
+			'post' => 2 << 1,
+			'edit' => 2 << 2,
+			'delete' => 2 << 3,
+			'admin' => 2 << 4,
+			'developer' => 2 << 5
 		);
 	}
-	
+
 	public static function getPermissions() {
 		//feel free to implement something else in your model
 		return static::getDefaultPermissions();
 	}
-	
+
 	/**
 	 * Check if the permission exists
 	 * 
@@ -36,12 +36,12 @@ trait Permissions {
 	 * @return bool
 	 */
 	public function permissionExists($permission) {
-		if(!is_int($permission)) {
+		if (!is_int($permission)) {
 			return array_key_exists($permission, self::getPermissions());
 		}
 		return in_array($permission, array_values(self::getPermissions()));
 	}
-	
+
 	/**
 	 * Does the user has this perm / theses perms
 	 * 
@@ -57,18 +57,18 @@ trait Permissions {
 			}
 			return true;
 		}
-		
-		if(!is_int($permission)) {
+
+		if (!is_int($permission)) {
 			$systemPermissions = self::getPermissions();
 			$permission = $systemPermissions[$permission];
 		}
-		
+
 		if ($this->perms & $permission) {
 			return true;
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Add all permissions
 	 * @return string
@@ -76,7 +76,7 @@ trait Permissions {
 	public function addAllPermissions() {
 		$systemPermissions = self::getPermissions();
 		$this->perms = 0;
-		foreach($systemPermissions as $k => $v) {
+		foreach ($systemPermissions as $k => $v) {
 			$this->addPermission($v);
 		}
 		return $this->perms;
@@ -94,14 +94,14 @@ trait Permissions {
 			}
 			return $userPermissions;
 		}
-		if(!is_int($permission)) {
+		if (!is_int($permission)) {
 			$systemPermissions = self::getPermissions();
 			$permission = $systemPermissions[$permission];
 		}
 		$this->perms |= $permission;
 		return $this->perms;
 	}
-	
+
 	/**
 	 * Remove all permissions
 	 * @return int
@@ -123,7 +123,7 @@ trait Permissions {
 			}
 			return $userPermissions;
 		}
-		if(!is_int($permission)) {
+		if (!is_int($permission)) {
 			$systemPermissions = self::getPermissions();
 			$permission = $systemPermissions[$permission];
 		}
@@ -137,13 +137,13 @@ trait Permissions {
 	public function readPermission($permission) {
 		$systemPermissions = self::getPermissions();
 		foreach ($systemPermissions as $k => $v) {
-			if($v == $permission) {
+			if ($v == $permission) {
 				return $k;
 			}
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Decode the binary permissions to an array
 	 * @return array

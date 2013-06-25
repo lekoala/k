@@ -4,6 +4,7 @@ namespace k\html\form;
 class Select extends Input {
 
 	protected $options = array();
+	protected $multiple;
 
 	public function addOption($k = '', $v = null) {
 		if (!$v) {
@@ -15,6 +16,11 @@ class Select extends Input {
 	
 	public function getOptions() {
 		return $this->options;
+	}
+	
+	public function multiple($multiple='multiple') {
+		$this->multiple = $multiple;
+		return $this;
 	}
 
 	public function options($options) {
@@ -43,7 +49,7 @@ class Select extends Input {
 				$options = explode(',', $options);
 			}
 		}
-		$this->options = array_merge($this->options, $options);
+		$this->options = $options;
 		return $this;
 	}
 
@@ -51,13 +57,18 @@ class Select extends Input {
 		$html = '';
 		$value = $this->getValue();
 		foreach ($this->options as $k => $v) {
-			if (is_int($k)) {
-				$k = $v;
-			}
 			$selected = 0;
-			if ($k == $value) {
-				$selected = 1;
+			if($this->multiple) {
+				if(in_array($k, $value)) {
+					$selected = 1;
+				}
 			}
+			else {
+				if ($k == $value) {
+					$selected = 1;
+				}
+			}
+			
 			$this->form->t($v);
 			$html .= static::makeTag('option', array(
 						'value' => $k,
@@ -69,9 +80,13 @@ class Select extends Input {
 	}
 
 	protected function renderField() {
+		if(is_array($this->getValue())) {
+			$this->multiple = true;
+		}
 		$html = static::makeTag('select', array(
 					'name' => $this->getName(),
-					'class' => $this->class
+					'class' => $this->class,
+					'multiple' => $this->multiple
 				));
 		$html .= $this->renderOptions();
 		$html .= '</select>';
