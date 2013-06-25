@@ -26,6 +26,7 @@ class Element {
 	protected $content;
 	protected $tag;
 	protected $attributes;
+	protected $group;
 
 	public function __construct($content = null, \k\html\Form $form = null) {
 		$this->content = $content;
@@ -40,6 +41,15 @@ class Element {
 
 	public function setForm(\k\html\Form $form) {
 		$this->form = $form;
+		return $this;
+	}
+	
+	public function getGroup() {
+		return $this->group;
+	}
+
+	public function setGroup($group) {
+		$this->group = $group;
 		return $this;
 	}
 
@@ -148,7 +158,8 @@ class Element {
 	 */
 	public function __call($name, $arguments) {
 		if (property_exists($this, $name)) {
-			$this->$name = $arguments[0];
+			$v = isset($arguments[0]) ? $arguments[0] : true;
+			$this->$name = $v;
 			return $this;
 		}
 		if (!$this->form) {

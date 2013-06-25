@@ -8,6 +8,7 @@ class Fieldset extends Group {
 
 	protected $tag = 'fieldset';
 	protected $legend;
+	protected $autoclose = true;
 	
 	public function renderElement() {
 		$legend = $this->legend;
