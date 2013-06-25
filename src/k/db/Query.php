@@ -446,14 +446,16 @@ class Query implements Iterator, ArrayAccess, Countable {
 
 	public function fullTextSearch($column, $text) {
 		// Multi-column
+		
 		if(!is_array($column)) {
 			$column = explode('|', $column);
 		}
 		foreach($column as $col) {
 			$this->detectForeignKey($col);
-		}
+ 		}
 		$columns = array_map(function($value) { return "{$value}"; }, $column);
 		$column = "replace(concat_ws(' ', ".implode(',', $columns)."), ' ', '')";
+	
 
 		// Slugify and tokenize
 		$text = strtolower($text);
@@ -479,12 +481,13 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$tokens = array_filter($tokens, function($token) use (& $length, $maxLength) {
 			return ($length += strlen($token)) <= $maxLength;
 		});
-		
+
 		$text = '%'.implode('%', $tokens).'%';
 		$param = $this->replaceByPlaceholder($text);
 		$this->where[] = sprintf("concat(%s) like {$param}",
 			implode(',', array_fill(0, count($tokens), $column))
 		);
+		
 		return $this;
 	}
 	
