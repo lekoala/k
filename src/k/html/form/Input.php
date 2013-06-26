@@ -6,6 +6,7 @@ namespace k\html\form;
  */
 class Input extends Element {
 
+	protected $tag = 'input';
 	protected $type = 'text';
 	protected $name;
 	protected $label;
@@ -69,6 +70,12 @@ class Input extends Element {
 			$this->class = $class;
 		}
 	}
+	
+	public function value($value = null) {
+		if($value !== null) {
+			$this->value = $value;
+		}
+	}
 
 	public function help($value = null, $inline = true) {
 		if ($value === null) {
@@ -89,21 +96,15 @@ class Input extends Element {
 		}
 		$this->form->t($this->name, $this->label);
 
-		return static::makeTag('label', array(
+		return $this->renderHtmlTag('label', array(
 					'for' => 'input-' . $this->getName(),
 					'class' => $class,
 					'text' => $this->label
 				));
 	}
-
-	protected function getInputAttributes($add = array(), $remove = array()) {
-		if (!is_array($add)) {
-			$add = array($add);
-		}
-		if (!is_array($remove)) {
-			$remove = array($remove);
-		}
-		$att = array(
+	
+	protected function getBaseAttributes() {
+		return array(
 			'type' => $this->type,
 			'name' => $this->getName(),
 			'value' => $this->getValue(),
@@ -112,6 +113,16 @@ class Input extends Element {
 			'disabled' => $this->disabled,
 			'class' => $this->class
 		);
+	}
+
+	protected function getElementAttributes($add = array(), $remove = array()) {
+		if (!is_array($add)) {
+			$add = array($add);
+		}
+		if (!is_array($remove)) {
+			$remove = array($remove);
+		}
+		$att = array_merge($this->getBaseAttributes(),$this->getAttributes());
 		foreach ($add as $a) {
 			$att[$a] = $this->$a;
 		}
@@ -120,10 +131,17 @@ class Input extends Element {
 		}
 		return $att;
 	}
+	
+	public function renderOpenTag() {
+		if (!$this->tag) {
+			return '';
+		}
+		return $this->renderHtmlTag($this->getTag(), $this->getElementAttributes());
+	}
 
 	protected function renderField() {
 		$this->form->t($this->placeholder);
-		return static::makeTag('input', $this->getInputAttributes(), true);
+		return $this->renderHtmlTag('input',$this->getElementAttributes(),true);
 	}
 
 	public function renderElement() {
@@ -133,11 +151,11 @@ class Input extends Element {
 			$html .= '<div class="controls">';
 		}
 		if ($this->prepend) {
-			$html .= static::makeTag('span.add-on', $this->prepend);
+			$html .= '<span class="add-on">' . $this->prepend . '</span>' ;
 		}
 		$html .= $this->renderField();
 		if ($this->append) {
-			$html .= static::makeTag('span.add-on', $this->append);
+			$html .= '<span class="add-on">' . $this->append . '</span>' ;
 		}
 		if ($this->help) {
 			$this->form->t($this->help);

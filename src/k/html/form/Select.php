@@ -1,4 +1,5 @@
 <?php
+
 namespace k\html\form;
 
 class Select extends Input {
@@ -13,17 +14,32 @@ class Select extends Input {
 		$this->options[$k] = $v;
 		return $this;
 	}
-	
+
 	public function getOptions() {
 		return $this->options;
 	}
-	
-	public function multiple($multiple='multiple') {
+
+	/**
+	 * Set the select to be multiple
+	 * Automatically set if you set the value to an array
+	 * 
+	 * @param bool $multiple
+	 * @return \k\html\form\Select
+	 */
+	public function multiple($multiple = 'multiple') {
 		$this->multiple = $multiple;
 		return $this;
 	}
 
-	public function options($options) {
+	/**
+	 * Set options of the select element
+	 * 
+	 * @param string|array $options Path to a file (php or csv) or array
+	 * @param bool|string $first First element
+	 * @return \k\html\form\Select
+	 * @throws Exception
+	 */
+	public function options($options, $first = false) {
 		if (is_string($options)) {
 			$ext = pathinfo($options, PATHINFO_EXTENSION);
 			if ($ext) {
@@ -49,6 +65,12 @@ class Select extends Input {
 				$options = explode(',', $options);
 			}
 		}
+		if ($first) {
+			if ($first === true) {
+				$first = '';
+			}
+			$options = array('' => $first) + $options;
+		}
 		$this->options = $options;
 		return $this;
 	}
@@ -58,36 +80,41 @@ class Select extends Input {
 		$value = $this->getValue();
 		foreach ($this->options as $k => $v) {
 			$selected = 0;
-			if($this->multiple) {
-				if(in_array($k, $value)) {
+			if ($this->multiple) {
+				if (in_array($k, $value)) {
 					$selected = 1;
 				}
-			}
-			else {
+			} else {
 				if ($k == $value) {
 					$selected = 1;
 				}
 			}
-			
+
 			$this->form->t($v);
-			$html .= static::makeTag('option', array(
-						'value' => $k,
-						'text' => $v,
-						'selected' => $selected
-					));
+			$tag = $this->renderHtmlTag('option', array(
+				'value' => $k,
+				'selected' => $selected
+			));
+			$html .= $tag . $v . '</option>';
 		}
 		return $html;
 	}
+	
+	protected function getBaseAttributes() {
+		$atts = parent::getBaseAttributes();
+		$atts['multiple'] = $this->multiple;
+		if(isset($atts['value'])) {
+			unset($atts['value']);
+		}
+		unset($atts['type']);
+		return $atts;
+	}
 
 	protected function renderField() {
-		if(is_array($this->getValue())) {
+		if (is_array($this->getValue())) {
 			$this->multiple = true;
 		}
-		$html = static::makeTag('select', array(
-					'name' => $this->getName(),
-					'class' => $this->class,
-					'multiple' => $this->multiple
-				));
+		$html = $this->renderHtmlTag('select', $this->getElementAttributes());
 		$html .= $this->renderOptions();
 		$html .= '</select>';
 		return $html;

@@ -14,7 +14,8 @@ trait Password {
 	);
 
 	public function set_password($password) {
-		$this->setRawField('password',password_hash($password,PASSWORD_BCRYPT));
+		$value = password_hash($password,PASSWORD_BCRYPT);
+		$this->data['password'] = $value;
 		return $this;
 	}
 

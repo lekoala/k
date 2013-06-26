@@ -47,13 +47,7 @@ class Form extends HtmlWriter {
 		$this->method = strtoupper($method);
 	}
 
-	/**
-	 * Factory method for php < 5.4
-	 * @return Form
-	 */
-	public static function create($action = null, $method = 'POST') {
-		return new Form($action, $method);
-	}
+	//TODO: rewrite the html generation part to be part of html writer and not static
 
 	/**
 	 * Tag creation helper
@@ -202,17 +196,71 @@ class Form extends HtmlWriter {
 		$this->translations = $value;
 		return $this;
 	}
-
-	public function populateFromPost() {
-		foreach ($this->elements as $element) {
-			if (!method_exists($element, 'getName')) {
-				continue;
-			}
-			$name = $element->getName();
-			if (isset($_POST[$name])) {
-				$element->value($_POST[$name]);
+	
+	public function find($name, $el = null) {
+		if($el === null) {
+			$el = $this->elements;
+		}
+		if (is_array($el)) {
+			foreach ($el as $element) {
+				if ($element instanceof \k\html\form\Group) {
+					$ret = $this->find($name, $element->getElements());
+					if($ret) {
+						return $ret;
+					}
+				} else {
+					if (!method_exists($element, 'getName')) {
+						continue;
+					}
+					if($name == $element->getName()) {
+						return $element;
+					}
+				}
 			}
 		}
+		return false;
+	}
+
+	public function populate($data = null, $el = null) { 
+		if ($el === null) {
+			$el = $this->elements;
+		}
+		
+		//model integration
+		if(is_object($data) && $data instanceof \k\db\Orm) {
+			//populate has one in fields
+			$rels = $data->getHasOneRelations();
+			foreach($rels as $rel => $class) {
+				$field = $class::getForForeignKey($rel);
+				$f = $this->find($field);
+				if($f) {
+					$o = $data->$rel();
+					$v = $o->getId();
+					$f->value($v);
+					$f->attribute('data-label',$o->getLabel());
+				}
+			}
+		}
+		if (is_array($el)) {
+			foreach ($el as $element) {
+				if ($element instanceof \k\html\form\Group) {
+					$this->populate($data, $element->getElements());
+				} else {
+					if (!method_exists($element, 'getName')) {
+						continue;
+					}
+					$name = $element->getName();
+					
+					if ($data && isset($data[$name])) {
+						$element->value($data[$name]);
+					}
+					if (isset($_POST[$name])) {
+						$element->value($_POST[$name]);
+					}
+				}
+			}
+		}
+
 		return $this;
 	}
 
@@ -422,16 +470,15 @@ class Form extends HtmlWriter {
 	 * @return \k\html\Form
 	 */
 	public function close($i = 1) {
-		if(empty($this->groups)) {
+		if (empty($this->groups)) {
 			return $this;
 		}
 		$autoclose = true;
-		while($autoclose) {
+		while ($autoclose) {
 			$last = end($this->groups);
-			if($last && $last->autoclose()) {
+			if ($last && $last->autoclose()) {
 				array_pop($this->groups);
-			}
-			else {
+			} else {
 				$autoclose = false;
 			}
 		}
@@ -483,12 +530,12 @@ class Form extends HtmlWriter {
 		}
 		$element->setForm($this);
 		if ($label) {
-			$element->attribute('label', $label);
+			$element->label($label);
 		}
 		//if we have groups and we add a new group, check for autoclose
 		if (!empty($this->groups) && $element instanceof \k\html\form\Group) {
 			$last = end($this->groups);
-			if($last->autoclose()) {
+			if ($last->autoclose()) {
 				array_pop($this->groups);
 			}
 		}
