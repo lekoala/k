@@ -287,7 +287,7 @@ class View {
 			echo '{{' . $name . '}}';
 			return true;
 		}
-		echo $errstr;
+		echo $errstr . ' in ' . $errfile . ' at line ' . $errline;
 	}
 
 	/**

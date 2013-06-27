@@ -126,6 +126,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	protected $query;
 	
 	/**
+	 * Is class initilized
+	 * @var bool
+	 */
+	protected $init;
+	
+	/**
 	 * Default additionnal fields to export with toArray()
 	 * @var array
 	 */
@@ -140,10 +146,17 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$this->query = $o;
 			}
 		}
-		
+		//null object should have fields by defaults
+		//TODO: maybe refactor to avoid to do this for normal objects?
+		foreach(static::getFields() as $name) {
+			if(!isset($this->data[$name])) {
+				$this->data[$name] = null;
+			}
+		}
+		//store original
 		$this->original = $this->data;
 	}
-
+	
 	public function __get($name) {
 		return $this->getField($name);
 	}
@@ -228,15 +241,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		} elseif (is_array($value)) {
 			$value = implode(',', $value);
 		}
-		//field
-		if (array_key_exists($name, $this->data)) {
-			$this->data[$name] = $value;
-			return true;
-		}
 		//virtual property setter
 		$method = 'set_' . $name;
 		if (method_exists($this, $method)) {
 			$this->$method($value);
+			return true;
+		}
+		//field
+		if (array_key_exists($name, $this->data)) {
+			$this->data[$name] = $value;
 			return true;
 		}
 		//relation
@@ -286,12 +299,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	public function populate(array $data = null, $withValue = false, $noOverwrite = false) {
 		if ($data === null) {
 			$data = array_merge($_GET, $_POST);
-			if (isset($data[get_called_class()])) {
-				$data = $data[get_called_class()];
+			if (isset($data[static::getTableName()])) {
+				$data = $data[static::getTableName()];
 			}
 		}
 		foreach ($data as $k => $v) {
-			if (property_exists($this, $k)) {
+			if ($this->hasField($k)) {
 				if ($withValue && empty($v)) {
 					continue;
 				}
@@ -568,7 +581,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		$class = get_called_class();
 		$modelName = $class::getModelName();
 		$injectClass = get_class($first);
-		$type = $injectClass::isRelated($modelName, $relation);
+		$type = $injectClass::isRelated($relation);
 		if (!$type) {
 			return;
 		}
@@ -600,7 +613,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 					$byId[$record->$pk] = $record;
 				}
 				foreach ($array as $record) {
-					$key = $record->$column;
+					$key = $record->$recordColumn;
 					if (isset($byId[$key])) {
 						$o = $byId[$key];
 					} else {
@@ -608,7 +621,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 						$o = new $class;
 						$o->$pk = $key;
 					}
-					$record->setCache($modelName, $o);
+					$record->setCache($relation, $o);
 				}
 				break;
 			case self::HAS_MANY:
@@ -688,8 +701,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			//record will be cached by prefetch if exists
 			$data = $this->getCache($name);
 			if (!$data) {
-					$data = new $class;
-				}
+				$data = new $class;
+			}
 			return $data;
 		}
 		$data = null;
@@ -847,7 +860,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 		return $arr;
 	}
-
+	
+	protected function onPreSave(&$changed,$operation) {
+		//implement in subclass, return false to cancel
+	}
+	
+	protected function onPostSave($result) {
+		//implement in subclass
+	}
+	
 	/**
 	 * Save the record
 	 * @return boolean
@@ -856,7 +877,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		//save cached objects too
 		foreach ($this->getCache() as $name => $o) {
 			if (is_object($o)) {
-				if (is_subclass_of($o, '\\k\\sql\\Orm')) {
+				if (is_subclass_of($o, '\\k\\db\\Orm')) {
 					$o->save();
 					$class = get_class($o);
 					$field = $class::getForForeignKey();
@@ -866,6 +887,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 
 		$data = $this->toArray();
+		
 		if ($this->exists()) {
 			$changed = array();
 			foreach ($this->getOriginal() as $k => $v) {
@@ -876,7 +898,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			if (empty($changed)) {
 				return true;
 			}
-			$res = static::getTable()->update($changed, $this->pkAsArray());
+			$res = $this->onPreSave($changed,'update');
+			if($res === false) {
+				return $res;
+			}
+			$res = static::update($changed, $this->pkAsArray());
 		} else {
 			$inserted = array();
 			foreach ($data as $k => $v) {
@@ -887,20 +913,105 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			if (empty($inserted)) {
 				return false;
 			}
-			$res = static::getTable()->insert($inserted);
+			$res = $this->onPreSave($changed,'insert');
+			if($res === false) {
+				return $res;
+			}
+			$res = static::insert($inserted);
 			if ($res && property_exists($this, 'id')) {
 				$this->id = $res;
 			}
 		}
+		
+		$this->onPostSave($res);
+		
 		return $res;
 	}
 
-	public function onPreRemove() {
-		//implement in subclass
+	/**
+	 * Handle direct primary keys as params in where
+	 * @param int|array $where
+	 * @return type
+	 * @throws Exception
+	 */
+	protected function detectPrimaryKeys($where) {
+		if (empty($where)) {
+			return $where;
+		}
+		$pkFields = $this->getPrimaryKeys();
+		if(!$pkFields) {
+			return $where;
+		}
+		if (is_numeric($where)) {
+			if (count($pkFields) > 1) {
+				throw new Exception('Only one id for a composed primary keys');
+			}
+			$where = array($pkFields[0] => $where);
+		} elseif (is_array($where)) {
+			$values = array();
+			foreach ($where as $k => $v) {
+				if (is_int($k)) {
+					$values[] = $v;
+				}
+			}
+			if (count($values) == count($pkFields)) {
+				$where = array_combine($pkFields, $values);
+			}
+		}
+		return $where;
 	}
 
-	public function onPostRemove() {
+	/**
+	 * Do not try to insert or update fields that don't exist
+	 * @param array $data
+	 * @return array
+	 */
+	protected static function filterData($data) {
+		$fields = static::getFields();
+		foreach ($data as $k => $v) {
+			if (!in_array($k, $fields)) {
+				unset($data[$k]);
+			}
+		}
+		return $data;
+	}
+	
+	/**
+	 * @param array $data
+	 * @return int The id of the record
+	 */
+	public static function insert($data) {
+		$data = static::filterData($data);
+		return static::getTable()->insert($data);
+	}
+	
+	/**
+	 * @param array $data
+	 * @param array|string $where
+	 * @param array $params
+	 * @return bool
+	 */
+	public static function update($data, $where = null, $params = array()) {
+		$data = static::filterData($data);
+		return static::getTable()->update($data, $where, $params);
+	}
+	
+	
+	public function onPreRemove() {
+		//implement in subclass, return false to cancel
+	}
+
+	public function onPostRemove($result) {
 		//implement in subclass
+	}
+	
+	/**
+	 * @param array|string $where
+	 * @param array $params
+	 * @return bool
+	 */
+	public static function delete($where, $params = array()) {
+		return static::getTable()->delete($where, $params);
 	}
 
 	/**
@@ -914,7 +1025,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				return false;
 			}
 			$res = static::delete($this->pkAsArray());
-			$this->onPostRemove();
+			$this->onPostRemove($res);
 			return $res;
 		}
 		return false;
@@ -1211,7 +1322,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
-	 * Get fields
+	 * Get fields. By default only return keys.
+	 * 
 	 * @staticvar array $fields
 	 * @return array
 	 */
@@ -1226,8 +1338,9 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			foreach ($hasOneFields as $name => $class) {
 				$field = $class::getForForeignKey($name);
 				if (!isset($fields[$field])) {
-					//TODO: support other types of primary keys
+					$types = $class::getFields(false);
 					$fields[$field] = 'INT';
+//					$fields[$field] = $types[$field];
 				}
 			}
 
@@ -1283,6 +1396,19 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			throw new Exception('This record does not have an id yet in ' . get_called_class());
 		}
 		return $value;
+	}
+	
+	public function getLabel() {
+		if($this->hasField('name')) {
+			return $this->getField('name');
+		}
+		if($this->hasField('title')) {
+			return $this->getField('title');
+		}
+		if($this->hasField('username')) {
+			return $this->getField('username');
+		}
+		return $this->getId();
 	}
 
 	public function getOriginal() {

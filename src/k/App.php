@@ -774,7 +774,7 @@ class App {
 		try {
 			return (string) $this->run();
 		} catch (Exception $e) {
-			return $e->getMessage();
+			return $e->getMessage() . ' in ' . $e->getFile() . ' at line ' . $e->getLine();
 		}
 	}
 

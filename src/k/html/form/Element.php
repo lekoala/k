@@ -25,7 +25,7 @@ class Element {
 	protected $form;
 	protected $content;
 	protected $tag;
-	protected $attributes;
+	protected $attributes = [];
 	protected $group;
 
 	public function __construct($content = null, \k\html\Form $form = null) {
@@ -111,7 +111,10 @@ class Element {
 			}
 		}
 		foreach ($attributes as $k => $v) {
-			if ($k == 'selected' || $k == 'checked') {
+			if(empty($v)) {
+				continue;
+			}
+			if ($k == 'selected' || $k == 'checked' || $k == 'multiple') {
 				if ($v) {
 					$v = $k;
 				}
@@ -121,12 +124,25 @@ class Element {
 		return implode(' ', $atts);
 	}
 
-	protected function renderHtmlTag($tag, $attributes = null) {
+	protected function renderHtmlTag($tag, $attributes = null, $close = false) {
 		$atts = '';
+		$text = '';
 		if ($attributes) {
+			if(isset($attributes['text'])) {
+				$text = $attributes['text'];
+				unset($attributes['text']);
+			}
 			$atts = ' ' . $this->renderHtmlAttributes($attributes);
 		}
-		return '<' . $tag . $atts . '>';
+		$end = '>';
+		if(!$text && $close) {
+			$end = '/>';
+		}
+		$html = '<' . $tag . $atts . $end;
+		if($text) {
+			$html .= $text . '</' . $tag . '>';
+		}
+		return $html;
 	}
 
 	public function renderOpenTag() {

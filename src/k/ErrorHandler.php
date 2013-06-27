@@ -33,6 +33,9 @@ class ErrorHandler {
 
 	public function throwError($code, $message, $file, $line) {
 		if ((error_reporting() & $code) !== 0) {
+			if(App::getInstance()) {
+				App::getInstance()->getLogger()->debug($message . ' in ' . $file . ' at line ' . $line);
+			}
 			throw new ErrorException($message, $code, 0, $file, $line);
 		}
 		return true;
@@ -73,7 +76,7 @@ class ErrorHandler {
 					$this->onError($e);
 					break;
 			}
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			$this->onError($e);
 		}
 	}

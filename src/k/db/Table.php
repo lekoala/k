@@ -44,7 +44,7 @@ class Table {
 
 	public function getPrimaryKey() {
 		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\sql\\Orm')) {
+		if ($class && is_subclass_of($class, '\\k\\db\\Orm')) {
 			return $class::getPrimaryKey();
 		}
 		//TODO : introspect db
@@ -52,7 +52,7 @@ class Table {
 
 	public function getPrimaryKeys() {
 		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\sql\\Orm')) {
+		if ($class && is_subclass_of($class, '\\k\\db\\Orm')) {
 			return $class::getPrimaryKeys();
 		}
 		//TODO : introspect db
@@ -160,76 +160,12 @@ class Table {
 		return $q;
 	}
 	
-		/**
-	 * Handle direct primary keys as params in where
-	 * @param int|array $where
-	 * @return type
-	 * @throws Exception
-	 */
-	protected function detectPrimaryKeys($where) {
-		if (empty($where)) {
-			return $where;
-		}
-		$pkFields = $this->getPrimaryKeys();
-		if(!$pkFields) {
-			return $where;
-		}
-		if (is_numeric($where)) {
-			if (count($pkFields) > 1) {
-				throw new Exception('Only one id for a composed primary keys');
-			}
-			$where = array($pkFields[0] => $where);
-		} elseif (is_array($where)) {
-			$values = array();
-			foreach ($where as $k => $v) {
-				if (is_int($k)) {
-					$values[] = $v;
-				}
-			}
-			if (count($values) == count($pkFields)) {
-				$where = array_combine($pkFields, $values);
-			}
-		}
-		return $where;
-	}
-
-	/**
-	 * Do not try to insert or update fields that don't exist
-	 * @param array $data
-	 * @return array
-	 */
-	public function filterData($data) {
-		$cl = $this->getItemClass();
-		if (!$cl) {
-			return $data;
-		}
-		$fields = array_keys($cl::getFields());
-		foreach ($data as $k => $v) {
-			if (!in_array($k, $fields)) {
-				unset($data[$k]);
-			}
-		}
-		return $data;
-	}
-
 	/**
 	 * @param array $data
 	 * @return int The id of the record
 	 */
 	public function insert($data = array()) {
-		$data = $this->filterData($data);
-		$cl = $this->getItemClass();
-		if ($cl) {
-			$res = $cl::onBeforeInsert($data);
-			if ($res === false) {
-				return false;
-			}
-		}
-		$res = $this->getPdo()->insert($this->getName(), $data);
-		if ($cl) {
-			$cl->callHook('onAfterInsert', $res, $data);
-		}
-		return $res;
+		return $this->getPdo()->insert($this->getName(), $data);
 	}
 
 	/**
@@ -239,32 +175,7 @@ class Table {
 	 * @return bool
 	 */
 	public function update($data = array(), $where = null, $params = array()) {
-		$data = $this->filterData($data);
-		$where = $this->detectPrimaryKeys($where);
-
-		//detect primary key and use it as where condition
-		if (empty($where)) {
-			$where = array();
-			foreach ($this->getPrimaryKeys() as $pk) {
-				if (isset($data[$pk])) {
-					$where[$pk] = $data[$pk];
-					unset($data[$pk]);
-				}
-			}
-		}
-		$cl = $this->getItemClass();
-		if ($cl) {
-			$res = $cl::onBeforeUpdate($data, $where, $params);
-			if ($res === false) {
-				return false;
-			}
-		}
-
-		$res = $this->getPdo()->update($this->getName(), $data, $where, $params);
-		if ($cl) {
-			$cl::onAfterUpdate($res, $data, $where, $params);
-		}
-		return $res;
+		return $this->getPdo()->update($this->getName(), $data, $where, $params);
 	}
 
 	/**
@@ -273,19 +184,7 @@ class Table {
 	 * @return bool
 	 */
 	public function delete($where, $params = array()) {
-		$where = $this->detectPrimaryKeys($where);
-		$cl = $this->getItemClass();
-		if ($cl) {
-			$res = $cl::onBeforeDelete($where, $params);
-			if ($res === false) {
-				return false;
-			}
-		}
-		$res = $this->getPdo()->delete($this->getName(), $where, $params);
-		if ($cl) {
-			$cl::onAfterDelete($res, $where, $params);
-		}
-		return $res;
+		return $this->getPdo()->delete($this->getName(), $where, $params);
 	}
 
 	/**
