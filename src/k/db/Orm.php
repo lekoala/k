@@ -1166,7 +1166,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if($table === null) {
 			$table = static::getTableName();
 		}
-		return str_replace(' ', '',ucwords(str_replace('_',' ',$table)));
+		return self::$classPrefix . str_replace(' ', '',ucwords(str_replace('_',' ',$table)));
 	}
 	
 	/**

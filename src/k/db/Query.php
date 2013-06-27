@@ -803,10 +803,20 @@ class Query implements Iterator, ArrayAccess, Countable {
 		}
 		//autogenerate
 		if ($predicate === null) {
-			$pk = $foreignPk = 'id';
+			$pk = $fk = 'id';
 			$pk = $table . '_' . $pk;
 			
-			$predicate = $this->tableOrAlias() . '.' . $pk . ' = ' . $tableOrAlias . '.' . $foreignPk;
+			$primaryModel = Orm::getClassForTable($this->from);
+			$foreignModel = Orm::getClassForTable($table);
+			
+			if(class_exists($primaryModel) && is_subclass_of($primaryModel, '\\k\\db\\Orm')) {
+				$pk = $primaryModel::getPrimaryKey();
+			}
+			if(class_exists($foreignModel) && is_subclass_of($foreignModel, '\\k\\db\\Orm')) {
+				$fk = $foreignModel::getPrimaryKey();
+			}
+			
+			$predicate = $this->tableOrAlias() . '.' . $pk . ' = ' . $tableOrAlias . '.' . $fk;
 		}
 
 		if (strpos($predicate, '=') !== false) {
