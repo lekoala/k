@@ -308,6 +308,24 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$this->from = $table;
 		return $this;
 	}
+	
+	/**
+	 * Alias a table
+	 * 
+	 * @param string $table
+	 * @param string $alias
+	 */
+	public function alias($table, $alias = null) {
+		if($alias == null) {
+			$alias = $table;
+			$table = $this->from;
+		}
+		$this->aliases[$alias] = $table;
+		//update fields
+		foreach($this->fields as &$field) {
+			$field = str_replace($table . '.', $alias . '.', $field);
+		}
+	}
 
 	/**
 	 * Specify fields
@@ -788,9 +806,20 @@ class Query implements Iterator, ArrayAccess, Countable {
 		}
 		//autogenerate
 		if ($predicate === null) {
-			$pk = $foreignPk = 'id';
+			$pk = $fk = 'id';
 			$pk = $table . '_' . $pk;
-			$predicate = $this->tableOrAlias() . '.' . $pk . ' = ' . $tableOrAlias . '.' . $foreignPk;
+			
+			$primaryModel = Orm::getClassForTable($this->from);
+			$foreignModel = Orm::getClassForTable($table);
+			
+			if(class_exists($primaryModel) && is_subclass_of($primaryModel, '\\k\\db\\Orm')) {
+				$pk = $primaryModel::getPrimaryKey();
+			}
+			if(class_exists($foreignModel) && is_subclass_of($foreignModel, '\\k\\db\\Orm')) {
+				$fk = $foreignModel::getPrimaryKey();
+			}
+			
+			$predicate = $this->tableOrAlias() . '.' . $pk . ' = ' . $tableOrAlias . '.' . $fk;
 		}
 
 		if (strpos($predicate, '=') !== false) {

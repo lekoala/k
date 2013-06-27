@@ -4,6 +4,7 @@ namespace k\db;
 
 use \PDO as NativePdo;
 use \PDOException as NativePdoException;
+use \RuntimeException;
 
 /**
  * Pdo extension. The class extends PDO to allow itself to pass
@@ -277,7 +278,7 @@ class Pdo extends NativePdo {
 	 */
 	public static function get($name = 'default') {
 		if (!isset(self::$instances[$name])) {
-			self::$instances[$name] = new self();
+			throw new RuntimeException('Connection ' . $name . ' does not exist');
 		}
 		return self::$instances[$name];
 	}
