@@ -12,6 +12,9 @@ use \InvalidArgumentException;
 /**
  * Smart query builder 
  * 
+ * - Pseudo full text search (for inno db)
+ * - Integration with ORM (auto joins and prefetch)
+ * 
  * Inspiration :
  * @link https://github.com/lichtner/fluentdb/blob/master/FluentPDO.php
  * @link https://github.com/monochromegane/QueryBuilder
@@ -20,6 +23,10 @@ class Query implements Iterator, ArrayAccess, Countable {
 
 	const FULL_TEXT_MAX_TOKENS = 6;
 	const FULL_TEXT_MAX_LENGTH = 255;
+	const JOIN_LEFT = 'LEFT';
+	const JOIN_RIGHT = 'RIGHT';
+	const JOIN_FULL = 'FULL';
+	const JOIN_INNER = 'INNER';
 	
 	/**
 	 * Store defaults for reset
@@ -45,8 +52,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		'fetchedData' => null,
 		'params' => array(),
 		'fetchMode' => 'fetchAll',
-		'fetchArgs' => array(),
-		'prefetch' => true
+		'fetchArgs' => array()
 	);
 
 	/**
@@ -149,6 +155,12 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @var string
 	 */
 	protected $fetchClass;
+	
+	/**
+	 * Fetch as object
+	 * @var ArrayObject
+	 */
+	protected $collectionClass;
 
 	/** 	
 	 * Use sql cache or not
@@ -181,12 +193,6 @@ class Query implements Iterator, ArrayAccess, Countable {
 	protected $log;
 
 	/**
-	 * Should we prefetch orm models
-	 * @var bool
-	 */
-	protected $prefetch;
-
-	/**
 	 * Create a new Query object and allow passing directly the from
 	 * 
 	 * @param PDO $pdo
@@ -196,25 +202,24 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$this->setPdo($pdo);
 	}
 
+	/**
+	 * @return PDO
+	 */
 	public function getPdo() {
 		return $this->pdo;
 	}
 
+	/**
+	 * @param PDO $pdo
+	 * @return \k\db\Query
+	 * @throws InvalidArgumentException
+	 */
 	public function setPdo($pdo) {
 		if (!$pdo instanceof \PDO) {
 			throw new InvalidArgumentException("You must pass an instance of PDO");
 		}
 		$this->pdo = $pdo;
 		return $this;
-	}
-
-	/**
-	 * Factory for chaining in < php 5.4
-	 * @param PDO $pdo
-	 * @return Query
-	 */
-	public static function create($pdo) {
-		return new static($pdo);
 	}
 
 	/**
@@ -250,6 +255,8 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function fetchAs($itemClass = null, $collectionClass = null) {
 		$this->fetchClass = $itemClass;
 		$this->collectionClass = $collectionClass;
+		
+		//if we have an orm model, fetch only the table fields by default
 		if (is_subclass_of($itemClass, '\\k\\db\\Orm')) {
 			$table = $itemClass::getTableName();
 			$this->fields($table . '.*');
@@ -316,6 +323,20 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$this->fields = $fields;
 		return $this;
 	}
+	
+	/**
+	 * Add a field
+	 * 
+	 * @param string $field 
+	 */
+	public function addField($field) {
+		if(is_array($field)) {
+			foreach($field as $f) {
+				$this->addField($f);
+			}
+		}
+		$this->fields[] = $field;
+	}
 
 	/**
 	 * Set the fields tht should be selected as nullif(field,'') as field
@@ -333,18 +354,19 @@ class Query implements Iterator, ArrayAccess, Countable {
 	}
 
 	/**
-	 * Add a field
-	 * 
-	 * @param string $field 
-	 */
-	public function addField($field) {
-		$this->fields[] = $field;
-	}
-
-	/**
 	 * Add a where clause
 	 * 
-	 * @param string|array $key
+	 * Sample usage
+	 * 
+	 * ('field','value')
+	 * ([
+	 *	'field' => 'value',
+	 *	'otherfield' => 'othervalue')
+	 * ])
+	 * ('id',[1,2,3])
+	 * ('total',500,'>');
+	 * 
+	 * @param string|array $key Pass null to reset where clause
 	 * @param mixed $value (optional)
 	 * @param string $operator (optional)
 	 * @return \k\db\Query
@@ -366,7 +388,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 			} elseif (method_exists($value, 'toArray()')) {
 				$value = $value->toArray();
 			} else {
-				throw new InvalidArgumentException('Can not use object as value');
+				throw new InvalidArgumentException('Can not use object of class "'.get_class($value).'" as value');
 			}
 		}
 
@@ -604,7 +626,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	/**
 	 * Add a having clause
 	 * 
-	 * @param type $columns
+	 * @param string|array $columns
 	 * @return \k\db\Query
 	 */
 	public function having($columns) {
@@ -676,7 +698,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return \k\db\Query
 	 */
 	public function innerJoin($table, $predicate = null) {
-		return $this->join($table, $predicate, 'inner');
+		return $this->join($table, $predicate, self::JOIN_INNER);
 	}
 
 	/**
@@ -687,7 +709,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return \k\db\Query
 	 */
 	public function leftJoin($table, $predicate = null) {
-		return $this->join($table, $predicate, 'left');
+		return $this->join($table, $predicate, self::JOIN_LEFT);
 	}
 
 	/**
@@ -698,7 +720,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return \k\db\Query
 	 */
 	public function rightJoin($table, $predicate = null) {
-		return $this->join($table, $predicate, 'right');
+		return $this->join($table, $predicate, self::JOIN_RIGHT);
 	}
 
 	/**
@@ -709,7 +731,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return \k\db\Query
 	 */
 	public function fullJoin($table, $predicate = null) {
-		return $this->join($table, $predicate, 'full');
+		return $this->join($table, $predicate, self::JOIN_FULL);
 	}
 
 	/**
@@ -726,7 +748,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 			throw new RuntimeException('You must define a base table before joining');
 		}
 		$type = strtoupper($type);
-		if (!in_array($type, array('INNER', 'LEFT', 'RIGHT', 'FULL'))) {
+		if (!in_array($type, array(self::JOIN_FULL, self::JOIN_INNER, self::JOIN_LEFT, self::JOIN_RIGHT))) {
 			throw new InvalidArgumentException('Unsupported join type : ' . $type);
 		}
 
@@ -791,7 +813,6 @@ class Query implements Iterator, ArrayAccess, Countable {
 			throw new Exception('You must set a table before building the statement');
 		}
 
-		$db = $this->getPdo();
 		$tableAs = $this->from;
 		$alias = $this->getAlias($tableAs);
 		if ($alias) {
@@ -870,26 +891,25 @@ class Query implements Iterator, ArrayAccess, Countable {
 	/**
 	 * Do the query
 	 * 
-	 * @return PdoStatement
+	 * @return \k\db\PdoSTatement
 	 */
 	public function query() {
-		$db = $this->getPdo();
-
+		$pdo = $this->getPdo();
 		$sql = $this->build();
 
 //		$results = $db->query($sql);
 //		return $results;
 
-		$stmt = $db->prepare($sql);
+		$stmt = $pdo->prepare($sql);
 		$stmt->execute($this->params);
 		return $stmt;
 	}
 
 	/**
 	 * Allow to set in advance the fetch mode or actually do it
-	 * @param string $fetchMode
+	 * @param string $fetchMode You can use class constants
 	 * @param array $args
-	 * @return \\k\db\Query
+	 * @return \k\db\Query
 	 */
 	public function get($fetchMode = null, $args = array()) {
 		if ($fetchMode === null) {
@@ -926,6 +946,10 @@ class Query implements Iterator, ArrayAccess, Countable {
 			$results = null;
 		} else {
 			$this->fetchedData = array();
+		}
+		if($this->collectionClass) {
+			$class = $this->collectionClass;
+			$this->fetchedData = new $class($this->fetchedData);
 		}
 		return $this->fetchedData;
 	}
@@ -993,7 +1017,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	}
 
 	/**
-	 * Fetch two columns as associative array. Ideal for drodbwns.
+	 * Fetch two columns as associative array. Ideal for dropdowns.
 	 * 
 	 * @param string $value
 	 * @param string $key
@@ -1026,7 +1050,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	/**
 	 * Fetch only one record
 	 * 
-	 * @return Orm
+	 * @return \k\db\Orm
 	 */
 	public function fetchOnlyOne() {
 		$results = $this->fetchAll();
@@ -1059,7 +1083,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	}
 
 	public function __toString() {
-		return $this->build();
+		return $this->getPdo()->formatQuery($this->build());
 	}
 
 	/* helpers */
@@ -1115,10 +1139,13 @@ class Query implements Iterator, ArrayAccess, Countable {
 					}
 				}
 
-				//do not create joins when they are already there
+				//if we use an alias
 				if (isset($this->aliases[$table])) {
+					$key = str_replace($table . '.', $this->aliases[$table], $key);
 					$table = $this->aliases[$table];
 				}
+				
+				//do not create joins when they are already there
 				foreach ($this->joins as $join) {
 					if ($join['table'] === $table) {
 						continue;
@@ -1127,6 +1154,8 @@ class Query implements Iterator, ArrayAccess, Countable {
 				if ($table == $this->from) {
 					return $key;
 				}
+				
+				//auto join
 				$this->leftJoin($table);
 				if (empty($this->fields)) {
 					$this->fields($this->from . '.*');
@@ -1184,12 +1213,14 @@ class Query implements Iterator, ArrayAccess, Countable {
 		return true;
 	}
 
+	/**
+	 * @return array
+	 */
 	public function getFetchedData() {
+		if ($this->fetchedData === null) {
+			$this->fetchedData = $this->fetchAll();
+		}
 		return $this->fetchedData;
-	}
-
-	public function getPrefetch() {
-		return $this->prefetch;
 	}
 
 	/* --- iterator --- */

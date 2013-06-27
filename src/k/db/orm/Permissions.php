@@ -36,10 +36,10 @@ trait Permissions {
 	 * @return bool
 	 */
 	public function permissionExists($permission) {
-		if (!is_int($permission)) {
-			return array_key_exists($permission, self::getPermissions());
+		if (!is_numeric($permission)) {
+			return array_key_exists($permission, static::getPermissions());
 		}
-		return in_array($permission, array_values(self::getPermissions()));
+		return in_array($permission, array_values(static::getPermissions()));
 	}
 
 	/**
@@ -58,8 +58,8 @@ trait Permissions {
 			return true;
 		}
 
-		if (!is_int($permission)) {
-			$systemPermissions = self::getPermissions();
+		if (!is_numeric($permission)) {
+			$systemPermissions = static::getPermissions();
 			$permission = $systemPermissions[$permission];
 		}
 
@@ -74,7 +74,7 @@ trait Permissions {
 	 * @return string
 	 */
 	public function addAllPermissions() {
-		$systemPermissions = self::getPermissions();
+		$systemPermissions = static::getPermissions();
 		$this->perms = 0;
 		foreach ($systemPermissions as $k => $v) {
 			$this->addPermission($v);
@@ -94,8 +94,11 @@ trait Permissions {
 			}
 			return $userPermissions;
 		}
-		if (!is_int($permission)) {
-			$systemPermissions = self::getPermissions();
+		if (!is_numeric($permission)) {
+			$systemPermissions = static::getPermissions();
+			if(!isset($systemPermissions[$permission])) {
+				throw new \Exception('Permission ' . $permission . ' does not exists');
+			}
 			$permission = $systemPermissions[$permission];
 		}
 		$this->perms |= $permission;
@@ -123,8 +126,8 @@ trait Permissions {
 			}
 			return $userPermissions;
 		}
-		if (!is_int($permission)) {
-			$systemPermissions = self::getPermissions();
+		if (!is_numeric($permission)) {
+			$systemPermissions = static::getPermissions();
 			$permission = $systemPermissions[$permission];
 		}
 		$this->perms ^= $permission;
@@ -135,13 +138,19 @@ trait Permissions {
 	 * Read one permission
 	 */
 	public function readPermission($permission) {
-		$systemPermissions = self::getPermissions();
-		foreach ($systemPermissions as $k => $v) {
-			if ($v == $permission) {
-				return $k;
+		$systemPermissions = static::getPermissions();
+		if(!is_numeric($permission)) {
+			if(!isset($systemPermissions[$permission])) {
+				throw new \Exception('Permission ' . $permission . ' does not exists');
+			}
+			return $systemPermissions[$permission];
+		}
+		foreach ($systemPermissions as $name => $code) {
+			if ($code == $permission) {
+				return $name;
 			}
 		}
-		return false;
+		throw new \Exception('Permission ' . $permission . ' does not exists');
 	}
 
 	/**
@@ -149,7 +158,7 @@ trait Permissions {
 	 * @return array
 	 */
 	public function readPermissions($text = true) {
-		$systemPermissions = self::getPermissions();
+		$systemPermissions = static::getPermissions();
 		$p = array();
 		foreach ($systemPermissions as $k => $v) {
 			if ($this->hasPermission($v)) {

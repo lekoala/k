@@ -27,10 +27,46 @@ use \Iterator;
  * @author LeKoala
  */
 class Orm implements JsonSerializable, ArrayAccess, Iterator {
+	//relations
 
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
 	const MANY_MANY = 'manyMany';
+	//validations
+	const V_REQUIRED = 'required';
+	const V_NOT_BLANK = 'notblank';
+	const V_MIN_LENGTH = 'minlength';
+	const V_MAX_LENGTH = 'maxlength';
+	const V_RANGELENGTH = 'rangelength'; // array
+	const V_MIN = 'min';
+	const V_MAX = 'max';
+	const V_RANGE = 'range'; //array
+	const V_REGEXP = 'regexp'; //pattern
+	const V_EQUAL_TO = 'equalto'; //another field
+	const V_MIN_CHECK = 'mincheck'; //array(array('f1','f2','f3'),2);
+	const V_MAX_CHECK = 'maxcheck';
+	const V_REMOTE = 'remote'; //url
+	const V_MINWORDS = 'minwords';
+	const V_MAXWORDS = 'maxwords';
+	const V_RANGEWORDS = 'rangewords'; //array
+	const V_GREATERTHAN = 'greaterthan'; //field
+	const V_LESSTHAN = 'lessthan'; //field
+	const V_BEFOREDATE = 'beforedate';
+	const V_AFTERDATE = 'afterdate';
+	const V_INLIST = 'inlist'; //csv
+	const V_LUHN = 'luhn'; //bool
+	const V_AMERICANDATE = 'americandate'; //bool
+	//type constraints
+	const V_EMAIL = 'email';
+	const V_URL = 'url';
+	const V_URL_STRICT = 'urlstrict';
+	const V_DIGITS = 'digits';
+	const V_NUMBER = 'number';
+	const V_ALPHANUM = 'alphanum';
+	const V_DATE_ISO = 'dateISo';
+	const V_PHONE = 'phone';
+	//extra validators
+	const V_MOMENT = 'moment'; //format to validate against
 
 	/**
 	 * Store field data
@@ -48,10 +84,18 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 	/**
 	 * Cache resolved objects for the current instance
+	 * to avoid querying the database
 	 * 
 	 * @var array
 	 */
 	protected $cache = array();
+
+	/**
+	 * Query used to fetch the model
+	 * 
+	 * @var query
+	 */
+	protected $query;
 
 	/**
 	 * Connection name
@@ -66,8 +110,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @var null|array 
 	 */
 	protected static $fields = null;
-	
-	
+
 	/**
 	 * Specify custom sql fields to add when requesting the model
 	 * 
@@ -120,43 +163,30 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	protected static $validation = array();
 
 	/**
-	 * Is the model part of a query
-	 * @var query
-	 */
-	protected $query;
-	
-	/**
-	 * Is class initilized
-	 * @var bool
-	 */
-	protected $init;
-	
-	/**
 	 * Default additionnal fields to export with toArray()
 	 * @var array
 	 */
 	protected static $exportableFields = array();
 
 	public function __construct($o = null) {
-		if($o !== null) {
+		if ($o !== null) {
 			if (is_array($o)) {
 				$this->data = $data;
-			}
-			else if($o instanceof Query) {
+			} else if ($o instanceof Query) {
 				$this->query = $o;
 			}
 		}
 		//null object should have fields by defaults
 		//TODO: maybe refactor to avoid to do this for normal objects?
-		foreach(static::getFields() as $name) {
-			if(!isset($this->data[$name])) {
+		foreach (static::getFields() as $name) {
+			if (!isset($this->data[$name])) {
 				$this->data[$name] = null;
 			}
 		}
 		//store original
 		$this->original = $this->data;
 	}
-	
+
 	public function __get($name) {
 		return $this->getField($name);
 	}
@@ -182,14 +212,14 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return string
 	 */
 	public function getField($name) {
-		//field
-		if (array_key_exists($name, $this->data)) {
-			return $this->data[$name];
-		}
 		//virtual field
 		$method = 'get_' . $name;
 		if (method_exists($this, $method)) {
 			return $this->$method();
+		}
+		//field
+		if (array_key_exists($name, $this->data)) {
+			return $this->data[$name];
 		}
 		//relation
 		if (strpos($name, '.') !== false) {
@@ -197,7 +227,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$part = array_shift($parts);
 			if (static::isRelated($part)) {
 				$o = $this->getRelated($part);
-				if(!$o) {
+				if (!$o) {
 					return null;
 				}
 				return $o->getField(implode('.', $parts));
@@ -263,7 +293,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 //			}
 		return false;
 	}
-	
+
 	/**
 	 * Check if the field exists or is available as a virtual field
 	 * @param type $name
@@ -336,7 +366,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 		return $arr;
 	}
-	
+
 	public function getQuery() {
 		return $this->query;
 	}
@@ -521,7 +551,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 */
 	public function getFolder($create = false) {
 		$folder = static::getBaseFolder() . '/' . $this->getId();
-		
+
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
@@ -696,7 +726,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$relations = static::getAllRelations();
 			$class = $relations[$name];
 		}
-		if($this->query && $this->query->getPrefetch()) {
+		if ($this->query) {
 			$this->query->prefetch($name, $class);
 			//record will be cached by prefetch if exists
 			$data = $this->getCache($name);
@@ -860,15 +890,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 		return $arr;
 	}
-	
-	protected function onPreSave(&$changed,$operation) {
+
+	protected function onPreSave(&$changed, $operation) {
 		//implement in subclass, return false to cancel
 	}
-	
+
 	protected function onPostSave($result) {
 		//implement in subclass
 	}
-	
+
 	/**
 	 * Save the record
 	 * @return boolean
@@ -887,7 +917,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 
 		$data = $this->toArray();
-		
+
 		if ($this->exists()) {
 			$changed = array();
 			foreach ($this->getOriginal() as $k => $v) {
@@ -898,8 +928,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			if (empty($changed)) {
 				return true;
 			}
-			$res = $this->onPreSave($changed,'update');
-			if($res === false) {
+			$res = $this->onPreSave($changed, 'update');
+			if ($res === false) {
 				return $res;
 			}
 			$res = static::update($changed, $this->pkAsArray());
@@ -913,8 +943,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			if (empty($inserted)) {
 				return false;
 			}
-			$res = $this->onPreSave($changed,'insert');
-			if($res === false) {
+			$res = $this->onPreSave($changed, 'insert');
+			if ($res === false) {
 				return $res;
 			}
 			$res = static::insert($inserted);
@@ -922,9 +952,9 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$this->id = $res;
 			}
 		}
-		
+
 		$this->onPostSave($res);
-		
+
 		return $res;
 	}
 
@@ -939,7 +969,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			return $where;
 		}
 		$pkFields = $this->getPrimaryKeys();
-		if(!$pkFields) {
+		if (!$pkFields) {
 			return $where;
 		}
 		if (is_numeric($where)) {
@@ -975,7 +1005,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 		return $data;
 	}
-	
+
 	/**
 	 * @param array $data
 	 * @return int The id of the record
@@ -984,7 +1014,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		$data = static::filterData($data);
 		return static::getTable()->insert($data);
 	}
-	
+
 	/**
 	 * @param array $data
 	 * @param array|string $where
@@ -995,8 +1025,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		$data = static::filterData($data);
 		return static::getTable()->update($data, $where, $params);
 	}
-	
-	
+
 	public function onPreRemove() {
 		//implement in subclass, return false to cancel
 	}
@@ -1004,7 +1033,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	public function onPostRemove($result) {
 		//implement in subclass
 	}
-	
+
 	/**
 	 * @param array|string $where
 	 * @param array $params
@@ -1359,7 +1388,60 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 		return $fields;
 	}
-	
+
+	/**
+	 * Get an array of fields => rules
+	 * 
+	 * @return array
+	 */
+	public static function getValidation() {
+		$validations = static::$validation;
+
+		//validations rules based on type
+		$nameRules = array(
+			//length
+			'zipcode' => [self::V_MIN_LENGTH => 4, self::V_MAX_LENGTH => 20],
+			'lang_code|country_code' => [self::V_RANGELENGTH => '[2,2]'],
+			//numbers
+			'id' => self::V_DIGITS,
+			'_?price$' => self::V_NUMBER,
+			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => self::V_DIGITS,
+			'_?(lat|lng|lon|latitude|longitude)$' => self::V_NUMBER,
+			//dates
+			'_?(datetime|at)$' => [self::V_MOMENT => 'YYYY-MM-DD HH:mm:ss'],
+			'_?(date|birthdate|birthday)$' => [self::V_MOMENT => 'YYYY-MM-DD'],
+			'_?time$' => [self::V_MOMENT => 'HH:mm:ss'],
+			//types
+			'_?email$' => self::V_EMAIL,
+			'_?url$' => self::V_URL,
+		);
+
+		$fields = static::getFields(false);
+		foreach ($fields as $field => $type) {
+			if(isset($validations[$field])) {
+				continue;
+			}
+			//guess by name
+			foreach ($nameRules as $r => $v) {
+				if (preg_match('/' . $r . '/', $field)) {
+					$validations[$field] = $v;
+					break;
+				}
+			}
+		}
+		
+		$rules = [];
+		//make sure rules is an array
+		foreach ($validations as $field => $rule) {
+			if (is_string($rule)) {
+				$rule = [$rule => true];
+			}
+			$rules[$field] = $rule;
+		}
+		
+		return $rules;
+	}
+
 	/**
 	 * Sql fields
 	 * @return array
@@ -1397,15 +1479,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 		return $value;
 	}
-	
+
 	public function getLabel() {
-		if($this->hasField('name')) {
+		if ($this->hasField('name')) {
 			return $this->getField('name');
 		}
-		if($this->hasField('title')) {
+		if ($this->hasField('title')) {
 			return $this->getField('title');
 		}
-		if($this->hasField('username')) {
+		if ($this->hasField('username')) {
 			return $this->getField('username');
 		}
 		return $this->getId();

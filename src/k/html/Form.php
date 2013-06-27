@@ -240,7 +240,18 @@ class Form extends HtmlWriter {
 					$f->attribute('data-label',$o->getLabel());
 				}
 			}
+			//automatically bind validation rules
+			$validations = $data::getValidation();
+			foreach($validations as $field => $rules) {
+				$f = $this->find($field);
+				if($f) {
+					foreach($rules as $name => $v) {
+						$f->attribute('data-' . $name, $v);
+					}
+				}
+			}
 		}
+		
 		if (is_array($el)) {
 			foreach ($el as $element) {
 				if ($element instanceof \k\html\form\Group) {
