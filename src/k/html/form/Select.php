@@ -18,6 +18,14 @@ class Select extends Input {
 	public function getOptions() {
 		return $this->options;
 	}
+	
+	public function getName($groups = true) {
+		$name = parent::getName($groups);
+		if($this->multiple) {
+			return $name . '[]';
+		}
+		return $name;
+	}
 
 	/**
 	 * Set the select to be multiple

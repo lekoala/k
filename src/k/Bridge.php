@@ -83,6 +83,14 @@ trait Bridge {
 	 * @return mixed
 	 */
 	public function notify($text, $options = array()) {
+		if(is_bool($options) || is_int($options)) {
+			if($options) {
+				$options = 'success';
+			}
+			else {
+				$options = 'error';
+			}
+		}
 		if (!is_array($options)) {
 			$options = array('type' => $options);
 		}

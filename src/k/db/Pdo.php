@@ -1281,18 +1281,18 @@ ORDER BY
 		$rules = array(
 			'zipcode' => 'VARCHAR(20)',
 			'_?ip$' => 'VARCHAR(45)', //ipv6 storage
-			'lang_code|country_code' => 'VARCHAR(2)',
+			'^lang_code|country_code$' => 'VARCHAR(2)',
 			'_?price$' => 'DECIMAL(10,2) UNSIGNED',
 			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => 'INT',
 			'_?(lat|lng|lon|latitude|longitude)$' => 'FLOAT(10,6)',
-			'_?(text|content)' => 'TEXT',
+			'_?(text|content)$' => 'TEXT',
 			'_?(guid|uuid)$' => 'BINARY(36)', //don't store charset/collation
 			//dates
 			'^(is|has)_' => 'TINYINT',
 			'_?(datetime|at)$' => 'DATETIME',
 			'_?(date|birthdate|birthday)$' => 'DATE',
-			'_?time' => 'TIME',
-			'_?ts' => 'TIMESTAMP',
+			'_?time$' => 'TIME',
+			'_?ts$' => 'TIMESTAMP',
 		);
 
 		//default type
