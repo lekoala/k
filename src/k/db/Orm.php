@@ -167,6 +167,9 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @var array
 	 */
 	protected static $exportableFields = array();
+	
+	public static $classPrefix = 'Model_';
+	public static $collectionSuffix;
 
 	public function __construct($o = null) {
 		if ($o !== null) {
@@ -1153,9 +1156,26 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	public static function getTableName() {
 		return strtolower(static::getModelName());
 	}
-
+	
+	/**
+	 * Given a table, find what class is supposed to handle it
+	 * 
+	 * @param string $table
+	 */
+	public static function getClassForTable($table = null) {
+		if($table === null) {
+			$table = static::getTableName();
+		}
+		return str_replace(' ', '',ucwords(str_replace('_',' ',$table)));
+	}
+	
+	/**
+	 * Get model name without the prefix
+	 * 
+	 * @return string
+	 */
 	public static function getModelName() {
-		$name = str_replace(Table::$classPrefix, '', get_called_class());
+		$name = str_replace(self::$classPrefix, '', get_called_class());
 		return $name;
 	}
 
@@ -1212,8 +1232,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$name = $class;
 				$class = ucfirst(static::singularize($name));
 			}
-			if (Table::$classPrefix) {
-				$class = Table::$classPrefix . $class;
+			if (self::$classPrefix) {
+				$class = self::$classPrefix . $class;
 			}
 			$relations[$name] = $class;
 		}
@@ -1668,11 +1688,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		
 	}
 
-	protected function q() {
+	public static function q() {
 		return static::query();
 	}
 
-	protected static function query() {
+	public static function query() {
 		$q = new Query(static::getPdo());
 		$q->from(static::getTableName())->fields(static::getTableName() . '.*')->fetchAs(get_called_class());
 		return $q;

@@ -20,48 +20,12 @@ class Table {
 
 	protected $name;
 	protected $pdo;
-	protected $itemClass = '*';
-	protected $collectionClass = '*';
-	public static $classPrefix = 'Model_';
-	public static $collectionSuffix = 'Collection';
 
 	public function __construct($name, $pdo) {
 		$this->setName($name);
 		$this->setPdo($pdo);
 	}
 	
-	/**
-	 * Get a new instance of a class
-	 * @return \stdClass|\k\db\Orm
-	 */
-	public function getNewInstance() {
-		$class = $this->getItemClass();
-		if($class) {
-			return new $class($this->getPdo());
-		}
-		return new stdClass();
-	}
-
-	public function getPrimaryKey() {
-		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\db\\Orm')) {
-			return $class::getPrimaryKey();
-		}
-		//TODO : introspect db
-	}
-
-	public function getPrimaryKeys() {
-		$class = $this->getItemClass();
-		if ($class && is_subclass_of($class, '\\k\\db\\Orm')) {
-			return $class::getPrimaryKeys();
-		}
-		//TODO : introspect db
-	}
-
-	public function getNameAsClass() {
-		return str_replace(' ', '', ucwords(preg_replace('/[^A-Z^a-z^0-9]+/', ' ', $this->getName())));
-	}
-
 	public function getName() {
 		return $this->name;
 	}
@@ -83,49 +47,6 @@ class Table {
 		return $this;
 	}
 
-	public function getItemClass() {
-		if ($this->itemClass === '*') {
-			$this->itemClass = self::$classPrefix . $this->getNameAsClass();
-			if (!class_exists($this->itemClass)) {
-				$this->itemClass = null;
-			}
-		}
-		return $this->itemClass;
-	}
-
-	public function setItemClass($itemClass) {
-		$this->itemClass = $itemClass;
-		return $this;
-	}
-
-	public function getCollectionClass() {
-		if ($this->collectionClass === '*') {
-			$this->collectionClass = self::$classPrefix . $this->getNameAsClass() . self::$collectionSuffix;
-			if (!class_exists($this->collectionClass)) {
-				$this->collectionClass = null;
-			}
-		}
-		return $this->collectionClass;
-	}
-
-	public function getClassPrefix() {
-		return self::$classPrefix;
-	}
-
-	public function setClassPrefix($classPrefix) {
-		self::$classPrefix = $classPrefix;
-		return $this;
-	}
-
-	public function getCollectionSuffix() {
-		return self::$collectionSuffix;
-	}
-
-	public function setCollectionSuffix($collectionSuffix) {
-		self::$collectionSuffix = $collectionSuffix;
-		return $this;
-	}
-
 	/**
 	 * Shortcut to get the query builder
 	 * @return \k\db\Query;
@@ -143,20 +64,6 @@ class Table {
 	public function query($class = true) {
 		$q = new Query($this->getPdo());
 		$q->from($this->getName())->fields($this->getName() . '.*');
-		if ($class && $this->getItemClass()) {
-			$q->fetchAs($this->getItemClass());
-		}
-		return $q;
-	}
-	
-	/**
-	 * Get the fluent query builder with class defaults
-	 * @return \k\db\Query;
-	 */
-	public function defaultQuery() {
-		$q = $this->query();
-		$q->where(static::defaultWhere());
-		$q->orderBy(static::defaultOrderBy());
 		return $q;
 	}
 	

@@ -14,6 +14,10 @@ use \Exception;
  * @method \k\html\form\Element form()
  * @method \k\html\Form input()
  * @method \k\html\Form fieldset()
+ * @method \k\html\Form checkbox()
+ * @method \k\html\Form password()
+ * @method \k\html\Form radio()
+ * @method \k\html\Form select()
  * @method \k\html\Form div()
  * @method \k\html\Form add()
  */
