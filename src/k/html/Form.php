@@ -145,6 +145,7 @@ class Form extends HtmlWriter {
 	}
 
 	public function setId($value) {
+		
 		$this->id = $value;
 		return $this;
 	}
@@ -504,13 +505,20 @@ class Form extends HtmlWriter {
 	 * @param string $closure
 	 * @return \k\html\form\Div
 	 */
-	public function div($class = null, $closure = null) {
+	public function div($class = null,$id = null,$closure = null) {
 		$element = new \k\html\form\Div();
 		if (is_array($class)) {
 			$element->setAttributes($class);
 		} elseif ($class) {
 			$element->class($class);
 		}
+		
+		if (is_array($id)) {
+			$element->setAttributes($id);
+		} elseif ($id) {
+			$element->id($id);
+		}
+		
 		return $this->executeGroupCallback($element, $closure);
 	}
 
