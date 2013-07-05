@@ -5,6 +5,7 @@ namespace k\db;
 use \PDO as NativePdo;
 use \PDOException as NativePdoException;
 use \RuntimeException;
+use \Exception;
 
 /**
  * Pdo extension. The class extends PDO to allow itself to pass
