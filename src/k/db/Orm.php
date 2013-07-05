@@ -904,11 +904,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $arr;
 	}
 
-	protected function onPreSave(&$changed, $operation) {
+	protected function onPreSave() {
 		//implement in subclass, return false to cancel
 	}
 
-	protected function onPostSave($result) {
+	protected function onPostSave() {
 		//implement in subclass
 	}
 
