@@ -28,7 +28,6 @@ use \Iterator;
  */
 class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	//relations
-
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
 	const MANY_MANY = 'manyMany';
@@ -356,16 +355,15 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return array
 	 */
 	public function toArray($fields = null) {
-		$data = $this->data;
+		if($fields === null) {
+			$fields = static::getFields();
+		}
 		$arr = array();
 		if (is_string($fields)) {
 			$fields = explode(',', $fields);
 		}
-		foreach ($data as $k => $v) {
-			if (!empty($fields) && !in_array($k, $fields)) {
-				continue;
-			}
-			$arr[$k] = $this->getField($k);
+		foreach ($fields as $f) {
+			$arr[$f] = $this->getField($f);
 		}
 		return $arr;
 	}
@@ -1568,7 +1566,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 */
 	public static function getForForeignKey($name = null) {
 		$rel = static::getTableName();
-		if ($name) {
+		if ($name && $name != static::getModelName()) {
 			$rel = strtolower($name);
 		}
 		return $rel . '_' . static::getPrimaryKey();

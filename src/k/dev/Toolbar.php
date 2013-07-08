@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace k\dev;
 
 use \Exception;
 use \RuntimeException;

@@ -23,6 +23,8 @@ use \RuntimeException;
  * @author lekoala
  */
 class Pdo extends NativePdo {
+	
+	const SQLITE_MEMORY = 'sqlite::memory:';
 
 	/**
 	 * Store instances
@@ -200,7 +202,7 @@ class Pdo extends NativePdo {
 		//stop there for sqlite
 		if ($dbtype === 'sqlite') {
 			//dbname could be a file path or :memory:
-			return compact('driver', 'dbname');
+			return compact('dbtype', 'dbname');
 		}
 
 		//keep parsing dbname to extract params

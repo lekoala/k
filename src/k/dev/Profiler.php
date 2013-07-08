@@ -1,6 +1,6 @@
 <?php
 
-namespace k;
+namespace k\dev;
 
 use \ReflectionMethod;
 
@@ -47,7 +47,7 @@ class Profiler {
 	 * @param DevToolbar $tb
 	 * @return array
 	 */
-	public function devToolbarCallback($tb) {
+	public function devToolbarCallback() {
 		$arr = array();
 		$data = $this->getProfile();
 		$time = 0;
@@ -62,7 +62,7 @@ class Profiler {
 				$time += $t;
 				$calls++;
 			}
-			$arr[] = '[' . $tb->formatTime($filetime) . '] ' . $file;
+			$arr[] = '[' . sprintf('%0.6f', $filetime) . '] ' . $file;
 			foreach ($infos as $fct => $t) {
 				$color = 'Silver';
 				if ($t > 0.1) {
@@ -70,10 +70,10 @@ class Profiler {
 				} elseif ($t > 1) {
 					$color = 'Red';
 				}
-				$arr[] = '<span style="color:' . $color . '">[' . $tb->formatTime($t) . '] ' . $fct . '</span>';
+				$arr[] = '<span style="color:' . $color . '">[' . sprintf('%0.6f', $t) . '] ' . $fct . '</span>';
 			}
 		}
-		array_unshift($arr, $files . ' files / ' . $calls . ' calls / ' . $tb->formatTime($time));
+		array_unshift($arr, $files . ' files / ' . $calls . ' calls / ' . sprintf('%0.6f', $time));
 
 		return $arr;
 	}
@@ -147,6 +147,7 @@ class Profiler {
 		}
 
 		// Find the calling function $frame = $bt[0];
+		$frame = $bt[0];
 		if (count($bt) >= 2) {
 			$frame = $bt[1];
 		}

@@ -259,6 +259,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		//if we have an orm model, fetch only the table fields by default
 		if (is_subclass_of($itemClass, '\\k\\db\\Orm')) {
 			$table = $itemClass::getTableName();
+			$table = $this->tableOrAlias($table);
 			$this->fields($table . '.*');
 		}
 		return $this;
@@ -1118,9 +1119,11 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * Current table or alias
 	 * @return string
 	 */
-	protected function tableOrAlias() {
+	protected function tableOrAlias($table = null) {
 		$alias = '';
-		$table = $this->from;
+		if($table === null) {
+			$table = $this->from;
+		}
 		foreach ($this->aliases as $keyAlias => $valueTable) {
 			if ($valueTable == $table) {
 				$alias = $keyAlias;
