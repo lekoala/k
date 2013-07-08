@@ -72,6 +72,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * 
 	 * @var array
 	 */
+
 	protected $data = array();
 
 	/**
@@ -95,6 +96,16 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @var query
 	 */
 	protected $query;
+	
+	/**
+	 * @var array
+	 */
+	protected $saveData;
+	
+	/**
+	 * @var int
+	 */
+	protected $saveStatus;
 
 	/**
 	 * Connection name
@@ -166,7 +177,6 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @var array
 	 */
 	protected static $exportableFields = array();
-	
 	public static $classPrefix = 'Model_';
 	public static $collectionSuffix;
 
@@ -676,18 +686,18 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$injectTable = $injectClass::getTable();
 				$injectPk = $injectClass::getPrimaryKey();
 				$injected = static::get()
-								->fields($table . '.*')
-								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-								->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
-								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
+					->fields($table . '.*')
+					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+					->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
+					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
 				$byId = array();
 				foreach ($injected as $record) {
 					$byId[$record->$pk] = $record;
 				}
 				$map = $injectClass::get()
-								->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
-								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
+					->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
+					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
 
 				foreach ($array as $record) {
 					$id = $record->getId();
@@ -758,8 +768,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			case static::MANY_MANY:
 				$manyTable = $this->getManyManyTable($name);
 				$q = $class::query()
-						->innerJoin($manyTable, $class::getTableName() . '.' . $class::getPrimaryKey() . ' = ' . $class::getForForeignKey())
-						->where($this->getForForeignKey(), $this->id);
+				  ->innerJoin($manyTable, $class::getTableName() . '.' . $class::getPrimaryKey() . ' = ' . $class::getForForeignKey())
+				  ->where($this->getForForeignKey(), $this->id);
 				//fetch extra fields
 				$extra = static::getManyExtraFields($name);
 				foreach ($extra as $name => $type) {
@@ -892,12 +902,22 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $arr;
 	}
 
-	protected function onPreSave(&$changed, $operation) {
+	protected function onPreSave() {
 		//implement in subclass, return false to cancel
 	}
 
-	protected function onPostSave($result) {
+	protected function onPostSave() {
 		//implement in subclass
+	}
+
+	protected function changedFields() {
+		$changed = array();
+		foreach ($this->getOriginal() as $k => $v) {
+			if ($this->$k != $v) {
+				$changed[$k] = $this->$k;
+			}
+		}
+		return $changed;
 	}
 
 	/**
@@ -917,46 +937,47 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			}
 		}
 
-		$data = $this->toArray();
+		//prepare data
+		$exists = $this->exists();
+		if($exists) {
+			$this->saveData = $this->changedFields();
+		}
+		else {
+			$this->saveData = array_filter($this->toArray());
+		}
+		
+		//call hooks, cancel if return false
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'onPreSave' . $name;
+			if (method_exists($t, $p)) {
+				$this->saveStatus = $this->$p();
+			}
+			if($this->saveStatus === false) {
+				return $this->saveStatus;
+			}
+		}
+		$this->saveStatus = $this->onPreSave();
+		if ($this->saveStatus === false) {
+			return $this->saveStatus;
+		}
+		
+		if(empty($this->saveData)) {
+			$this->saveStatus = false;
+			return $this->saveStatus;
+		}
 
-		if ($this->exists()) {
-			$changed = array();
-			foreach ($this->getOriginal() as $k => $v) {
-				if ($this->$k != $v) {
-					$changed[$k] = $this->$k;
-				}
-			}
-			if (empty($changed)) {
-				return true;
-			}
-			$res = $this->onPreSave($changed, 'update');
-			if ($res === false) {
-				return $res;
-			}
-			$res = static::update($changed, $this->pkAsArray());
+		if ($exists) {
+			$this->saveStatus = static::update($this->saveData, $this->pkAsArray());
 		} else {
-			$inserted = array();
-			foreach ($data as $k => $v) {
-				if (!empty($v)) {
-					$inserted[$k] = $v;
-				}
-			}
-			if (empty($inserted)) {
-				return false;
-			}
-			$res = $this->onPreSave($changed, 'insert');
-			if ($res === false) {
-				return $res;
-			}
-			$res = static::insert($inserted);
-			if ($res && property_exists($this, 'id')) {
-				$this->id = $res;
+			$this->saveStatus = static::insert($this->saveData);
+			if ($this->saveStatus && $this->hasField('id')) {
+				$this->id = $this->saveStatus;
 			}
 		}
 
-		$this->onPostSave($res);
+		$this->onPostSave();
 
-		return $res;
+		return $this->saveStatus;
 	}
 
 	/**
@@ -1154,19 +1175,19 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	public static function getTableName() {
 		return strtolower(static::getModelName());
 	}
-	
+
 	/**
 	 * Given a table, find what class is supposed to handle it
 	 * 
 	 * @param string $table
 	 */
 	public static function getClassForTable($table = null) {
-		if($table === null) {
+		if ($table === null) {
 			$table = static::getTableName();
 		}
-		return self::$classPrefix . str_replace(' ', '',ucwords(str_replace('_',' ',$table)));
+		return self::$classPrefix . str_replace(' ', '', ucwords(str_replace('_', ' ', $table)));
 	}
-	
+
 	/**
 	 * Get model name without the prefix
 	 * 
@@ -1436,7 +1457,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 		$fields = static::getFields(false);
 		foreach ($fields as $field => $type) {
-			if(isset($validations[$field])) {
+			if (isset($validations[$field])) {
 				continue;
 			}
 			//guess by name
@@ -1447,7 +1468,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				}
 			}
 		}
-		
+
 		$rules = [];
 		//make sure rules is an array
 		foreach ($validations as $field => $rule) {
@@ -1456,7 +1477,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			}
 			$rules[$field] = $rule;
 		}
-		
+
 		return $rules;
 	}
 
@@ -1609,8 +1630,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if (empty($sort)) {
 			$pk = static::getPrimaryKeys();
 			array_walk($pk, function(&$item) {
-						$item = $item . ' ASC';
-					});
+				  $item = $item . ' ASC';
+			  });
 			$sort = implode(',', $pk);
 		}
 		return $sort;
