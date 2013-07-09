@@ -4,10 +4,7 @@ namespace k\db;
 
 use \ReflectionClass;
 use \Exception;
-use \JsonSerializable;
 use \InvalidArgumentException;
-use \ArrayAccess;
-use \Iterator;
 
 /**
  * Orm class
@@ -26,61 +23,18 @@ use \Iterator;
  *
  * @author LeKoala
  */
-class Orm implements JsonSerializable, ArrayAccess, Iterator {
-	//relations
+class Orm extends \k\data\Model {
+
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
 	const MANY_MANY = 'manyMany';
-	//validations
-	const V_REQUIRED = 'required';
-	const V_NOT_BLANK = 'notblank';
-	const V_MIN_LENGTH = 'minlength';
-	const V_MAX_LENGTH = 'maxlength';
-	const V_RANGELENGTH = 'rangelength'; // array
-	const V_MIN = 'min';
-	const V_MAX = 'max';
-	const V_RANGE = 'range'; //array
-	const V_REGEXP = 'regexp'; //pattern
-	const V_EQUAL_TO = 'equalto'; //another field
-	const V_MIN_CHECK = 'mincheck'; //array(array('f1','f2','f3'),2);
-	const V_MAX_CHECK = 'maxcheck';
-	const V_REMOTE = 'remote'; //url
-	const V_MINWORDS = 'minwords';
-	const V_MAXWORDS = 'maxwords';
-	const V_RANGEWORDS = 'rangewords'; //array
-	const V_GREATERTHAN = 'greaterthan'; //field
-	const V_LESSTHAN = 'lessthan'; //field
-	const V_BEFOREDATE = 'beforedate';
-	const V_AFTERDATE = 'afterdate';
-	const V_INLIST = 'inlist'; //csv
-	const V_LUHN = 'luhn'; //bool
-	const V_AMERICANDATE = 'americandate'; //bool
-	//type constraints
-	const V_EMAIL = 'email';
-	const V_URL = 'url';
-	const V_URL_STRICT = 'urlstrict';
-	const V_DIGITS = 'digits';
-	const V_NUMBER = 'number';
-	const V_ALPHANUM = 'alphanum';
-	const V_DATE_ISO = 'dateISo';
-	const V_PHONE = 'phone';
-	//extra validators
-	const V_MOMENT = 'moment'; //format to validate against
-
-	/**
-	 * Store field data
-	 * 
-	 * @var array
-	 */
-
-	protected $data = array();
 
 	/**
 	 * Store original field data
 	 * 
 	 * @var array
 	 */
-	protected $original = null;
+	protected $_original = null;
 
 	/**
 	 * Cache resolved objects for the current instance
@@ -88,104 +42,49 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * 
 	 * @var array
 	 */
-	protected $cache = array();
+	protected $_cache = array();
 
 	/**
 	 * Query used to fetch the model
 	 * 
 	 * @var query
 	 */
-	protected $query;
-	
-	/**
-	 * @var array
-	 */
-	protected $saveData;
-	
-	/**
-	 * @var int
-	 */
-	protected $saveStatus;
+	protected $_query;
 
 	/**
 	 * Connection name
 	 * @var string
 	 */
-	protected static $connection = 'default';
-
-	/**
-	 * Enforce field definition like ['id','name','desc' => 'text'];
-	 * Leave it to null to be freestyle
-	 * 
-	 * @var null|array 
-	 */
-	protected static $fields = null;
-
-	/**
-	 * Specify custom sql fields to add when requesting the model
-	 * 
-	 * Example: [
-	 *  'name' => "CONCAT(firstname,' ',lastname)"
-	 * ]
-	 * @var type 
-	 */
-	protected static $sqlFields = [];
+	protected static $_connection = 'default';
 
 	/**
 	 * Store has-one relations.
 	 * 
 	 * Relations are defined as an array like ['Name','OtherName' => 'Class']
+	 * So that the name maps the singular class (eg Companies will map Company)
 	 * 
 	 * @var array 
 	 */
-	protected static $hasOne = array();
-
-	/**
-	 * Store has-many
-	 * 
-	 * @var array 
-	 */
-	protected static $hasMany = array();
-
-	/**
-	 * Store many-many relations
-	 * 
-	 * @var array
-	 */
-	protected static $manyMany = array();
-
-	/**
-	 * Store many-many extra fields like ['relation' => ['my','extra' => 'datetime', 'field' => 'text']]
-	 * @var	array
-	 */
-	protected static $manyManyExtra = array();
+	protected static $_relations = array();
 
 	/**
 	 * Base folder to use for file storage
 	 * @var string
 	 */
-	protected static $storage;
+	protected static $_storage;
 
 	/**
-	 * Store validation rules
-	 * @var array 
+	 * Prefix to add/remove before the model objects before mapping them to tables
+	 * @var string
 	 */
-	protected static $validation = array();
-
-	/**
-	 * Default additionnal fields to export with toArray()
-	 * @var array
-	 */
-	protected static $exportableFields = array();
-	public static $classPrefix = 'Model_';
-	public static $collectionSuffix;
+	public static $_classPrefix = 'Model_';
 
 	public function __construct($o = null) {
 		if ($o !== null) {
 			if (is_array($o)) {
 				$this->data = $data;
 			} else if ($o instanceof Query) {
-				$this->query = $o;
+				$this->_query = $o;
 			}
 		}
 		//null object should have fields by defaults
@@ -196,7 +95,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			}
 		}
 		//store original
-		$this->original = $this->data;
+		$this->_original = $this->data;
 	}
 
 	public function __get($name) {
@@ -205,7 +104,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 	public function __set($name, $value) {
 		//the class is not yet initialized, just inject data into it
-		if ($this->original === null) {
+		if ($this->_original === null) {
 			$this->data[$name] = $value;
 			return;
 		}
@@ -315,7 +214,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if (array_key_exists($name, $this->data)) {
 			return true;
 		}
-		if (static::$fields && array_key_exists($name, static::getFields())) {
+		if (static::$_fields && array_key_exists($name, static::getFields())) {
 			return true;
 		}
 		$method = 'get_' . $name;
@@ -358,32 +257,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		}
 	}
 
-	/**
-	 * Export object to an array
-	 * 
-	 * @param string|array $fields Fields to export
-	 * @return array
-	 */
-	public function toArray($fields = null) {
-		if($fields === null) {
-			$fields = static::getFields();
-		}
-		$arr = array();
-		if (is_string($fields)) {
-			$fields = explode(',', $fields);
-		}
-		foreach ($fields as $f) {
-			$arr[$f] = $this->getField($f);
-		}
-		return $arr;
-	}
-
 	public function getQuery() {
-		return $this->query;
+		return $this->_query;
 	}
 
 	public function setQuery(query $query) {
-		$this->query = $query;
+		$this->_query = $query;
 		return $this;
 	}
 
@@ -410,41 +289,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $traits;
 	}
 
-	/**
-	 * Enum list values based on class constants. Constants MUST_LOOK_LIKE_THIS
-	 * 
-	 * @staticvar array $constants
-	 * @param string $name
-	 * @return array
-	 */
-	public static function enum($name) {
-		static $constants;
-
-		$name = strtoupper($name);
-
-		if ($constants === null) {
-			$ref = new ReflectionClass(get_called_class());
-			$constants = $ref->getConstants();
-		}
-
-		$enum = array();
-		foreach ($constants as $key => $value) {
-			if (strpos($key, $name) === 0) {
-				$key = strtolower(str_replace($name . '_', '', $key));
-				$enum[$key] = $value;
-			}
-		}
-		return $enum;
-	}
-
-	/**
-	 * Convert the object in array for json
-	 * 
-	 * @return array
-	 */
-	public function jsonSerialize() {
-		return $this->toArray(static::$exportableFields);
-	}
+	
 
 	/**
 	 * Create a fake record in the db
@@ -516,11 +361,11 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return Object
 	 */
 	public function getAs($name, $class) {
-		if (isset($this->cache[$name])) {
-			return $this->cache[$name];
+		if (isset($this->_cache[$name])) {
+			return $this->_cache[$name];
 		}
-		$this->cache[$name] = $class::create($this->getField($name));
-		return $this->cache[$name];
+		$this->_cache[$name] = $class::create($this->getField($name));
+		return $this->_cache[$name];
 	}
 
 	/**
@@ -548,7 +393,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return string
 	 */
 	public static function getBaseFolder($create = false) {
-		$folder = static::$storage . '/' . static::getTableName();
+		$folder = static::$_storage . '/' . static::getTableName();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
@@ -586,16 +431,16 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 	public function getCache($name = null, $default = null) {
 		if (!$name) {
-			return $this->cache;
+			return $this->_cache;
 		}
-		if (isset($this->cache[$name])) {
-			return $this->cache[$name];
+		if (isset($this->_cache[$name])) {
+			return $this->_cache[$name];
 		}
 		return $default;
 	}
 
 	public function setCache($name = null, $value = null) {
-		$this->cache[$name] = $value;
+		$this->_cache[$name] = $value;
 		return $this;
 	}
 
@@ -686,18 +531,18 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$injectTable = $injectClass::getTable();
 				$injectPk = $injectClass::getPrimaryKey();
 				$injected = static::get()
-					->fields($table . '.*')
-					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-					->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
-					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
+								->fields($table . '.*')
+								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+								->innerJoin($injectTable, $injectTable . '.' . $injectPk . ' = ' . $manyTable . '.' . $fk)
+								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll();
 				$byId = array();
 				foreach ($injected as $record) {
 					$byId[$record->$pk] = $record;
 				}
 				$map = $injectClass::get()
-					->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
-					->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
-					->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
+								->fields($manyTable . '.' . $classFk . ',' . $manyTable . '.' . $fk)
+								->innerJoin($manyTable, $manyTable . '.' . $fk . ' = ' . $injectTable . '.' . $injectPk)
+								->where($manyTable . '.' . $fk, $ids)->orderBy(null)->fetchAll(PDO::FETCH_ASSOC);
 
 				foreach ($array as $record) {
 					$id = $record->getId();
@@ -737,8 +582,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$relations = static::getAllRelations();
 			$class = $relations[$name];
 		}
-		if ($this->query) {
-			$this->query->prefetch($name, $class);
+		if ($this->_query) {
+			$this->_query->prefetch($name, $class);
 			//record will be cached by prefetch if exists
 			$data = $this->getCache($name);
 			if (!$data) {
@@ -768,8 +613,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			case static::MANY_MANY:
 				$manyTable = $this->getManyManyTable($name);
 				$q = $class::query()
-				  ->innerJoin($manyTable, $class::getTableName() . '.' . $class::getPrimaryKey() . ' = ' . $class::getForForeignKey())
-				  ->where($this->getForForeignKey(), $this->id);
+						->innerJoin($manyTable, $class::getTableName() . '.' . $class::getPrimaryKey() . ' = ' . $class::getForForeignKey())
+						->where($this->getForForeignKey(), $this->id);
 				//fetch extra fields
 				$extra = static::getManyExtraFields($name);
 				foreach ($extra as $name => $type) {
@@ -805,7 +650,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			case 'hasOne':
 				$field = $class::getForForeignKey($relation);
 				$this->$field = $o->getId();
-				$this->cache[$field] = $o;
+				$this->_cache[$field] = $o;
 				return $this->save();
 				break;
 			case 'hasMany':
@@ -868,7 +713,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return \k\db\Orm
 	 */
 	public function emptyCache() {
-		$this->cache = array();
+		$this->_cache = array();
 		return $this;
 	}
 
@@ -939,20 +784,19 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 
 		//prepare data
 		$exists = $this->exists();
-		if($exists) {
+		if ($exists) {
 			$this->saveData = $this->changedFields();
-		}
-		else {
+		} else {
 			$this->saveData = array_filter($this->toArray());
 		}
-		
+
 		//call hooks, cancel if return false
 		foreach (static::getTraits() as $t => $name) {
 			$p = 'onPreSave' . $name;
 			if (method_exists($t, $p)) {
 				$this->saveStatus = $this->$p();
 			}
-			if($this->saveStatus === false) {
+			if ($this->saveStatus === false) {
 				return $this->saveStatus;
 			}
 		}
@@ -960,8 +804,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if ($this->saveStatus === false) {
 			return $this->saveStatus;
 		}
-		
-		if(empty($this->saveData)) {
+
+		if (empty($this->saveData)) {
 			$this->saveStatus = false;
 			return $this->saveStatus;
 		}
@@ -1132,23 +976,23 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return Pdo
 	 */
 	public static function getPdo() {
-		return Pdo::get(static::$connection);
+		return Pdo::get(static::$_connection);
 	}
 
 	public static function getConnection() {
-		return static::$connection;
+		return static::$_connection;
 	}
 
 	public static function setConnection($connection) {
-		static::$connection = $connection;
+		static::$_connection = $connection;
 	}
 
 	public static function getStorage() {
-		return static::$storage;
+		return static::$_storage;
 	}
 
 	public static function setStorage($storage) {
-		static::$storage = $storage;
+		static::$_storage = $storage;
 	}
 
 	public function t($name = null) {
@@ -1185,7 +1029,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if ($table === null) {
 			$table = static::getTableName();
 		}
-		return self::$classPrefix . str_replace(' ', '', ucwords(str_replace('_', ' ', $table)));
+		return self::$_classPrefix . str_replace(' ', '', ucwords(str_replace('_', ' ', $table)));
 	}
 
 	/**
@@ -1194,7 +1038,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return string
 	 */
 	public static function getModelName() {
-		$name = str_replace(self::$classPrefix, '', get_called_class());
+		$name = str_replace(self::$_classPrefix, '', get_called_class());
 		return $name;
 	}
 
@@ -1251,8 +1095,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				$name = $class;
 				$class = ucfirst(static::singularize($name));
 			}
-			if (self::$classPrefix) {
-				$class = self::$classPrefix . $class;
+			if (self::$_classPrefix) {
+				$class = self::$_classPrefix . $class;
 			}
 			$relations[$name] = $class;
 		}
@@ -1399,7 +1243,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		static $fields;
 
 		if ($fields === null) {
-			$fields = static::buildFieldsArray(static::$fields);
+			$fields = static::buildFieldsArray(static::$_fields);
 
 			//make sure has-one fields exist
 			$hasOneFields = static::getHasOneRelations();
@@ -1486,7 +1330,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return array
 	 */
 	public static function getSqlFields() {
-		return static::$sqlFields;
+		return static::$_sqlFields;
 	}
 
 	/**
@@ -1533,7 +1377,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	public function getOriginal() {
-		return $this->original;
+		return $this->_original;
 	}
 
 	public static function getPrimaryKey() {
@@ -1630,8 +1474,8 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		if (empty($sort)) {
 			$pk = static::getPrimaryKeys();
 			array_walk($pk, function(&$item) {
-				  $item = $item . ' ASC';
-			  });
+						$item = $item . ' ASC';
+					});
 			$sort = implode(',', $pk);
 		}
 		return $sort;
@@ -1715,53 +1559,6 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		$q = new Query(static::getPdo());
 		$q->from(static::getTableName())->fields(static::getTableName() . '.*')->fetchAs(get_called_class());
 		return $q;
-	}
-
-	/* array access */
-
-	public function offsetSet($offset, $value) {
-		$this->setField($offset, $value);
-	}
-
-	public function offsetExists($offset) {
-		return $this->hasField($offset);
-	}
-
-	public function offsetUnset($offset) {
-		if ($this->hasField($offset)) {
-			$this->setField($offset, null);
-		}
-	}
-
-	public function offsetGet($offset) {
-		return $this->getField($offset);
-	}
-
-	/* iterator */
-
-	public function rewind() {
-		reset($this->data);
-	}
-
-	public function current() {
-		$var = current($this->data);
-		return $var;
-	}
-
-	public function key() {
-		$var = key($this->data);
-		return $var;
-	}
-
-	public function next() {
-		$var = next($this->data);
-		return $var;
-	}
-
-	public function valid() {
-		$key = key($this->data);
-		$var = ($key !== null && $key !== false);
-		return $var;
 	}
 
 }

@@ -4,23 +4,81 @@ require '_bootstrap.php';
 
 // Test how constructor and magic affect performance
 
-class Demo {
+class DemoRelations {
+	/**
+	 * @var PDO
+	 */
+	protected static $pdo;
 
-	protected $id;
-	protected $name;
-	protected $company_id;
+	protected static $relations = [
+		'Company' => [
+			'primary_key' => 'id',
+			'foreign_key' => 'company_id',
+			'table' => 'company'
+		]
+	];
+	protected $_relations;
+	
+	public static function setPdo($pdo) {
+		self::$pdo = $pdo;
+	}
+	
+	public function virtual() {
+		return 'virtual ' . $this->name;
+	}
+	
+	public function __get($name) {
+		return $this->$name();
+	}
+	
+	public function __call($name, $arguments) {
+		if(property_exists($this, $name)) {
+			$func = 'sprintf';
+			$v = $this->$name;
+			if(isset($arguments[1])) {
+				$func = $arguments[1];
+			}
+			if($func === 'date' && !is_int($v)) {
+				$v = strtotime($v);
+			}
+			return $func($arguments[0],$v);
+		}
+		if(isset(static::$relations[$name])) {
+			$rel = static::$relations[$name];
+			$foreign = $rel['foreign_key'];
+			$sql = 'SELECT * FROM ' . $rel['table'] . ' WHERE ' . $rel['primary_key'] . ' = ' . $this->$foreign;
+			$stmt = self::$pdo->query($sql);
+			$stmt->setFetchMode(PDO::FETCH_CLASS,'Company');
+			$res = $stmt->fetch();
+			return $res;
+		}
+		return $name;
+	}
 }
 
-class DemoCombined {
+class Company {
+	public $id;
+	public $name;
+}
+
+class Demo extends DemoRelations {
 
 	public $id;
 	public $name;
 	public $company_id;
-	protected $_original;
-	protected $_relations;
+}
+
+class DemoCombined extends DemoRelations {
+
+	protected $id;
+	protected $name;
+	protected $company_id;
 
 	public function __get($name) {
-		return $this->$name;
+		if(property_exists($this, $name)) {
+			return $this->$name;
+		}
+		return parent::__get($name);
 	}
 
 }
@@ -70,28 +128,31 @@ class DemoMagicConstruct {
 
 }
 
-$rounds = 5;
-$count_users = 500;
+$rounds = 1;
+$count_users = 100;
 
 //create pdo and database
 $pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
 $pdo->exec('CREATE TABLE user(
 	id INT,
 	name VARCHAR,
+	created_at DATE,
 	company_id INT
 )');
 $pdo->exec('CREATE TABLE company(
 	id INT,
 	name VARCHAR
 )');
+DemoRelations::setPdo($pdo);
+
 for ($i = 0; $i < $count_users; $i++) {
 	$name = 'user ' . $i;
 	$company_id = round(rand(1, 5));
-	$pdo->exec('INSERT INTO user(id,name,company_id) VALUES(' . $i . ',\'' . $name . '\',' . $company_id . ')');
+	$pdo->exec('INSERT INTO user(id,name,company_id,created_at) VALUES(' . $i . ',\'' . $name . '\',' . $company_id . ',\''.date('Y-m-d H:i:s').'\')');
 }
 for ($i = 0; $i < 6; $i++) {
 	$name = 'company ' . $i;
-	$pdo->exec('INSERT INTO user(id,name) VALUES(' . $i . ',\'' . $name . '\')');
+	$pdo->exec('INSERT INTO company(id,name) VALUES(' . $i . ',\'' . $name . '\')');
 }
 
 class OrmMagicConstruct extends \k\dev\Bench {
@@ -110,49 +171,57 @@ class OrmMagicConstruct extends \k\dev\Bench {
 
 	protected function DemoConstruct() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS, "DemoConstruct");
-		if ($this->currentRound == 1) {
-			var_dump($res[0]);
-		}
+		return $res[0];
 	}
 
 	protected function DemoConstructLate() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE, "DemoConstruct");
-		if ($this->currentRound == 1) {
-			var_dump($res[0]);
-		}
+		return $res[0];
 	}
 
 	protected function DemoMagic() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS, "DemoMagic");
-		if ($this->currentRound == 1) {
-			var_dump($res[0]);
-		}
+		return $res[0];
 	}
 
 	protected function Demo() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS, "Demo");
-		if ($this->currentRound == 1) {
-			var_dump($res[0]);
-		}
+		
+		return [
+			[
+				'company_id' => $res[0]->company_id,
+				'virtual' => $res[0]->virtual,
+				'created' => $res[0]->created_at('d/m/Y','date'),
+				'company_name' => $res[0]->Company()->name
+			],
+			$res[0],
+			(array)$res[0]
+		];
 	}
 
 	protected function DemoCombined() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS, "DemoCombined");
-		if ($this->currentRound == 1) {
-			echo $res[0]->company_id;
-			var_dump($res[0]);
-		}
+		
+		return [
+			[
+				'company_id' => $res[0]->company_id,
+				'virtual' => $res[0]->virtual,
+				'created' => $res[0]->created_at('d/m/Y','date'),
+				'company_name' => $res[0]->Company()->name
+			],
+			$res[0],
+			(array)$res[0]
+		];
 	}
 
 	protected function DemoInject() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_CLASS, "DemoInject", [$this->pdo]);
+		return $res[0];
 	}
 
 	protected function AssocArray() {
 		$res = $this->createStatement()->fetchAll(PDO::FETCH_ASSOC);
-		if ($this->currentRound == 1) {
-			var_dump($res[0]);
-		}
+		return $res[0];
 	}
 
 }

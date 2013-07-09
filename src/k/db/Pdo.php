@@ -21,11 +21,26 @@ use \Exception;
  * - Factories for Query and Table
  * - Connections registry
  * 
+ * @link https://github.com/troelskn/pdoext/blob/master/lib/pdoext/connection.inc.php
  * @author lekoala
  */
 class Pdo extends NativePdo {
-	
+
 	const SQLITE_MEMORY = 'sqlite::memory:';
+	const KEY_PRIMARY = 'primary';
+	const KEY_FOREIGN = 'foreign';
+	const TYPE_SQLITE = 'sqlite';
+	const TYPE_MYSQL = 'mysql';
+	const TYPE_PGSQL = 'pgsql';
+	const TYPE_MSSQL = 'mssql';
+	const REL_TABLE = 'table';
+	const REL_COLUMN = 'column';
+	const REL_REFERENCED_TABLE = 'referenced_table';
+	const REL_REFERENCED_COLUMN = 'referenced_column';
+	const META_PK = 'pk';
+	const META_TYPE = 'type';
+	const META_DEFAULT = 'default';
+	const META_BLOB = 'blob';
 
 	/**
 	 * Store instances
@@ -408,7 +423,7 @@ class Pdo extends NativePdo {
 			$this->log($statement, $time);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e,$this);
+			throw new PdoException($e, $this);
 		}
 		return $result;
 	}
@@ -427,7 +442,7 @@ class Pdo extends NativePdo {
 			$this->log($statement, $time);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e,$this);
+			throw new PdoException($e, $this);
 		}
 
 		return $result;
@@ -445,7 +460,7 @@ class Pdo extends NativePdo {
 			return $this->getPdo()->prepare($statement, $driver_options);
 		} catch (NativePdoException $e) {
 			$this->log($statement);
-			throw new PdoException($e,$this);
+			throw new PdoException($e, $this);
 		}
 	}
 
@@ -567,7 +582,6 @@ class Pdo extends NativePdo {
 			}
 			$sql .= ' LIMIT ' . $limit;
 		}
-		$sql = $this->translate($sql);
 		$stmt = $this->prepare($sql);
 		$stmt->execute($params);
 		$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -722,13 +736,58 @@ HAVING ( COUNT(*) > 1 )";
 	 * @param string $table
 	 * @return int
 	 */
-	public function dropTable($table) {
-		$sql = 'DROP TABLE ' . $table . '';
-		return $this->exec($sql);
+	public function dropTable($table, $execute = true) {
+		$sql = 'DROP TABLE IF EXISTS ' . $table . '';
+		if ($execute) {
+			$this->exec($sql);
+		}
+		return $sql;
+	}
+
+	/**
+	 * Create constraints based on foreign keys definition array
+	 * @param string $table
+	 * @param array $keys
+	 * @return string
+	 * @throws Exception
+	 */
+	protected function createConstraint($table, $keys) {
+		$constraints = array();
+		foreach ($keys as $key => $reference) {
+			if (is_int($key)) {
+				if (is_string($reference)) {
+					$constraints[] = $reference;
+					continue;
+				}
+				if (is_array($reference)) {
+					$key = $reference['column'];
+					$reference = $reference['referenced_table'] . '(' . $reference['referenced_column'] . ')';
+				} else {
+					throw new Exception('Invalid foreign key definition');
+				}
+			}
+			$fk_name = 'fk_' . $table . '_' . $key . '_' . preg_replace('/[^a-z]/', '', $reference);
+			$constraints[] = 'CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference;
+		}
+		return $constraints;
 	}
 
 	/**
 	 * Scaffold a create statement
+	 * 
+	 * fields
+	 * ['id','name']
+	 * or
+	 * ['id' => 'INT', 'name' => 'VARCHAR']
+	 * or mixed
+	 * 
+	 * fkFields
+	 * ['table2_id' => 'table2(id)']
+	 * or
+	 * [['table' => 'table', 'column' => 'table2_id', 'referenced_table' => 'table2', 'referenced_column => 'id']]
+	 * 
+	 * pkFields
+	 * ['id']
 	 * 
 	 * @param string $table
 	 * @param array $fields
@@ -742,7 +801,13 @@ HAVING ( COUNT(*) > 1 )";
 			$pkFields = array($pkFields);
 		}
 
+		$dbtype = $this->getDbtype();
+
 		$fields = $this->guessTypes($fields, $pkFields);
+
+		if ($dbtype != 'sqlite' && empty($pkFields) && isset($fields['id'])) {
+			$pkFields[] = 'id';
+		}
 
 		if (self::isReservedName($table)) {
 			throw new Exception($table . ' is a reserved name');
@@ -753,24 +818,22 @@ HAVING ( COUNT(*) > 1 )";
 			}
 		}
 
-		$dbtype = $this->getDbtype();
-
 		$sql = 'CREATE TABLE IF NOT EXISTS ' . $table . "(\n";
 		foreach ($fields as $field => $type) {
 			$sql .= "\t" . $field . ' ' . $type . ",\n";
 		}
 
 		//primary key
-		if ($dbtype != 'sqlite') {
+		if ($dbtype != 'sqlite' || !empty($pkFields)) {
 			if (!empty($pkFields)) {
 				$sql .= "\t" . 'PRIMARY KEY (' . implode(',', $pkFields) . ')' . ",\n";
 			}
 		}
 
 		//foreign keys
-		foreach ($fkFields as $key => $reference) {
-			$fk_name = 'fk_' . $table . '_' . $key . '_' . preg_replace('/[^a-z]/', '', $reference);
-			$sql .= "\t" . 'CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference . ",\n";
+		if (!empty($fkFields)) {
+			$constraints = $this->createConstraint($table, $fkFields);
+			$sql .= implode(",\n", $constraints);
 		}
 
 		$sql = rtrim($sql, ",\n");
@@ -781,6 +844,52 @@ HAVING ( COUNT(*) > 1 )";
 			$this->exec($sql);
 		}
 
+		return $sql;
+	}
+
+	/**
+	 * Sqlite need to recreate a table for alter or change keys
+	 * 
+	 * @param string $table
+	 * @param array $addFields
+	 * @param array $removeFields
+	 * @param array $addKeys
+	 * @param array $removeKeys
+	 * @return string
+	 */
+	protected function sqliteAlter($table, array $addFields = array(), array $removeFields = array(), array $addKeys = array(), array $removeKeys = array()) {
+		$tmptable = $table . '_tmp';
+		$columns = $this->listColumns($table);
+		$fields = array();
+		foreach ($columns as $name => $columns) {
+			if (in_array($name, $removeFields)) {
+				continue;
+			}
+			$fields[$name] = $columns['type'];
+		}
+		$newFields = array_merge($fields, $addFields);
+		$cols = implode(',', array_keys($fields));
+
+		$foreignKeys = $this->listForeignKeys($table);
+		$foreignKeys = array_merge($foreignKeys, $addKeys);
+		$foreignKeys = $this->createConstraint($table, $foreignKeys);
+		$removeKeys = $this->createConstraint($table, $removeKeys);
+		foreach ($removeKeys as $removeKey) {
+			$fk = array();
+			foreach ($foreignKeys as $key => $reference) {
+				if ($reference == $removeKey) {
+					continue;
+				}
+				$fk[] = $reference;
+			}
+			$foreignKeys = $fk;
+		}
+		$primaryKeys = $this->listPrimaryKeys($table);
+
+		$sql = "ALTER TABLE $table RENAME TO $tmptable;\n";
+		$sql .= $this->createTable($table, $newFields, $primaryKeys, $foreignKeys, false) . ";\n";
+		$sql .= "INSERT INTO $table(" . $cols . ") SELECT " . $cols . " FROM $tmptable;\n";
+		$sql .= $this->dropTable($tmptable, false);
 		return $sql;
 	}
 
@@ -796,7 +905,15 @@ HAVING ( COUNT(*) > 1 )";
 	public function alterTable($table, array $addFields = array(), array $removeFields = array(), $execute = true) {
 
 		$addFields = $this->guessTypes($addFields);
-		
+
+		if ($this->getDbtype() === self::TYPE_SQLITE) {
+			$sql = $this->sqliteAlter($table, $addFields, $removeFields);
+			if ($execute) {
+				$this->exec($sql);
+			}
+			return $sql;
+		}
+
 		$sql = 'ALTER TABLE ' . $table . "\n";
 
 		foreach ($addFields as $field => $type) {
@@ -817,58 +934,6 @@ HAVING ( COUNT(*) > 1 )";
 		}
 
 		return $sql;
-	}
-
-	/**
-	 * All columns from a table
-	 * 
-	 * @param string $table
-	 * @return array
-	 */
-	public function listColumns($table) {
-		$sql = 'SELECT * FROM ' . $table . ' LIMIT 1';
-
-		$stmt = $this->query($sql);
-
-		$i = 0;
-		$infos = array();
-		while ($column = $stmt->getColumnMeta($i++)) {
-			$infos[$column['name']] = $column;
-		}
-		return $infos;
-	}
-
-	/**
-	 * Cross database list tables
-	 * 
-	 * @return array 
-	 */
-	public function listTables() {
-		// use database specific statement to get the list of tables
-		$mysql = "SHOW FULL TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
-		$pgsql = 'SELECT * FROM pg_tables';
-		$mssql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
-		$sqlite = "SELECT * FROM sqlite_master WHERE type='table'";
-		$oracle = "SELECT * FROM dba_tables";
-
-		$type = $this->getDbtype();
-
-		$result = $this->query($$type);
-		$list = $result->fetchAll();
-		$count = count($list);
-
-		//normalize results
-		switch ($type) {
-			case 'mysql':
-				$tables = array();
-				for ($i = 0; $i < $count; $i++) {
-					$tables[] = $list[$i][0];
-				}
-				$list = $tables;
-				break;
-		}
-
-		return $list;
 	}
 
 	/**
@@ -900,31 +965,55 @@ HAVING ( COUNT(*) > 1 )";
 	 * @param bool $execute
 	 * @return string 
 	 */
-	public function alterKeys($table, $keys, $execute = true) {
-		if (empty($keys)) {
-			return false;
-		}
-		$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
-		if (!$res) {
-			return false;
-		}
-		$rows = $res->fetchAll();
-		if (!isset($rows['Engine']) || $rows['Engine'] != 'InnoDb') {
+	public function alterKeys($table, $addKeys = array(), $removeKeys = array(), $execute = true) {
+		if (empty($addKeys) && empty($removeKeys)) {
 			return false;
 		}
 
-		$all = '';
-		foreach ($keys as $key => $reference) {
-			$sql = 'ALTER TABLE ' . $table . "\n";
-			$fk_name = 'fk_' . $table . '_' . preg_replace('/[^a-z]/', '', $reference);
-			$sql .= 'ADD CONSTRAINT ' . $fk_name . ' FOREIGN KEY (' . $key . ') REFERENCES ' . $reference;
-			$all .= $sql . ";\n";
-			if ($execute) {
-				$this->exec($sql);
-			}
+		switch ($this->getDbtype()) {
+			case 'sqlite':
+				$sql = $this->sqliteAlter($table, array(), array(), $addKeys, $removeKeys);
+
+				if ($execute) {
+					$this->exec($sql);
+				}
+				return $sql;
+			case 'mysql':
+				$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
+				if (!$res) {
+					return false;
+				}
+				$rows = $res->fetchAll();
+				$rows = $rows[0];
+				if (!isset($rows['Engine']) || $rows['Engine'] != 'InnoDB') {
+					throw new Exception('Engine ' . $rows['Engine'] . ' does not support foreign keys');
+				}
+
+				$all = '';
+				$addKeys = $this->createConstraint($table, $addKeys);
+				$removeKeys = $this->createConstraint($table, $removeKeys);
+				foreach ($addKeys as $constraint) {
+					$sql = 'ALTER TABLE ' . $table . "\n";
+					$sql .= 'ADD ' . $constraint . ';';
+					$all .= $sql . "\n";
+					if ($execute) {
+						$this->exec($sql);
+					}
+				}
+				foreach ($removeKeys as $constraint) {
+					$sql = 'ALTER TABLE ' . $table . "\n";
+					preg_match('/CONSTRAINT ([a-z_]*)/', $constraint, $matches);
+					$sql .= 'DROP ' . str_replace('CONSTRAINT ', 'FOREIGN KEY ', $matches[0]) . ';';
+					$all .= $sql . "\n";
+					if ($execute) {
+						$this->exec($sql);
+					}
+				}
+				$all = trim($sql, "\n");
+				return $all;
+			default:
+				throw new Exception('Unsupported db type ' . $this->getDbtype());
 		}
-		$all = trim($sql, "\n");
-		return $all;
 	}
 
 	/**
@@ -960,41 +1049,238 @@ HAVING ( COUNT(*) > 1 )";
 	}
 
 	/**
-	 * List foreign keys querying information schema
+	 * @internal
+	 */
+	protected function loadKeys() {
+		static $keys;
+
+		if ($keys === null) {
+			$sql = "SELECT TABLE_NAME AS `table_name`, COLUMN_NAME AS `column_name`, REFERENCED_COLUMN_NAME AS `referenced_column_name`, REFERENCED_TABLE_NAME AS `referenced_table_name`
+FROM information_schema.KEY_COLUMN_USAGE
+WHERE TABLE_SCHEMA = DATABASE()
+AND REFERENCED_TABLE_SCHEMA = DATABASE()";
+			$result = $this->connection->query($sql);
+			$result->setFetchMode(PDO::FETCH_ASSOC);
+			$keys = array();
+			foreach ($result as $row) {
+				$keys[] = $row;
+			}
+		}
+		return $keys;
+	}
+
+	/**
+	 * Returns list of tables in database.
 	 * 
-	 * Return something like
-	 * Array(
-	 * 	[0] => Array(
-	 * 	[column_name] => 'name'
-	 *  [foreign_db] => 'db,
-	 *  [foreign_table] => 'company',
-	 *  [foreign_column] => 'id'
-	 * 	)
-	 * )
+	 * @return array
+	 */
+	public function listTables() {
+		switch ($this->getDbtype()) {
+			case 'mysql':
+				$sql = "SHOW FULL TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+				break;
+			case 'pgsql':
+				$sql = "SELECT CONCAT(table_schema,'.',table_name) AS name FROM information_schema.tables 
+          WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog','information_schema')";
+				break;
+			case 'sqlite':
+				$sql = 'SELECT name FROM sqlite_master WHERE type = "table" AND name != "sqlite_sequence"';
+				break;
+			case 'mssql':
+				$sql = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'";
+			case 'oracle':
+				$sql = "SELECT * FROM dba_tables";
+			default:
+				throw new Exception($this->getDbtype() . ' does not support listing table');
+		}
+		$result = $this->query($sql);
+		$result->setFetchMode(PDO::FETCH_NUM);
+		$meta = array();
+		foreach ($result as $row) {
+			$meta[] = $row[0];
+		}
+		return $meta;
+	}
+
+	/**
+	 * Returns reflection information about a table.
+	 * 
+	 * @param string $table
+	 * @return array
+	 */
+	public function listColumns($table) {
+		switch ($this->getDbtype()) {
+			case 'pgsql':
+				list($schema, $table) = stristr($table, '.') ? explode(".", $table) : array('public', $table);
+				$result = $this->query(
+						"SELECT c.column_name, c.column_default, c.data_type,
+            (SELECT MAX(constraint_type) AS constraint_type FROM information_schema.constraint_column_usage cu
+            JOIN information_schema.table_constraints tc ON tc.constraint_name = cu.constraint_name AND tc.constraint_type = 'PRIMARY KEY'
+            WHERE cu.column_name = c.column_name AND cu.table_name = c.table_name) AS constraint_type
+          FROM information_schema.columns c WHERE c.table_schema = " . $this->quote($schema) . " AND c.table_name = " . $this->quote($table));
+				$result->setFetchMode(PDO::FETCH_ASSOC);
+				$meta = array();
+				foreach ($result as $row) {
+					$meta[$row['column_name']] = array(
+						'pk' => $row['constraint_type'] == 'PRIMARY KEY',
+						'type' => $row['data_type'],
+						'blob' => preg_match('/(text|bytea)/', $row['data_type']),
+					);
+					if (stristr($row['column_default'], 'nextval')) {
+						$meta[$row['column_name']]['default'] = null;
+					} else if (preg_match("/^'([^']+)'::(.+)$/", $row['column_default'], $match)) {
+						$meta[$row['column_name']]['default'] = $match[1];
+					} else {
+						$meta[$row['column_name']]['default'] = $row['column_default'];
+					}
+				}
+				return $meta;
+			case 'sqlite':
+				$result = $this->query("PRAGMA table_info(" . $this->quote($table) . ")");
+				$result->setFetchMode(PDO::FETCH_ASSOC);
+				$meta = array();
+				foreach ($result as $row) {
+					$meta[$row['name']] = array(
+						'pk' => $row['pk'] == '1',
+						'type' => $row['type'],
+						'default' => null,
+						'blob' => preg_match('/(TEXT|BLOB)/', $row['type']),
+					);
+				}
+				return $meta;
+			default:
+				$result = $this->prepare("select COLUMN_NAME, COLUMN_DEFAULT, DATA_TYPE, COLUMN_KEY 
+						from INFORMATION_SCHEMA.COLUMNS 
+						where TABLE_SCHEMA = DATABASE() and TABLE_NAME = :table_name");
+				$result->setFetchMode(PDO::FETCH_ASSOC);
+				$result->execute(array(':table_name' => $table));
+				$meta = array();
+				foreach ($result as $row) {
+					$meta[$row['COLUMN_NAME']] = array(
+						'pk' => $row['COLUMN_KEY'] == 'PRI',
+						'type' => $row['DATA_TYPE'],
+						'default' => in_array($row['COLUMN_DEFAULT'], array('NULL', 'CURRENT_TIMESTAMP')) ? null : $row['COLUMN_DEFAULT'],
+						'blob' => preg_match('/(TEXT|BLOB)/', $row['DATA_TYPE']),
+					);
+				}
+				return $meta;
+		}
+	}
+
+	/**
+	 * List primary keys
+	 * 
+	 * @param string $table
+	 * @return array
+	 */
+	public function listPrimaryKeys($table) {
+		$cols = $this->listColumns($table);
+		$pk = array();
+		foreach ($cols as $name => $meta) {
+			if ($meta['pk']) {
+				$pk[] = $name;
+			}
+		}
+		return $pk;
+	}
+
+	/**
+	 * Returns a list of foreign keys for a table.
+	 * 
+	 * @param string $table
 	 * @return array
 	 */
 	public function listForeignKeys($table) {
-		$res = $this->query("SHOW TABLE STATUS WHERE Name = '$table'");
-		if (!$res) {
-			return false;
+		switch ($this->getDbtype()) {
+			case 'mysql':
+				$meta = array();
+				foreach ($this->loadKeys() as $info) {
+					if ($info['table_name'] === $table) {
+						$meta[] = array(
+							'table' => $info['table_name'],
+							'column' => $info['column_name'],
+							'referenced_table' => $info['referenced_table_name'],
+							'referenced_column' => $info['referenced_column_name'],
+						);
+					}
+				}
+				return $meta;
+			case 'pgsql':
+				list($schema, $table) = stristr($table, '.') ? explode(".", $table) : array('public', $table);
+				$result = $this->query(
+						"SELECT kcu.column_name AS column_name, ccu.table_name AS referenced_table_name, ccu.column_name AS referenced_column_name 
+           FROM information_schema.table_constraints AS tc JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+           JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name WHERE constraint_type = 'FOREIGN KEY' 
+           AND tc.table_name='" . $table . "' AND tc.table_schema = '" . $schema . "'");
+				$result->setFetchMode(PDO::FETCH_ASSOC);
+				$meta = array();
+				foreach ($result as $row) {
+					$meta[] = array(
+						'table' => $table,
+						'column' => $row['column_name'],
+						'referenced_table' => $row['referenced_table_name'],
+						'referenced_column' => $row['referenced_column_name'],
+					);
+				}
+				return $meta;
+				break;
+			case 'sqlite':
+				$sql = "PRAGMA foreign_key_list(" . $this->quote($table) . ")";
+				$result = $this->query($sql);
+				$result->setFetchMode(PDO::FETCH_ASSOC);
+				$meta = array();
+				foreach ($result as $row) {
+					$meta[] = array(
+						'table' => $table,
+						'column' => $row['from'],
+						'referenced_table' => $row['table'],
+						'referenced_column' => $row['to'],
+					);
+				}
+				return $meta;
+				break;
+			default:
+				throw new Exception('Unsupported database : ' . $this->getDbtype());
 		}
-		$query = "SELECT
-    `column_name`, 
-    `referenced_table_schema` AS foreign_db, 
-    `referenced_table_name` AS foreign_table, 
-    `referenced_column_name`  AS foreign_column 
-FROM
-    `information_schema`.`KEY_COLUMN_USAGE`
-WHERE
-    `constraint_schema` = SCHEMA()
-AND
-    `table_name` = '$table'
-AND
-    `referenced_column_name` IS NOT NULL
-ORDER BY
-    `column_name`";
-		$res = $this->query($query);
-		return $res->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	/**
+	 * Returns a list of foreign keys that refer a table.
+	 * 
+	 * @param string $table
+	 * @return array
+	 */
+	public function listReferencingKeys($table) {
+		switch ($this->getDbtype()) {
+			case 'mysql':
+				$meta = array();
+				foreach ($this->loadKeys() as $info) {
+					if ($info['referenced_table_name'] === $table) {
+						$meta[] = array(
+							'table' => $info['table_name'],
+							'column' => $info['column_name'],
+							'referenced_table' => $info['referenced_table_name'],
+							'referenced_column' => $info['referenced_column_name'],
+						);
+					}
+				}
+				return $meta;
+			case 'pgsql':
+			case 'sqlite':
+				$meta = array();
+				foreach ($this->listTables() as $tbl) {
+					if ($tbl != $table) {
+						foreach ($this->listForeignKeys($tbl) as $info) {
+							if ($info['referenced_table'] == $table) {
+								$meta[] = $info;
+							}
+						}
+					}
+				}
+				return $meta;
+			default:
+				throw new Exception('Unsupported database : ' . $this->getDbtype());
+		}
 	}
 
 	/* helpers */
@@ -1114,7 +1400,7 @@ ORDER BY
 	 * @param array $arr
 	 * @return array
 	 */
-	public function guessTypes($arr) {
+	public function guessTypes($arr, $pkFields = array()) {
 		$fields = array();
 		foreach ($arr as $name => $type) {
 			if (is_int($name)) {
@@ -1122,7 +1408,7 @@ ORDER BY
 				$type = '';
 			}
 			if (empty($type)) {
-				$type = $this->guessType($name);
+				$type = $this->guessType($name, $pkFields);
 			}
 			$fields[$name] = $type;
 		}
@@ -1140,21 +1426,21 @@ ORDER BY
 		if (is_array($where)) {
 			$pdo = $this;
 			array_walk($where, function (&$item, $key) use (&$params, $pdo) {
-				$placeholder = ':' . $key;
-				while (isset($params[$placeholder])) {
-					$placeholder .= rand(1, 9);
-				}
+						$placeholder = ':' . $key;
+						while (isset($params[$placeholder])) {
+							$placeholder .= rand(1, 9);
+						}
 
-				if (is_array($item)) {
-					$item = array_unique($item);
-					$item = $key . " IN (" . $pdo->quote($item) . ")";
-				} elseif (is_string($key)) {
-					$params[$placeholder] = $item;
-					$item = $key . " = " . $placeholder;
-				} else {
-					$item = $item . " = " . $placeholder;
-				}
-			});
+						if (is_array($item)) {
+							$item = array_unique($item);
+							$item = $key . " IN (" . $pdo->quote($item) . ")";
+						} elseif (is_string($key)) {
+							$params[$placeholder] = $item;
+							$item = $key . " = " . $placeholder;
+						} else {
+							$item = $item . " = " . $placeholder;
+						}
+					});
 			$where = implode(' AND ', $where);
 		}
 		if (!empty($where)) {
@@ -1193,8 +1479,7 @@ ORDER BY
 				$color = 'Silver';
 				if ($t > 0.1) {
 					$color = 'PaleTurquoise';
-				}
-				elseif ($t > 1) {
+				} elseif ($t > 1) {
 					$color = 'Red';
 				}
 				$text = '<span style="color:' . $color . '">[' . $tb->formatTime($t) . ']</span> ' . $text;
@@ -1219,10 +1504,10 @@ ORDER BY
 	public function formatQuery($sql) {
 		//regex work with a lookahead to avoid splitting things inside single quotes
 		$sql = preg_replace(
-		"/(WHERE|FROM|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|DUPLICATE KEY)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n$0", $sql
+				"/(WHERE|FROM|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|DUPLICATE KEY)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n$0", $sql
 		);
 		$sql = preg_replace(
-		"/(INNER|LEFT|RIGHT|CASE|WHEN|END|ELSE|AND)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n    $0", $sql);
+				"/(INNER|LEFT|RIGHT|CASE|WHEN|END|ELSE|AND)(?=(?:(?:[^']*+'){2})*+[^']*+\z)/", "\n    $0", $sql);
 		return $sql;
 	}
 
@@ -1279,7 +1564,7 @@ ORDER BY
 	 * @param string $name
 	 * @return string 
 	 */
-	public function guessType($name) {
+	public function guessType($name, $pkFields = array()) {
 		$dbtype = $this->getDbtype();
 
 		$rules = array(
@@ -1303,7 +1588,7 @@ ORDER BY
 		$type = 'VARCHAR(255)';
 
 		//guess by name
-		if ($name == 'id') {
+		if (empty($pkFields) && $name == 'id') {
 			if ($dbtype == 'sqlite') {
 				$type = 'INTEGER PRIMARY KEY AUTOINCREMENT';
 			} else {

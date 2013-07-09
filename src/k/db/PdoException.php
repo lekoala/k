@@ -23,7 +23,7 @@ class PdoException extends NativePdoException {
 				if (!empty($matches)) {
 					$this->code = $matches[1];
 					$this->message = $matches[2];
-					$q = $pdo->highlight($pdo->getLastQuery());
+					$q = $pdo->getLastQuery();
 					if($q) {
 						switch($this->code) {
 							case '42000':

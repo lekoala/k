@@ -7,7 +7,12 @@ require '../scripts/autoload.php';
 		padding:20px;
 		font-family: Arial;
 	}
+	hr {
+		clear:both;
+	}
 	.table {
+		clear:both;
+		float:left;
 		width:480px;
 	}
 	.table {
@@ -26,5 +31,16 @@ require '../scripts/autoload.php';
 	}
 	.table thead {
 		border-bottom:1px solid #ccc;
+	}
+	.code {
+		font-family: Verdana;
+		font-size: 10px;
+		white-space: pre;
+		padding:5px 20px;
+		float:left;
+		min-width:440px;
+		max-height: 200px;
+		overflow-y:auto;
+		overflow-x:hidden;
 	}
 </style>

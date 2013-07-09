@@ -10,7 +10,7 @@ use \RuntimeException;
  * to be sent through ajax
  * @link http://phpdebugbar.com/ 
  */
-class DevToolbar {
+class Toolbar {
 
 	/**
 	 * Store start time and memory usage

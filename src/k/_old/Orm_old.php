@@ -23,13 +23,13 @@ class Orm implements JsonSerializable {
 	 * Store original record properties to be able to make a diff when updating
 	 * @var array
 	 */
-	protected $original = null;
+	protected $_original = null;
 
 	/**
 	 * Cache resolved objects
 	 * @var array
 	 */
-	protected $cache = array();
+	protected $_cache = array();
 
 	/**
 	 * \k\Pdo instance used to query the database
@@ -41,7 +41,7 @@ class Orm implements JsonSerializable {
 	 * Store fields properties
 	 * @var array 
 	 */
-	protected static $fields = array();
+	protected static $_fields = array();
 
 	/**
 	 * Store has-one relations
@@ -65,7 +65,7 @@ class Orm implements JsonSerializable {
 	 * Folder to store items related to this class
 	 * @var string
 	 */
-	protected static $storage;
+	protected static $_storage;
 	
 	/**
 	 * Store validation rules
@@ -249,7 +249,7 @@ class Orm implements JsonSerializable {
 	 * @return string
 	 */
 	public static function getBaseFolder($create = false) {
-		$folder = static::$storage . '/' . static::getTable();
+		$folder = static::$_storage . '/' . static::getTable();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
@@ -430,7 +430,7 @@ class Orm implements JsonSerializable {
 						$o = new $class;
 						$o->$pk = $key;
 					}
-					$record->cache[$column] = $o;
+					$record->_cache[$column] = $o;
 				}
 				break;
 			case 'has-many':
@@ -443,7 +443,7 @@ class Orm implements JsonSerializable {
 							$arr[] = $i;
 						}
 					}
-					$record->cache[$table] = $arr;
+					$record->_cache[$table] = $arr;
 				}
 				break;
 			case 'many-many':
@@ -477,7 +477,7 @@ class Orm implements JsonSerializable {
 							$arr[] = $byId[$injectedId];
 						}
 					}
-					$record->cache[$table] = $arr;
+					$record->_cache[$table] = $arr;
 				}
 				break;
 		}
@@ -918,11 +918,11 @@ class Orm implements JsonSerializable {
 	}
 
 	public static function getStorage() {
-		return static::$storage;
+		return static::$_storage;
 	}
 
 	public static function setStorage($storage) {
-		static::$storage = $storage;
+		static::$_storage = $storage;
 	}
 
 	/**
@@ -1015,7 +1015,7 @@ class Orm implements JsonSerializable {
 
 		if ($fields === null) {
 			$fields = array();
-			$fieldsDefinition = static::$fields;
+			$fieldsDefinition = static::$_fields;
 			foreach($fieldsDefinition as $name => $class) {
 				if(is_int($name)) {
 					$name = $class;
