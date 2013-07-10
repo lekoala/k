@@ -40,9 +40,15 @@ class Toolbar {
 	 * Register objects with stats() method to trackedObjects array for 
 	 * more information (eg : db object)
 	 */
-	public function __construct() {
+	public function __construct($register = false) {
 		$this->trackedStats['start_time'] = (defined('START_TIME')) ? START_TIME : microtime(true);
 		$this->trackedStats['start_memory_usage'] = (defined('START_MEMORY_USAGE')) ? START_MEMORY_USAGE : memory_get_usage(true);
+		
+		if($register) {
+			register_shutdown_function(function() {
+				echo $this;
+			});
+		}
 	}
 
 	/**

@@ -92,7 +92,7 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	public static function getRules() {
 		return self::getMeta(self::META_RULES);
 	}
-	
+
 	/**
 	 * Get reflection class
 	 * 
@@ -101,11 +101,11 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 */
 	public static function getReflectedClass() {
 		static $refl;
-		
-		if($refl === null) {
+
+		if ($refl === null) {
 			$refl = new ReflectionClass(get_called_class());
 		}
-		
+
 		return $refl;
 	}
 
@@ -189,7 +189,7 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 			return $this->$name = $value;
 		}
 	}
-	
+
 	public function __get($name) {
 		return $this->get($name);
 	}
@@ -204,11 +204,11 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 * @param array $fields
 	 */
 	public function setFields($fields) {
-		foreach($fields as $f => $v) {
-			$this->$f = $v; 
+		foreach ((array) $fields as $f => $v) {
+			$this->$f = $v;
 		}
 	}
-	
+
 	/**
 	 * Get all public fields
 	 * 
@@ -230,8 +230,8 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return array
 	 */
 	public function toArray($fields = null) {
-		if ($fields === null) {
-			$fields = static::getFields();
+		if (empty($fields)) {
+			$fields = array_keys(static::getFields());
 		}
 		$arr = array();
 		if (is_string($fields)) {

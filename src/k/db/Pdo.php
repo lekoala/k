@@ -470,7 +470,7 @@ class Pdo extends NativePdo {
 	 * @param string $sql
 	 * @param int $time
 	 */
-	public function log($sql, $time = null) {
+	public function log($sql, $time = 0) {
 		$this->log[] = compact('sql', 'time');
 		if ($this->logger) {
 			$this->logger->log($this->getLogLevel(), $sql);
@@ -1465,7 +1465,7 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 	/**
 	 * Callback for the Dev Toolbar
 	 * 
-	 * @param DevToolbar $tb
+	 * @param \k\dev\Toolbar $tb
 	 * @return array
 	 */
 	public function devToolbarCallback($tb) {
@@ -1480,9 +1480,12 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 				if ($t > 0.1) {
 					$color = 'PaleTurquoise';
 				} elseif ($t > 1) {
-					$color = 'Red';
+					$color = 'deeppink';
 				}
 				$text = '<span style="color:' . $color . '">[' . $tb->formatTime($t) . ']</span> ' . $text;
+			}
+			else {
+				$text = '<span style="color:deeppink">[error]</span> ' . $text;
 			}
 			$arr[] = $text;
 			$time += $t;

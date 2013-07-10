@@ -11,6 +11,13 @@ use \InvalidArgumentException;
  */
 abstract class CacheAbstract implements CacheInterface {
 
+	/**
+	 * Get a value from cache
+	 * 
+	 * @param string $key
+	 * @param mixed $default
+	 * @return mixed
+	 */
 	public function get($key, $default = null) {
 		$this->validateKey($key);
 		$result = $this->_get($key);
@@ -23,12 +30,27 @@ abstract class CacheAbstract implements CacheInterface {
 		return unserialize($result);
 	}
 
+	/**
+	 * Set a value in the cache
+	 * The value is serialized
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @param int|string $ttl A number of seconds or a strtotime expression like +1 day
+	 * @return bool
+	 */
 	public function set($key, $value, $ttl = 0) {
 		$this->validateKey($key);
 		$value = serialize($value);
 		return $this->_set($key, $value, $ttl);
 	}
 
+	/**
+	 * Clear the cache
+	 * 
+	 * @param string $key
+	 * @return bool
+	 */
 	public function clear($key = null) {
 		if ($key) {
 			$this->validateKey($key);
@@ -37,6 +59,8 @@ abstract class CacheAbstract implements CacheInterface {
 	}
 
 	/**
+	 * Validate key
+	 * 
 	 * @param type $key
 	 * @return type
 	 * @throws InvalidArgumentException
@@ -47,6 +71,12 @@ abstract class CacheAbstract implements CacheInterface {
 		}
 	}
 
+	/**
+	 * Convert ttl argument
+	 * 
+	 * @param string|int $ttl
+	 * @return int
+	 */
 	protected function getExpire($ttl = 0) {
 		$expire = 0;
 		if (is_string($ttl)) {
@@ -59,7 +89,13 @@ abstract class CacheAbstract implements CacheInterface {
 
 	abstract protected function _clear($key = null);
 
+	/**
+	 * Get must return null if no value
+	 */
 	abstract protected function _get($key);
 
+	/**
+	 * Use getExpire method to convert ttl if needed
+	 */
 	abstract protected function _set($key, $value, $ttl = 0);
 }

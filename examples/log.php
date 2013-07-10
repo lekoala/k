@@ -1,18 +1,20 @@
 <?php
-define('SRC_PATH',realpath('../src'));
-require SRC_PATH . '/K/init.php';
 
-$pdo = new K\Pdo(K\Pdo::SQLITE_MEMORY);
-$pdo->createTable('log',array('id','created_at','level','message'));
+require '_bootstrap.php';
 
-K\Log::setPdo($pdo);
 
-K\DebugBar::init();
-K\DebugBar::track('K\Log');
-K\Log::debug('Debug message');
-K\Log::info($pdo);
+$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
+$pdo->createTable('log', array('id', 'created_at', 'level', 'message'));
 
-K\Log::critical('This will be sent by email');
+$tb = new k\dev\Toolbar(true);
+$tb->track($pdo);
+
+$filelog = new k\log\FileLogger(__DIR__ . '/data/log');
+$dblog = new k\log\PdoLogger($pdo);
+echo 'Log an alert on filelog<br/>';
+var_dump($filelog->alert('Test alert'));
+echo 'Log a debug on dblog<br/>';
+var_dump($dblog->debug('Test debug on db'));
 
 $rows = $pdo->select('log');
 

@@ -354,6 +354,9 @@ class Query implements Iterator, ArrayAccess, Countable {
 				$this->addField($f);
 			}
 		}
+		if(empty($this->fields)) {
+			$this->fields[] = $this->tableOrAlias() . '.*';
+		}
 		$this->fields[] = $field;
 	}
 
@@ -393,6 +396,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function where($key = null, $value = '', $operator = null) {
 		//pass null to reset where
 		if ($key === null) {
+			$this->params = array();	
 			$this->where = array();
 			return $this;
 		}
@@ -1092,8 +1096,11 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return array|object
 	 */
 	public function fetchOne() {
+		$limit = $this->limit;
 		$this->limit = 1;
-		return $this->fetch();
+		$res = $this->fetch();
+		$this->limit = $limit;
+		return $res;
 	}
 
 	/**

@@ -1,8 +1,21 @@
 <?php
 
-require '../init.php';
-require '../autoload.php';
+require '_bootstrap.php';
 
-$model = new k\Model();
-$model->value = 'test';
-echo $model->value;
+class GraphPicture extends k\data\Model {
+	public $url;
+	public $is_silhouette;
+}
+
+$data = file_get_contents('https://graph.facebook.com/shaverm/picture?redirect=false');
+$data = json_decode($data);
+$data = $data->data;
+
+$model = new GraphPicture();
+$model->setFields($data);
+
+echo '<pre>';
+var_dump($model);
+
+echo 'you can encode models in json<br/>';
+echo json_encode($model,JSON_UNESCAPED_SLASHES);
