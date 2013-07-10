@@ -40,11 +40,11 @@ class PdoLogger extends LoggerAbstract {
 		return $this;
 	}
 
-	public function getFields() {
+	public function getData() {
 		return $this->fields;
 	}
 
-	public function setFields(array $fields) {
+	public function setData(array $fields) {
 		$this->fields = $fields;
 		return $this;
 	}

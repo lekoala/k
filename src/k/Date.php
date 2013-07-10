@@ -12,23 +12,36 @@ use \DateTimeZone;
  * @link http://flourishlib.com/docs/fDate
  * @link https://github.com/fightbulc/moment.php
  * @link https://github.com/herrera-io/php-date-interval
+ * @link http://www.pelagodesign.com/blog/2009/05/20/iso-8601-date-validation-that-doesnt-suck/
  */
 class Date extends DateTime {
-
 	/**
 	 * Fixed constants for number of seconds for a given period
 	 */
+
 	const SECONDS_YEAR = 31556874;
 	const SECONDS_MONTH = 2629740;
 	const SECONDS_WEEK = 604800;
 	const SECONDS_DAY = 86400;
 	const SECONDS_HOUR = 3600;
 	const SECONDS_MINUTE = 60;
+	
+	/**
+	 * Regex validation pattern
+	 */
+	const PATTERN_YYMMDD = '/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/';
+	const PATTERN_HHMMSS = '/^(?:(?:([01]?\d|2[0-3]):)?([0-5]?\d):)?([0-5]?\d)$/';
+	const PATTERN_ISO = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
 
 	/**
-	 * ISO8601 format for a date : 1985-01-16 02:00:15
+	 * @param string $dateTime
+	 * @param string $timezone
 	 */
-	const ISO_FORMAT = 'Y-m-d H:i:s';
+	public function __construct($dateTime = 'now', $timezone = 'UTC') {
+		parent::__construct($dateTime, new \DateTimeZone($timezone));
+
+		return $this;
+	}
 
 	/**
 	 * Return Date in ISO8601 format
@@ -36,53 +49,43 @@ class Date extends DateTime {
 	 * @return String
 	 */
 	public function __toString() {
-		return $this->format(self::ISO_FORMAT);
+		return $this->format();
 	}
 
-	public static function create($date) {
-		return new static($date);
-	}
-	static function createFromFormat($f, $t, $tz = null) {
-		if (!$tz) {
-			$tz = new DateTimeZone(date_default_timezone_get());
+	/**
+	 * @param srring $format
+	 * @return string
+	 */
+	public function format($format = NULL) {
+		if ($format === NULL) {
+			$format = \DateTime::ISO8601;
 		}
-		$dt = parent::createFromFormat($f, $t, $tz);
-		if (!$dt) {
-			return null;
-		}
-		return new static($dt->format('Y-m-d H:i:s e'));
+
+		return parent::format($format);
 	}
 
-	static function createFromDatetime($time = null) {
-		if (empty($time) || $time == '0000-00-00 00:00:00') {
-			return null;
-		}
-		return static::createFromFormat('Y-m-d H:i:s', $time);
+	/**
+	 * @param string $type
+	 * @param int $value
+	 * @return Date
+	 */
+	public function add($type = 'day', $value = 1) {
+		parent::modify('+' . $value . ' ' . $type);
+
+		return $this;
 	}
 
-	static function createFromDate($time = null) {
-		if (empty($time) || $time == '0000-00-00') {
-			return null;
-		}
-		$dt = self::createFromFormat('Y-m-d', $time . ' 00:00:00');
-		if (!$dt) {
-			return null;
-		}
-		$dt->type = 'date';
-		return $dt;
+	/**
+	 * @param string $type
+	 * @param int $value
+	 * @return Date
+	 */
+	public function subtract($type = 'day', $value = 1) {
+		parent::modify('-' . $value . ' ' . $type);
+
+		return $this;
 	}
 
-	static function createFromTime($time = null) {
-		if (empty($time) || $time == '00:00:00') {
-			return null;
-		}
-		$dt = self::createFromFormat('H:i:s', $time);
-		if (!$dt) {
-			return null;
-		}
-		$dt->type = 'time';
-		return $dt;
-	}
 	/* new class methods */
 
 	/**
@@ -364,7 +367,4 @@ class Date extends DateTime {
 	}
 
 	/* static factory */
-
-
-
 }

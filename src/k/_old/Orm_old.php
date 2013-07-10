@@ -11,7 +11,7 @@ use \JsonSerializable;
  *
  * @author tportelange
  */
-class Orm implements JsonSerializable {
+class OrmOld implements JsonSerializable {
 
 	/**
 	 * Store record properties
@@ -1010,7 +1010,7 @@ class Orm implements JsonSerializable {
 	 * @staticvar array $fields
 	 * @return array
 	 */
-	public static function getFields() {
+	public static function getData() {
 		static $fields;
 
 		if ($fields === null) {

@@ -3,101 +3,154 @@
 namespace k\data;
 
 use \JsonSerializable;
-use \InvalidArgumentException;
 use \ArrayAccess;
-use \Iterator;
 use \ReflectionClass;
 
 /**
- * POPO Model
+ * POPO Model supercharged :-)
+ * 
+ * Models properties should be declared as public allowing raw access if need be
+ * If you want to use model feature, you can use get()/set() to use virtual properties and defaults
  *
  * @author lekoala
  */
-class Model implements JsonSerializable, ArrayAccess, Iterator {
+class Model implements JsonSerializable, ArrayAccess {
 
-	const META_TYPE = 'type';
-	const META_RULES = 'rules';
-	const META_EXPORT = 'export';
+	const IP = 'ip';
+	const EMAIL = 'email';
+	const URL = 'url';
+	const DIGITS = 'digits';
+	const NUMBER = 'number';
+	const NUMERIC = 'numeric';
+	const INTEGER = 'integer';
+	const SLUG = 'slug';
+	const ALPHA = 'alpha';
+	const ALPHANUM = 'alphanum';
+	const DATE_ISO = 'dateIso';
+	const DATE = 'date';
+	const TIME = 'time';
+	const PHONE = 'phone';
+	const LUHN = 'luhn'; //bool
 
 	/**
-	 * Store meta information about fields
+	 * Store type information
+	 * 
+	 * Type will automatically add a validation rule 
 	 * 
 	 * Example
 	 * 
 	 * [
-	 * 	'id' => [
-	 * 		'type' => 'int',
-	 * 		'rules' => ['required','integer'],
-	 * 		'export' => true
-	 * 	],
-	 * 'name' => [
-	 * 		'type' => 'string',
-	 * 		'rules' => ['required','minlength' => 3],
-	 * 		'export' => true
-	 * 	]
-	 * 	'created_at' => [
-	 * 		'type' => 'datetime',
-	 * 		'export' => false
-	 * 	]
+	 * 	'id' => 'int'
+	 *  'name' => 'string'
+	 * 	'created_at' => 'dateIso'
 	 * ]
 	 * 
 	 * @var array 
 	 */
-	protected static $_meta = [];
+
+	protected static $_types = [];
 
 	/**
-	 * Extract information from _meta
-	 * @param string $key
+	 * Store validation rules
+	 * 
+	 * Example
+	 * 
+	 * [
+	 * 	'id' => 'required',
+	 * 	'name' => ['minlength' => 3]
+	 * ]
+	 * @var array
+	 */
+	protected static $_rules = [];
+
+	/**
+	 * Store defaults values
+	 * 
+	 * Example
+	 * 
+	 * [
+	 * 	'name' => 'Some name'
+	 * ]
+	 * @var array
+	 */
+	protected static $_defaults = [];
+
+	/**
+	 * Declare which fields are exportable by default
+	 * 
+	 * @var array
+	 */
+	protected static $_exportable = [];
+
+	/**
+	 * Return defaults value
+	 * 
+	 * Defaults are checked at runtime, when accessing the property
+	 * 
 	 * @return array
 	 */
-	public static function getMeta($key, $flat = false) {
-		$meta = [];
-		foreach ($meta as $k => $v) {
-			if (isset($v[$key])) {
-				$meta[$k] = $v[$key];
-			}
+	public static function getDefaults() {
+		static $dyn;
+
+		if ($dyn === null) {
+			static::setDynamicDefaults();
+			$dyn = true;
 		}
-		if ($flat) {
-			$arr = [];
-			foreach ($meta as $k => $v) {
-				if ($v) {
-					$arr[] = $k;
-				}
-			}
-			return $arr;
-		}
-		return $meta;
+
+		return static::$_defaults;
 	}
 
 	/**
-	 * Alias for getMeta('export',true)
+	 * Set dynamic defaults here
+	 */
+	public static function setDynamicDefaults() {
+		
+	}
+
+	/**
+	 * Get types
+	 * 
 	 * @return array
 	 */
-	public static function getExport() {
-		return self::getMeta(self::META_EXPORT, true);
+	public static function getTypes() {
+		return static::$_types;
 	}
 
 	/**
-	 * Alias for getMeta('type')
+	 * Return exportable value
+	 * 
 	 * @return array
 	 */
-	public static function getType() {
-		return self::getMeta(self::META_TYPE);
+	public static function getExportable() {
+		return static::$_exportable;
 	}
 
 	/**
-	 * Alias for getMeta('rules')
+	 * Return validation rules
+	 * 
 	 * @return array
 	 */
 	public static function getRules() {
-		return self::getMeta(self::META_RULES);
+		static $dyn;
+
+		if ($dyn === null) {
+			$types = static::getTypes();
+			foreach ($types as $name => $type) {
+				if (!isset(static::$_rules[$name])) {
+					static::$_rules[$name] = $type;
+				}
+			}
+			$dyn = true;
+		}
+
+		return static::$_rules;
 	}
 
 	/**
 	 * Get reflection class
 	 * 
-	 * @staticvar \k\data\ReflectionClass $refl
-	 * @return \k\data\ReflectionClass
+	 * @staticvar \ReflectionClass $refl
+	 * @return \ReflectionClass
 	 */
 	public static function getReflectedClass() {
 		static $refl;
@@ -113,6 +166,9 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 * Enum list values based on class constants. 
 	 * 
 	 * For instance
+	 * META_TYPE = 'type';
+	 * META_RULES = 'rules';
+	 * META_EXPORT = 'export';
 	 * class::enum('meta') will return ['type','rules','export']
 	 * 
 	 * @staticvar array $constants
@@ -140,54 +196,157 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
+	 * Get all traits applied to this object
+	 * 
+	 * Example
+	 * 
+	 * [
+	 * 'some\trait' => 'trait'
+	 * ]
+	 * 
+	 * @staticvar array $traits
+	 * @return array
+	 */
+	public static function getTraits() {
+		static $traits;
+
+		if ($traits === null) {
+			$ref = static::getReflectedClass();
+			$ts = $ref->getTraitNames();
+			$traits = array();
+			foreach ($ts as $trait) {
+				$name = explode('\\', $trait);
+				$name = end($name);
+				$traits[$trait] = $name;
+			}
+		}
+
+		return $traits;
+	}
+
+	/**
+	 * Get all declared public properties names
+	 * 
+	 * Properties added at runtime won't be visible here
+	 * 
+	 * @staticvar array $props
+	 * @return array
+	 */
+	public static function getDeclaredPublicProperties() {
+		static $props;
+
+		if (!$props) {
+			$refl = static::getReflectedClass();
+			$prop = $refl->getProperties(\ReflectionProperty::IS_PUBLIC);
+			foreach ($prop as $p) {
+				$props[] = $p->getName();
+			}
+		}
+
+		return $props;
+	}
+
+	/**
+	 * Return a list of virtual getters
+	 * 
+	 * ['name' => 'get_name']
+	 * 
+	 * @staticvar array $props
+	 * @return array
+	 */
+	public static function getVirtualGetters() {
+		static $props;
+
+		if (!$props) {
+			$refl = static::getReflectedClass();
+			$prop = $refl->getMethods(\ReflectionMethod::IS_PUBLIC);
+			foreach ($prop as $p) {
+				$name = $p->getName();
+				if (strpos($name, 'get_') === 0) {
+					$p = preg_replace('/^get_/', '', $name);
+					$props[$p] = $name;
+				}
+			}
+		}
+		return $props;
+	}
+
+	/**
 	 * Validate the records. Throw exception if not valid
+	 * 
 	 * @param array $rules
 	 */
 	public function validate($rules = null) {
 		if ($rules === null) {
 			$rules = static::getRules();
 		}
-		$validator = new Validator($this->getFields(), $rules);
+		$validator = new Validator($this->getData(), $rules);
 		$validator->validate(true);
 	}
 
 	/**
-	 * Verify is model has a field
+	 * Verify is model has a field or a virtual field
 	 * 
-	 * @param type $name
+	 * @param string $name
 	 * @return boolean
 	 */
 	public function has($name) {
 		if (property_exists($this, $name)) {
 			return true;
 		}
+		$method = 'get_' . $name;
+		if (method_exists($this, $method)) {
+			return true;
+		}
 	}
 
 	/**
-	 * Get field value
+	 * Get field or a virtual field value. A default value can be provided if empty
 	 * 
-	 * @param type $name
-	 * @return type
+	 * @param string $name
+	 * @param string $format
+	 * @return boolean
 	 */
-	public function get($name) {
+	public function get($name, $format = null) {
 		$v = null;
-		if (property_exists($this, $name)) {
+		//virtual
+		$method = 'get_' . $name;
+		if (method_exists($this, $method)) {
+			$v = $this->$method();
+		}
+		//instance
+		elseif (property_exists($this, $name)) {
 			$v = $this->$name;
+		}
+		//defaults
+		if (empty($v)) {
+			$defaults = static::getDefaults();
+			if($defaults) {
+				$v = isset($defaults[$name]) ? $defaults[$name] : null;
+			}
+			
 		}
 		return $v;
 	}
 
 	/**
-	 * Set field value
+	 * Set data value
 	 * 
-	 * @param type $name
-	 * @param type $value
-	 * @return type
+	 * You can set new properties that don't exist
+	 * This method is chainable
+	 * 
+	 * @param string $name
+	 * @param mixed $value
+	 * @return static
 	 */
 	public function set($name, $value) {
-		if (property_exists($this, $name)) {
-			return $this->$name = $value;
+		$method = 'set_' . $name;
+		if (method_exists($this, $method)) {
+			$this->$method($value);
+		} else {
+			$this->$name = $value;
 		}
+		return $this;
 	}
 
 	public function __get($name) {
@@ -199,26 +358,71 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
-	 * Set public fields
+	 * Get properties using virtual getters if they exists
 	 * 
-	 * @param array $fields
+	 * @param array $data
+	 * @return \k\data\Model
 	 */
-	public function setFields($fields) {
-		foreach ((array) $fields as $f => $v) {
-			$this->$f = $v;
+	public function getProperties() {
+		$data = $this->getData(); //data include vars added at runtime
+		//insert defaults
+		$defaults = static::getDefaults();
+		foreach ($data as $k => $v) {
+			if (empty($v)) {
+				$data[$k] = isset($defaults[$k]) ? $defaults[$k] : null;
+			}
 		}
+
+		//add or override values with virtual getterss
+		$virtual = static::getVirtualGetters();
+		foreach ($virtual as $name => $v) {
+			$data[$name] = $this->$v();
+		}
+		return $data;
 	}
 
 	/**
-	 * Get all public fields
+	 * Set properties using virtual setters if they exists
+	 * 
+	 * @param array $data
+	 * @return \k\data\Model
+	 */
+	public function setProperties($data) {
+		foreach ((array) $data as $f => $v) {
+			$this->set($f, $v);
+		}
+		return $this;
+	}
+
+	/**
+	 * Get all public properties
+	 * 
+	 * This is what you want if you want raw data. Otherwise, use getProperties()
 	 * 
 	 * @return array
 	 */
-	public function getFields() {
-		$getFields = function($obj) {
-					return get_object_vars($obj);
-				};
-		return $getFields($this);
+	public function getData() {
+		$pub = [];
+		foreach ((array) $this as $k => $v) {
+			if (strpos($k, "\0") === 0) {
+				continue;
+			}
+			$pub[$k] = $v;
+		}
+		return $pub;
+	}
+
+	/**
+	 * Set public properties
+	 * 
+	 * @param array $data
+	 * @return \k\data\Model
+	 */
+	public function setData($data) {
+		foreach ((array) $data as $f => $v) {
+			$this->$f = $v;
+		}
+		return $this;
 	}
 
 	/* --- JsonSerializable --- */
@@ -230,12 +434,12 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return array
 	 */
 	public function toArray($fields = null) {
-		if (empty($fields)) {
-			$fields = array_keys(static::getFields());
-		}
-		$arr = array();
 		if (is_string($fields)) {
 			$fields = explode(',', $fields);
+		}
+		$arr = array();
+		if (empty($fields)) {
+			$fields = array_keys($this->getProperties());
 		}
 		foreach ($fields as $f) {
 			$arr[$f] = $this->get($f);
@@ -249,54 +453,27 @@ class Model implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return array
 	 */
 	public function jsonSerialize() {
-		return $this->toArray(static::getExport());
+		return $this->toArray(static::getExportable());
 	}
 
 	/* --- ArrayAccess --- */
 
 	public function offsetSet($offset, $value) {
-		$this->setField($offset, $value);
+		$this->set($offset, $value);
 	}
 
 	public function offsetExists($offset) {
-		return $this->hasField($offset);
+		return $this->has($offset);
 	}
 
 	public function offsetUnset($offset) {
-		if ($this->hasField($offset)) {
-			$this->setField($offset, null);
+		if ($this->has($offset)) {
+			$this->set($offset, null);
 		}
 	}
 
 	public function offsetGet($offset) {
-		return $this->getField($offset);
-	}
-
-	/* --- Iterator --- */
-
-	public function rewind() {
-		reset($this->data);
-	}
-
-	public function current() {
-		$var = current($this->data);
-		return $var;
-	}
-
-	public function key() {
-		$var = key($this->data);
-		return $var;
-	}
-
-	public function next() {
-		$var = next($this->data);
-		return $var;
-	}
-
-	public function valid() {
-		$key = key($this->data);
-		$var = ($key !== null && $key !== false);
-		return $var;
+		return $this->get($offset);
 	}
 
 }

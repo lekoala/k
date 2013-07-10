@@ -1,117 +1,78 @@
 <?php
 
-define('SRC_PATH', realpath('../src'));
-require SRC_PATH . '/K/init.php';
-\K\DebugBar::init(array(
-	'trackedObjects' => array('K\Pdo','K\Log')
-));
+require '_bootstrap.php';
 
+$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
 
-$pdo = new K\Pdo(K\Pdo::SQLITE_MEMORY);
-K\Orm::configure(array(
-	'pdo' => $pdo,
-	'storage' => __DIR__ . '/data'
-));
+$tb = new k\dev\Toolbar(true);
+$tb->track($pdo);
 
-/**
- * @property $id
- * @property $name
- */
-class Usertype extends K\Orm {
-	protected $id;
-	protected $name;
+class BaseModel extends k\db\Orm {
+
+	protected static $_classPrefix = '';
+}
+
+class Usertype extends BaseModel {
+
+	public $id;
+	public $name;
 
 }
 
-class Tag extends K\Orm {
-	protected $id;
-	protected $name;
+class Tag extends BaseModel {
+
+	public $id;
+	public $name;
+
 }
 
-class Profilepic extends K\Orm {
-	protected $id;
-	protected $user_id;
-	protected $path;
-}
+class Profilepic extends BaseModel {
 
-/**
- *  @property $id
- * 	@property $usertype_id
- * 	@property $firstname
- * 	@property $lastname
- * 	@property $password
- *  @property $picture
- *  @property $birthday
- *  @property $created_at
- *	@property $updated_at
- *	@property $lat
- *	@property $lng
- */
-class User extends K\Orm {
-	
+	public $id;
+	public $path;
+	protected static $_hasOne = ['User'];
+
+}
+class User extends BaseModel {
+
 	const ROLE_ADMIN = 'admin';
 	const ROLE_USER = 'user';
-	
-	use K\Orm\Geoloc, K\Orm\Timestamp, K\Orm\Sortable, K\Orm\Version, K\Orm\SoftDelete, K\Orm\Log, K\Orm\Meta, K\Orm\Address, K\Orm\Permissions;
-	
-	protected $id;
-	protected $usertype_id; //or protected static $hasOne = array('Usertype');
-	protected $usertype_requested_id; //or protected static $hasOne = array('Usertype' => 'requested');
-	protected $firstname;
-	protected $lastname;
-	protected $picture;
-	protected $password;
-	protected $birthday;
-	
-	//sample validator
-	public static function validateFirstname($v) {
-		if(strlen($v) > 3) {
-			return true;
-		}
-	}
-	
-	public function fullname() {
+
+	public $id;
+	public $firstname;
+	public $lastname;
+	public $picture;
+	public $password;
+	public $birthday;
+	protected static $_hasOne = ['Usertype', 'Requestedtype' => 'Usertype', 'Profilepic'];
+
+	public function get_fullname() {
 		return $this->firstname . ' ' . $this->lastname;
 	}
-	
+
 	//setter
-	public function _fullname($value) {
+	public function set_fullname($value) {
 		$parts = explode(' ', $value);
-		$this->firstname = $parts[0];
-		$this->lastname = $parts[1];
+		$this->firstname = array_shift($parts);
+		$this->lastname = implode(' ', $parts);
 	}
-	
-	public static function createTable($execute = true, $foreignKeys = true) {
-		$sql = parent::createTable($execute, $foreignKeys);
-		$sql .= static::createTableLog($execute);
-		$sql .= static::createTableMeta($execute);
-		$sql .= static::createTableVersion($execute);
-		return $sql;
-	}
-	
-	public static function dropTable() {
-		static::dropTableVersion();
-		static::dropTableMeta();
-		static::dropTableLog();
-		return parent::dropTable();
-	}
-	
-	public function onPreSave() {
-		$this->onPreSaveTimestamp();
-		$this->onPreSaveVersion();
-	}
+
 }
-
 echo '<pre>';
-Usertype::createTable();
-User::createTable();
-Tag::createTable();
-ProfilePic::createTable();
+echo Usertype::syncTable();
+echo '<br/>';
+echo User::syncTable();
+echo '<br/>';
+echo Tag::syncTable();
+echo '<br/>';
+echo ProfilePic::syncTable();
+echo '<hr/>';
+BaseModel::setStorage(__DIR__ . '/data');
 
-$file = new K\File(__DIR__ . '/data/pic.jpg');
+$file = new k\File(__DIR__ . '/data/pic.jpg');
 $file = $file->duplicate();
 
-$birthday = K\Date::createFromDate('1985-01-16');
+$birthday = new k\Date('1985-01-16');
 
 $user = new User();
 $user->firstname = 'koala';
@@ -131,7 +92,7 @@ User::alterTable();
 
 echo json_encode($user2->toArray(array('fullname')));
 
-for($i = 0; $i < 10; $i++) {
+for ($i = 0; $i < 10; $i++) {
 	$o = User::createFake(false);
 	$o->deleted_at = null;
 	$o->save();
@@ -142,8 +103,8 @@ $firstuser->remove();
 
 $firstuser = User::get()->fetchOne(); //don't get the same because it has been soft removed
 
-$firstuser->addMeta('key','value');
-$firstuser->addMeta('key','value2');
+$firstuser->addMeta('key', 'value');
+$firstuser->addMeta('key', 'value2');
 
 print_r($firstuser->getMeta('key'));
 
@@ -179,7 +140,7 @@ print_r(Usertype::select());
 
 // has many
 
-foreach(range(1,5) as $i) {
+foreach (range(1, 5) as $i) {
 	$o = ProfilePic::createFake(false);
 	$o->save();
 	$firstuser->addRelated($o);
@@ -200,7 +161,7 @@ echo 'user ' . $firstuser->getId . ' has tag ' . $tag->getId() . '<br/>';
 echo '<pre>' . __LINE__ . "\n";
 print_r($firstuser->getRelated('Tag'));
 
-foreach(range(1,5) as $i) {
+foreach (range(1, 5) as $i) {
 	Tag::createFake();
 }
 
@@ -222,7 +183,7 @@ Profilepic::inject($users);
 echo 'inject tag<br/>';
 Tag::inject($users);
 echo '<hr/>';
-foreach($users as $user) {
+foreach ($users as $user) {
 	echo 'user id ' . $user->id . '<br/>';
 	echo 'usertype : ' . $user->usertype->name . '<br/>';
 	echo 'profile pics : ' . count($user->profilepic()) . '<br/>';

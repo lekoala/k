@@ -77,7 +77,7 @@ class PdoCache extends CacheAbstract {
 	}
 	
 	/**
-	 * Return a sample sql statement to create the cache table
+	 * Return a sample sql statement to create the table
 	 * 
 	 * @return string
 	 */

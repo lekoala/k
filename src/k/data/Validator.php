@@ -13,6 +13,7 @@ namespace k\data;
  * @link https://github.com/vlucas/valitron
  */
 class Validator {
+	//constraints
 	const ACCEPTED = 'accepted';
 	const DIFFERENT = 'different';
 	const REQUIRED = 'required';
@@ -38,13 +39,13 @@ class Validator {
 	const AFTER_DATE = 'afterdate';
 	const IN_LIST = 'inlist'; //csv
 	const CONTAINS = 'contains';
-	const LUHN = 'luhn'; //bool
-	//type constraints
+	const DATE_FORMAT = 'dateFormat';
+	const URL_STRICT = 'urlstrict';
+	const URL_ACTIVE = 'urlActive';
+	//type
 	const IP = 'ip';
 	const EMAIL = 'email';
 	const URL = 'url';
-	const URL_STRICT = 'urlstrict';
-	const URL_ACTIVE = 'urlActive';
 	const DIGITS = 'digits';
 	const NUMBER = 'number';
 	const NUMERIC = 'numeric';
@@ -53,9 +54,10 @@ class Validator {
 	const ALPHA = 'alpha';
 	const ALPHANUM = 'alphanum';
 	const DATE_ISO = 'dateIso';
-	const DATE_FORMAT = 'dateFormat';
 	const DATE = 'date';
+	const TIME = 'time';
 	const PHONE = 'phone';
+	const LUHN = 'luhn'; //bool
 	
 	protected $data = [];
 	protected $errors = [];
@@ -744,6 +746,13 @@ class Validator {
 	public function validateRegex($value, $regex) {
 		return preg_match($regex, $value);
 	}
+	
+	/**
+	 * Alias validateRegex
+	 */
+	public function validateRegexp($value, $regex) {
+		return $this->validateRegex($value, $regex);
+	}
 
 	/**
 	 * Validate that a field is a valid date
@@ -753,6 +762,16 @@ class Validator {
 	 */
 	public function validateDate($value) {
 		return strtotime($value) !== false;
+	}
+	
+	/**
+	 * Validate that a field is a valid time
+	 *
+	 * @param  mixed   $value
+	 * @return boolean
+	 */
+	public function validateTime($value) {
+		return preg_match('/^(?:(?:([01]?\d|2[0-3]):)?([0-5]?\d):)?([0-5]?\d)$/',$value) !== false;
 	}
 
 	/**

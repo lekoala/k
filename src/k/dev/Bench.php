@@ -32,7 +32,8 @@ class Bench {
 		$refl = new ReflectionClass(get_called_class());
 		$methods = $refl->getMethods(\ReflectionMethod::IS_PROTECTED);
 		
-		echo "Starting $rounds rounds of test";
+		echo '<h1>' . get_called_class() . '</h1>';
+		echo "Starting $rounds rounds";
 		if($intro) {
 			echo $intro;
 		}
