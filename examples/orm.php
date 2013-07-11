@@ -2,7 +2,8 @@
 
 require '_bootstrap.php';
 
-$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
+//$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
+$pdo = new \k\db\Pdo('mysql:root:root;host=localhost;dbname=framework');
 $prof = new k\dev\Profiler();
 //$prof->start();
 $tb = new k\dev\Toolbar(true);
@@ -50,17 +51,17 @@ class Profilepic extends BaseModel {
 
 class User extends BaseModel {
 	use k\db\orm\Timestamp;
-	use k\db\orm\Geoloc;
-	use k\db\orm\Address;
-	use k\db\orm\Info;
-	use k\db\orm\Lang;
-	use k\db\orm\Log;
-	use k\db\orm\Password;
-	use k\db\orm\Permissions;
-	use k\db\orm\SoftDelete;
-	use k\db\orm\Sortable;
-	use k\db\orm\Version;
-	
+use k\db\orm\Geoloc;
+use k\db\orm\Address;
+use k\db\orm\Info;
+use k\db\orm\Lang;
+use k\db\orm\Log;
+use k\db\orm\Password;
+use k\db\orm\Permissions;
+use k\db\orm\SoftDelete;
+use k\db\orm\Sortable;
+use k\db\orm\Version;
+
 	const ROLE_ADMIN = 'admininiser';
 	const ROLE_USER = 'user';
 
@@ -86,7 +87,7 @@ class User extends BaseModel {
 }
 
 // Create schema //
-
+$pdo->foreignKeysStatus(false);
 echo '<pre>';
 echo Lang::syncTable();
 echo '<pre>';
@@ -98,18 +99,18 @@ echo Tag::syncTable();
 echo '<br/>';
 echo ProfilePic::syncTable();
 echo '<hr/>';
-
 // Configure ORM //
 
 BaseModel::setStorage(__DIR__ . '/data');
 
 // Basic usage //
 
-Lang::insert([
-	'code' => 'fr',
-	'name' => 'Français'
-]);
-
+if (Lang::count() == 0) {
+	Lang::insert([
+		'code' => 'fr',
+		'name' => 'Français'
+	]);
+}
 $file = new k\File(__DIR__ . '/data/pic.jpg');
 $file = $file->duplicate();
 
@@ -133,7 +134,7 @@ $user->setTranslation('translatable', 'value', 'fr');
 echo $user->get_address_location();
 
 //$user->geocode();
-$user->addInfo('test','val'); //you can added infos to a user that do not exist yet, because it's pendable
+$user->addInfo('test', 'val'); //you can added infos to a user that do not exist yet, because it's pendable
 
 $id = $user->save();
 

@@ -104,7 +104,7 @@ trait Lang {
 		$fk = static::getForForeignKey();
 		$exists = $this->exists();
 		foreach ($this->_translations as $translation) {
-			if ($exists) {
+			if (!$exists) {
 				static::getPdo()->insert(static::getTableLang(), $translation);
 			} else {
 				static::getPdo()->update(static::getTableLang(), $translation, array(
