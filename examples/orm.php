@@ -3,13 +3,27 @@
 require '_bootstrap.php';
 
 $pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
-
+$prof = new k\dev\Profiler();
+//$prof->start();
 $tb = new k\dev\Toolbar(true);
 $tb->track($pdo);
+$tb->track($prof);
 
 class BaseModel extends k\db\Orm {
 
 	protected static $_classPrefix = '';
+
+}
+
+class Lang extends BaseModel {
+
+	public $code;
+	public $name;
+
+	public static function getPrimaryKeys() {
+		return ['code'];
+	}
+
 }
 
 class Usertype extends BaseModel {
@@ -33,17 +47,29 @@ class Profilepic extends BaseModel {
 	protected static $_hasOne = ['User'];
 
 }
-class User extends BaseModel {
 
-	const ROLE_ADMIN = 'admin';
+class User extends BaseModel {
+	use k\db\orm\Timestamp;
+	use k\db\orm\Geoloc;
+	use k\db\orm\Address;
+	use k\db\orm\Info;
+	use k\db\orm\Lang;
+	use k\db\orm\Log;
+	use k\db\orm\Password;
+	use k\db\orm\Permissions;
+	use k\db\orm\SoftDelete;
+	use k\db\orm\Sortable;
+	use k\db\orm\Version;
+	
+	const ROLE_ADMIN = 'admininiser';
 	const ROLE_USER = 'user';
 
 	public $id;
 	public $firstname;
 	public $lastname;
 	public $picture;
-	public $password;
 	public $birthday;
+	protected static $_lang = ['translatable'];
 	protected static $_hasOne = ['Usertype', 'Requestedtype' => 'Usertype', 'Profilepic'];
 
 	public function get_fullname() {
@@ -58,6 +84,11 @@ class User extends BaseModel {
 	}
 
 }
+
+// Create schema //
+
+echo '<pre>';
+echo Lang::syncTable();
 echo '<pre>';
 echo Usertype::syncTable();
 echo '<br/>';
@@ -67,12 +98,24 @@ echo Tag::syncTable();
 echo '<br/>';
 echo ProfilePic::syncTable();
 echo '<hr/>';
+
+// Configure ORM //
+
 BaseModel::setStorage(__DIR__ . '/data');
+
+// Basic usage //
+
+Lang::insert([
+	'code' => 'fr',
+	'name' => 'Français'
+]);
 
 $file = new k\File(__DIR__ . '/data/pic.jpg');
 $file = $file->duplicate();
 
 $birthday = new k\Date('1985-01-16');
+//$birthday = new k\Date('12:01:50');
+
 
 $user = new User();
 $user->firstname = 'koala';
@@ -80,13 +123,35 @@ $user->lastname = 'Portelange';
 $user->fullname = 'Thomas Portelange';
 $user->picture = $file;
 $user->birthday = $birthday;
+$user->street = 'Rue de la motte';
+$user->street_no = 1;
+$user->zipcode = 7061;
+$user->city = 'Soignies';
+
+$user->setTranslation('translatable', 'value', 'fr');
+
+echo $user->get_address_location();
+
+//$user->geocode();
+$user->addInfo('test','val'); //you can added infos to a user that do not exist yet, because it's pendable
+
 $id = $user->save();
 
-//var_dump(User::select());
 
-$user2 = new User($id);
+echo '<hr/>Table content';
+var_dump(User::getTable()->select());
+echo '<hr/>';
+
+$user2 = new User();
+$user2->load($id);
 $user2->firstname = 'Changed';
 $user2->save();
+$user2->firstname = 'Changed2';
+$user2->save();
+
+echo '<hr/>Version content';
+var_dump($pdo->select('userversion'));
+echo '<hr/>';
 
 User::alterTable();
 
@@ -95,48 +160,43 @@ echo json_encode($user2->toArray(array('fullname')));
 for ($i = 0; $i < 10; $i++) {
 	$o = User::createFake(false);
 	$o->deleted_at = null;
+	$o->usertype_id = rand(1, 2);
 	$o->save();
 }
 
-$firstuser = User::get()->fetchOne();
+$firstuser = User::q()->fetchOne();
 $firstuser->remove();
 
-$firstuser = User::get()->fetchOne(); //don't get the same because it has been soft removed
+// Showing traits usage //
 
-$firstuser->addMeta('key', 'value');
-$firstuser->addMeta('key', 'value2');
+/*
 
-print_r($firstuser->getMeta('key'));
+  print_r($firstuser->getLog());
 
-$firstuser->removeMeta('key');
+  $firstuser->permissions = 0;
+  $firstuser->addPermission('comment');
+  $firstuser->removePermission('comment');
+  $firstuser->addPermission('post');
 
-print_r($firstuser->getMeta());
+  echo '<pre>' . __LINE__ . "\n";
+  print_r($firstuser->readPermissions());
+ */
 
-$firstuser->log('meta updated');
-
-print_r($firstuser->getLog());
-
-$firstuser->permissions = 0;
-$firstuser->addPermission('comment');
-$firstuser->removePermission('comment');
-$firstuser->addPermission('post');
-
-echo '<pre>' . __LINE__ . "\n";
-print_r($firstuser->readPermissions());
-
+// Relations //
 // has one
 
 $usertype = new Usertype();
 $usertype->name = 'client';
 $usertype->save();
 
-$firstuser->usertype = new Usertype();
-//$firstuser->usertype->name = 'Test';
-$firstuser->save(); //save will cascade
+$type = $firstuser->Usertype();
+$type->name = 'new';
+$firstuser->save(); //save will cascade since we save cached objects too
 
-echo '<pre>' . __LINE__ . "\n";
+echo "<pre>The new usertype has been inserted \n";
 print_r($firstuser);
 print_r(Usertype::select());
+echo '<hr>';
 
 // has many
 
@@ -165,7 +225,7 @@ foreach (range(1, 5) as $i) {
 	Tag::createFake();
 }
 
-$firstuser->addRelated(Tag::get()->fetchAll());
+$firstuser->addRelated(Tag::q()->fetchAll());
 
 echo '<pre>' . __LINE__ . "\n";
 print_r($firstuser->getRelated('Tag'));
@@ -176,22 +236,20 @@ echo '<hr/>';
 echo 'total pics : ' . Profilepic::count() . '<br/>';
 
 
-$users = User::get()->fetchAll();
-Usertype::inject($users);
-echo 'inject profile pic <br/>';
-Profilepic::inject($users);
-echo 'inject tag<br/>';
-Tag::inject($users);
-echo '<hr/>';
+$users = User::q()->fetchAll();
+echo '<table><tr><th>id</th><th>type id</th><th>type</th><th>count pics<th><th>tags</th></tr>';
 foreach ($users as $user) {
-	echo 'user id ' . $user->id . '<br/>';
-	echo 'usertype : ' . $user->usertype->name . '<br/>';
-	echo 'profile pics : ' . count($user->profilepic()) . '<br/>';
-	echo 'tags : ' . count($user->tag()) . '<br/>';
-	echo '<hr/>';
+	echo '<tr>';
+	echo '<td>' . $user->id . '</td>';
+	echo '<td>' . $user->usertype_id . '</td>';
+	echo '<td>' . $user->Usertype()->name . '</td>';
+	echo '<td>' . count($user->Profilepic()) . '</td>';
+	echo '<td>' . count($user->tag()) . '</td>';
+	echo '</tr>';
 }
-
-echo '<pre>' . __LINE__ . "\n";
+echo '</table>';
+echo "<pre>Show enum\n";
 print_r(User::enum('role'));
 
-K\File::emptyDir(User::getBaseFolder());
+$dir = new k\Directory(User::getBaseFolder());
+//$dir->makeEmpty();

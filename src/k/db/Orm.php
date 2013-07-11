@@ -2,9 +2,9 @@
 
 namespace k\db;
 
-use \ReflectionClass;
 use \Exception;
 use \InvalidArgumentException;
+use \RuntimeException;
 
 /**
  * Orm class
@@ -30,11 +30,10 @@ class Orm extends \k\data\Model {
 	const MANY_MANY = 'manyMany';
 
 	/**
-	 * Store original field data
-	 * 
+	 * Store original array
 	 * @var array
 	 */
-	protected $_original = null;
+	protected $_original = array();
 
 	/**
 	 * Cache resolved objects for the current instance
@@ -45,11 +44,16 @@ class Orm extends \k\data\Model {
 	protected $_cache = array();
 
 	/**
-	 * Query used to fetch the model
-	 * 
+	 * Parent query
 	 * @var Query
 	 */
 	protected $_query;
+
+	/**
+	 * Pending actions that need to be accomplished once the object has an id
+	 * @var array 
+	 */
+	protected $_pending = array();
 
 	/**
 	 * Map model types to sql
@@ -128,6 +132,13 @@ class Orm extends \k\data\Model {
 	 */
 	protected static $_classPrefix = 'Model_';
 
+	/**
+	 * Automatic prefetch
+	 * 
+	 * @var boolean
+	 */
+	protected static $_prefetch = true;
+
 	/* --- class methods --- */
 
 	/**
@@ -140,7 +151,7 @@ class Orm extends \k\data\Model {
 	 */
 	public static function createFake($save = true) {
 		$o = new static();
-		$fields = static::getFields();
+		$fields = static::getFields(false);
 		$pkFields = static::getPrimaryKeys();
 		$fkFields = static::getForeignKeys();
 
@@ -164,6 +175,9 @@ class Orm extends \k\data\Model {
 				}
 			} elseif (strpos($type, 'VARCHAR') !== false) {
 				$len = preg_replace("/[^0-9,.]/", "", $type);
+				if (!is_numeric($len)) {
+					$len = 45;
+				}
 				$value = substr($value, 0, $len);
 			} elseif (strpos($type, 'DECIMAL') !== false || strpos($type, 'FLOAT') !== false) {
 				$value = rand(0, 100) . '.' . rand(0, 100);
@@ -243,6 +257,7 @@ class Orm extends \k\data\Model {
 			}
 			$ids[] = $key;
 		}
+		$ids = array_unique($ids);
 		if (empty($ids)) {
 			return;
 		}
@@ -316,7 +331,10 @@ class Orm extends \k\data\Model {
 	}
 
 	/**
-	 * Do not try to insert or update fields that don't exist
+	 * Filter data to insert
+	 * - remove empty values yet keep values like 0
+	 * - remove fields that don't exist on this table
+	 * - transform objects into saveable data
 	 * 
 	 * @param array $data
 	 * @return array
@@ -325,12 +343,129 @@ class Orm extends \k\data\Model {
 		if (!is_array($data)) {
 			return $data;
 		}
+		$data = array_filter($data, 'strlen'); //do not insert empty values
 		$fields = static::getFields();
 		foreach ($data as $k => $v) {
 			if (!in_array($k, $fields)) {
 				unset($data[$k]);
 			}
 		}
+		return $data;
+	}
+
+	/**
+	 * Execute or store a callback depending on record existence
+	 * 
+	 * @param Callable $cb
+	 * @param boolean $exists
+	 */
+	protected function pendingCallback($cb, $exists = false) {
+		if ($this->exists($exists)) {
+			$cb();
+		} else {
+			$this->_pending[] = $cb;
+		}
+	}
+
+	/**
+	 * Convert an object to a storable value
+	 * 
+	 * @param Object $v
+	 * @param string $name
+	 * @return string
+	 */
+	protected function convertToStorableValue($v, $name = null) {
+		if (is_string($v)) {
+			return $v;
+		}
+		//we don't store array for orm
+		if (is_array($v)) {
+			return implode(',', $v);
+		}
+		if (is_object($v)) {
+			if ($v instanceof Orm) {
+				$v = $v->getId();
+			} elseif ($v instanceof \k\File) {
+				$this->pendingCallback(function() use ($v, $name) {
+							$this->attachFile($v, $name);
+						});
+				$v = $v->getBasename();
+			} elseif ($v instanceof \k\Date) {
+				$v = $v->format(); //date remember the format (datetime,date or time)
+			} else {
+				$v = (string) $v;
+			}
+		}
+
+		return $v;
+	}
+
+	/**
+	 * Attach a file to the object instance
+	 * 
+	 * The object must have an id to do so
+	 * 
+	 * @param \k\File|string $file
+	 * @param string $name Field to attach
+	 * @return boolean
+	 */
+	public function attachFile($file, $name = null) {
+		if (is_string($file)) {
+			$file = new \k\File($file);
+		}
+		$folder = $this->getFolder(true);
+		$fileFolder = $file->getPath();
+		$res = true;
+		if ($folder != $fileFolder) {
+			$res = $file->move($folder);
+		}
+		if ($res && $name) {
+			$this->$name = $file->getBasename();
+		}
+		return $res;
+	}
+
+	/**
+	 * @param array|string $where
+	 * @param array $params
+	 * @return int 
+	 */
+	public static function count($where = null, $params = array()) {
+		$table = static::getTableName();
+		return static::getPdo()->count($table, $where, $params);
+	}
+
+	/**
+	 * @param int $field
+	 * @return int 
+	 */
+	public static function min($field = 'id') {
+		$table = static::getTableName();
+		return static::getPdo()->min($table, $field);
+	}
+
+	/**
+	 * @param int $field
+	 * @return int 
+	 */
+	public static function max($field = 'id') {
+		$table = static::getTableName();
+		return static::getPdo()->max($table, $field);
+	}
+
+	/**
+	 * @param array|string $where
+	 * @param array|string $orderBy
+	 * @param array|string $limit
+	 * @param array|string $fields
+	 * @param array $params
+	 * @return array 
+	 */
+	public static function select($where = null, $orderBy = null, $limit = null, $fields = '*', $params = array()) {
+		$table = static::getTableName();
+		static::onBeforeSelect($where, $orderBy, $limit, $fields, $params);
+		$data = static::getPdo()->select($table, $where, $orderBy, $limit, $fields, $params);
+		static::onAfterSelect($data);
 		return $data;
 	}
 
@@ -343,7 +478,10 @@ class Orm extends \k\data\Model {
 	public static function insert($data) {
 		$data = static::filterData($data);
 		$table = static::getTableName();
-		return static::getPdo()->insert($table, $data);
+		static::onBeforeInsert($data);
+		$res = static::getPdo()->insert($table, $data);
+		static::onAfterInsert($res, $data);
+		return $res;
 	}
 
 	/**
@@ -357,7 +495,10 @@ class Orm extends \k\data\Model {
 	public static function update($data, $where = null, $params = array()) {
 		$data = static::filterData($data);
 		$table = static::getTableName();
-		return static::getPdo()->update($table, $data, $where, $params);
+		static::onBeforeUpdate($data);
+		$res = static::getPdo()->update($table, $data, $where, $params);
+		static::onAfterUpdate($res, $data, $where, $params);
+		return $res;
 	}
 
 	/**
@@ -369,7 +510,10 @@ class Orm extends \k\data\Model {
 	 */
 	public static function delete($where, $params = array()) {
 		$table = static::getTableName();
-		return static::getPdo()->delete($table, $where, $params);
+		static::onBeforeDelete($where, $params);
+		$res = static::getPdo()->delete($table, $where, $params);
+		static::onAfterDelete($res, $where, $params);
+		return $res;
 	}
 
 	/**
@@ -683,9 +827,9 @@ class Orm extends \k\data\Model {
 
 			//add extensions fields
 			foreach (static::getTraits() as $t => $name) {
-				$p = 'fields' . $name;
-				if (property_exists($t, $p)) {
-					$fields = array_merge($fields, $t::$$p);
+				$p = 'types' . $name;
+				if (method_exists($t, $p)) {
+					$fields = array_merge($fields, $t::$p());
 				}
 			}
 		}
@@ -787,7 +931,7 @@ class Orm extends \k\data\Model {
 
 		if ($pkFields === null) {
 			$pkFields = array();
-			$fields = array_keys(static::getFields());
+			$fields = static::getFields();
 			if (in_array('id', $fields)) {
 				$pkFields[] = 'id';
 			} else {
@@ -863,7 +1007,11 @@ class Orm extends \k\data\Model {
 			array_walk($pk, function(&$item) {
 						$item = $item . ' ASC';
 					});
-			$sort = implode(',', $pk);
+			$first = '';
+			if ($this->has('sort_order')) {
+				$first = 'sort_order ASC,';
+			}
+			$sort = $first . implode(',', $pk);
 		}
 		return $sort;
 	}
@@ -876,16 +1024,39 @@ class Orm extends \k\data\Model {
 		return array();
 	}
 
-	public static function createTable($execute = false) {
+	public static function createTable($execute = true) {
 		$pdo = static::getPdo();
 		$table = static::getTableName();
 		$fields = static::getFields();
 		$pkFields = static::getPrimaryKeys();
 		$fkFields = static::getForeignKeys();
-		return $pdo->createTable($table, $fields, $pkFields, $fkFields, $execute);
+		$res = $pdo->createTable($table, $fields, $pkFields, $fkFields, $execute);
+
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'createTable' . $name;
+			if (method_exists($t, $p)) {
+				$res .= "\n" . static::$p($execute);
+			}
+		}
+
+		return $res;
 	}
 
-	public static function alterTable($execute = false) {
+	public static function dropTable($execute = true) {
+		$res = '';
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'dropTable' . $name;
+			if (method_exists($t, $p)) {
+				$res .= "\n" . static::$p($execute);
+			}
+		}
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$res .= $pdo->dropTable($table, $execute);
+		return $res;
+	}
+
+	public static function alterTable($execute = true) {
 		$pdo = static::getPdo();
 		$table = static::getTableName();
 		$fields = static::getFields();
@@ -927,6 +1098,22 @@ class Orm extends \k\data\Model {
 		}
 	}
 
+	/**
+	 * Helper function to help autocomplete
+	 * 
+	 * foreach($users as $user) {
+	 * 	$user = User::inst($user);
+	 * }
+	 * @param static $obj
+	 * @return Orm
+	 */
+	public static function inst($obj = null) {
+		if ($obj) {
+			return $obj;
+		}
+		return new static();
+	}
+
 	public static function onBeforeSelect(&$where, &$orderBy, &$limit, &$fields, &$params) {
 		
 	}
@@ -951,11 +1138,11 @@ class Orm extends \k\data\Model {
 		
 	}
 
-	public static function onBeforeDelete(&$data, &$where = null, &$params = null) {
+	public static function onBeforeDelete(&$where = null, &$params = null) {
 		
 	}
 
-	public static function onAfterDelete(&$res, $data, $where = null, $params = null) {
+	public static function onAfterDelete(&$res, $where = null, $params = null) {
 		
 	}
 
@@ -1017,8 +1204,9 @@ class Orm extends \k\data\Model {
 			$relations = static::getAllRelations();
 			$class = $relations[$name];
 		}
-		if ($this->_query) {
-			$this->_query->prefetch($name, $class);
+		//if we have an associated query, we can smart prefetch other records
+		if ($this->getQuery()) {
+			$this->getQuery()->prefetch($name, $class);
 			//record will be cached by prefetch if exists
 			$data = $this->getCache($name);
 			if (!$data) {
@@ -1160,7 +1348,7 @@ class Orm extends \k\data\Model {
 	public function exists($db = false) {
 		$pkFields = static::getPrimaryKeys();
 		if ($db) {
-			return static::count($this->pkAsArray());
+			return static::count($this->primaryKeysAsArray());
 		}
 		foreach ($pkFields as $field) {
 			if ($this->$field != '') {
@@ -1174,7 +1362,7 @@ class Orm extends \k\data\Model {
 	 * Get primary key as array
 	 * @return array
 	 */
-	protected function pkAsArray() {
+	protected function primaryKeysAsArray() {
 		$arr = array();
 		foreach (static::getPrimaryKeys() as $field) {
 			$arr[$field] = $this->$field;
@@ -1186,18 +1374,39 @@ class Orm extends \k\data\Model {
 		//implement in subclass, return false to cancel
 	}
 
-	protected function onPostSave() {
+	protected function onPostSave($result) {
 		//implement in subclass
 	}
 
-	protected function changedFields() {
-		$changed = array();
-		foreach ($this->getOriginal() as $k => $v) {
-			if ($this->$k != $v) {
-				$changed[$k] = $this->$k;
-			}
+	/**
+	 * @param Object $obj
+	 */
+	public function merge($obj) {
+		foreach ($obj as $k => $v) {
+			$this->$k = $v;
 		}
-		return $changed;
+	}
+
+	/**
+	 * Load a record
+	 * 
+	 * @param int $id
+	 * @throws \InvalidArgumentException
+	 */
+	public function load($id) {
+		if (empty($id)) {
+			throw new \InvalidArgumentException('Id is empty');
+		}
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$pk = static::getPrimaryKey();
+
+		$sql = 'SELECT * FROM ' . $table . ' WHERE ' . $pk . ' = :' . $pk;
+		$stmt = $pdo->prepare($sql);
+		$stmt->setFetchMode(\PDO::FETCH_INTO, $this);
+		$stmt->execute([$pk => $id]);
+		$stmt->fetch();
+		$this->_original = $this->getData();
 	}
 
 	/**
@@ -1208,21 +1417,13 @@ class Orm extends \k\data\Model {
 		//save cached objects too
 		foreach ($this->getCache() as $name => $o) {
 			if (is_object($o)) {
-				if (is_subclass_of($o, '\\k\\db\\Orm')) {
+				if ($o instanceof Orm) {
 					$o->save();
 					$class = get_class($o);
 					$field = $class::getForForeignKey();
 					$this->$field = $o->getId();
 				}
 			}
-		}
-
-		//prepare data
-		$exists = $this->exists();
-		if ($exists) {
-			$this->saveData = $this->changedFields();
-		} else {
-			$this->saveData = array_filter($this->toArray());
 		}
 
 		//call hooks, cancel if return false
@@ -1240,27 +1441,59 @@ class Orm extends \k\data\Model {
 			return false;
 		}
 
-		if (empty($this->saveData)) {
-			$this->saveStatus = false;
-			return $this->saveStatus;
+		$exists = $this->exists();
+
+		$data = $this->getData();
+		foreach ($data as $k => $v) {
+			$data[$k] = $this->convertToStorableValue($v, $k);
 		}
 
 		if ($exists) {
-			$this->saveStatus = static::update($this->saveData, $this->pkAsArray());
-		} else {
-			$this->saveStatus = static::insert($this->saveData);
-			if ($this->saveStatus && $this->hasField('id')) {
-				$this->id = $this->saveStatus;
+			//keep only changed fields
+			$original = $this->getOriginal();
+			if (!empty($original)) {
+				$changed = array();
+				foreach ($original as $k => $v) {
+					if ($data[$k] != $v) {
+						$changed[$k] = $this->$k;
+					}
+				}
+				$data = $changed;
 			}
 		}
 
-		$this->onPostSave();
+		if ($exists) {
+			$result = static::update($data, $this->primaryKeysAsArray());
+		} else {
+			$result = static::insert($data);
+			if ($result) {
+				if ($this->has('id')) {
+					$this->id = $result;
+				}
+				//now that we have an id, we can run pending tasks like attaching files
+				foreach ($this->_pending as $p) {
+					$p();
+				}
+			}
+		}
+		$this->_original = $this->getData();
 
-		return $this->saveStatus;
+		//call hooks, cancel if return false
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'onPostSave' . $name;
+			if (method_exists($t, $p)) {
+				$res = $this->$p();
+			}
+		}
+
+		$this->onPostSave($result);
+		
+		return $result;
 	}
 
 	/**
 	 * Handle direct primary keys as params in where
+	 * 
 	 * @param int|array $where
 	 * @return type
 	 * @throws Exception
@@ -1310,7 +1543,7 @@ class Orm extends \k\data\Model {
 			if ($res === false) {
 				return false;
 			}
-			$res = static::delete($this->pkAsArray());
+			$res = static::delete($this->primaryKeysAsArray());
 			$this->onPostRemove($res);
 			return $res;
 		}
@@ -1326,7 +1559,7 @@ class Orm extends \k\data\Model {
 	}
 
 	public function __toString() {
-		return get_called_class() . json_encode($this->pkAsArray());
+		return get_called_class() . json_encode($this->primaryKeysAsArray());
 	}
 
 	/**
@@ -1362,6 +1595,26 @@ class Orm extends \k\data\Model {
 	}
 
 	/**
+	 * This constructor is called AFTER properties are injected
+	 * @param int $id
+	 */
+	public function __construct($id = null) {
+		if ($id !== null) {
+			if (is_object($id)) {
+				if ($id instanceof Query) {
+					$this->setQuery($id);
+				}
+				$id = null;
+			}
+		}
+		if ($id !== null) {
+			$this->load($id);
+		} else {
+			$this->_original = $this->getData();
+		}
+	}
+
+	/**
 	 * Shortcut for getRelated
 	 * @param string $name
 	 * @param array $arguments
@@ -1377,7 +1630,7 @@ class Orm extends \k\data\Model {
 	 * @return string
 	 */
 	public function getFolder($create = false) {
-		$folder = static::getBaseFolder() . '/' . $this->getId();
+		$folder = static::getBaseFolder() . '/' . $this->getId(true);
 
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
@@ -1400,6 +1653,31 @@ class Orm extends \k\data\Model {
 		return $folder;
 	}
 
+	/**
+	 * Get parent query
+	 * 
+	 * @return Query
+	 */
+	public function getQuery() {
+		return $this->_query;
+	}
+
+	/**
+	 * Set parent query. Useful to prefetch data
+	 * 
+	 * @param Query $query
+	 */
+	public function setQuery($query) {
+		$this->_query = $query;
+	}
+
+	/**
+	 * Get a value from cache
+	 * 
+	 * @param string $name
+	 * @param mixed $default
+	 * @return mixed
+	 */
 	public function getCache($name = null, $default = null) {
 		if (!$name) {
 			return $this->_cache;
@@ -1410,6 +1688,13 @@ class Orm extends \k\data\Model {
 		return $default;
 	}
 
+	/**
+	 * Set a cache value
+	 * 
+	 * @param string $name
+	 * @param mixed  $value
+	 * @return \k\db\Orm
+	 */
 	public function setCache($name = null, $value = null) {
 		$this->_cache[$name] = $value;
 		return $this;
@@ -1426,7 +1711,7 @@ class Orm extends \k\data\Model {
 	 * @param string $name
 	 * @return string
 	 */
-	public function get($name) {
+	public function get($name, $format = null) {
 		//relation
 		if (strpos($name, '.') !== false) {
 			$parts = explode('.', $name);
@@ -1450,50 +1735,8 @@ class Orm extends \k\data\Model {
 	 * @return \k\db\Orm
 	 */
 	public function set($name, $value) {
-		//object conversion
-		if (is_object($value)) {
-			switch ($value) {
-				case ($value instanceof Orm):
-					$object = $value;
-					if ($object->exists()) {
-						$value = $value->getId();
-					}
-					break;
-				case ($value instanceof \DateTime):
-					$value = $value->format('Y-m-d H:i:s');
-					break;
-				case ($value instanceof \k\File):
-					$folder = static::getBaseFolder();
-					while (true) {
-						$filename = uniqid($name) . '.' . $value->getExtension();
-						if (!file_exists($folder . '/' . $filename))
-							break;
-					}
-					$value->rename($folder . '/' . $filename);
-					$value = $filename;
-					break;
-				default:
-					$value = (string) $value;
-					break;
-			}
-		}
-		//we don't store array for orm
-		if (is_array($value)) {
-			$value = implode(',', $value);
-		}
-
+		$value = $this->convertToStorableValue($value, $name);
 		return parent::set($name, $value);
-
-		//relation
-//			if (in_array($name, static::getManyExtraFields())) {
-//				$this->$name = $value;
-//			} else {
-//		$name = str_replace('_id', '', $name); //we might try to set this because of a join
-//		if (static::isRelated($name) && isset($object)) {
-//			return $this->addRelated($object);
-//		}
-//			}
-		return false;
 	}
 
 	/**
@@ -1543,25 +1786,28 @@ class Orm extends \k\data\Model {
 		}
 	}
 
-	public function getParentQuery() {
-		return $this->_query;
-	}
-
-	public function setParentQuery(Query $query) {
-		$this->_query = $query;
-		return $this;
-	}
-
+	/**
+	 * Get id for a table with a single primary key
+	 * 
+	 * @param boolean $mustExist
+	 * @return boolean
+	 * @throws Exception
+	 */
 	public function getId($mustExist = false) {
 		$pkField = static::getPrimaryKey();
 		$value = $this->$pkField;
 		if (empty($value) && $mustExist) {
-			throw new Exception('This record does not have an id yet in ' . get_called_class());
+			throw new RuntimeException('This record does not have an id yet');
 		}
 		return $value;
 	}
 
-	public function getTitle() {
+	/**
+	 * Get title (useful for labels in dropdown for instance)
+	 * 
+	 * @return string
+	 */
+	public function get_title() {
 		$potentials = ['title', 'name', 'username'];
 		foreach ($potentials as $p) {
 			if (property_exists($this, $p)) {
@@ -1571,8 +1817,20 @@ class Orm extends \k\data\Model {
 		return $this->getId();
 	}
 
+	/**
+	 * Get original
+	 * 
+	 * @return array|boolean
+	 */
 	public function getOriginal() {
-		return $this->_original;
+		if ($this->_original !== null) {
+			return $this->_original;
+		}
+		$id = $this->getId();
+		if (isset(static::$_recordCache[$id])) {
+			return static::$_recordCache[$id];
+		}
+		return false;
 	}
 
 	/* --- factories --- */
@@ -1596,17 +1854,17 @@ class Orm extends \k\data\Model {
 	}
 
 	/**
-	 * Alias getQuery
+	 * Alias query
 	 * @return \k\db\Query
 	 */
 	public static function q() {
-		return static::getQuery();
+		return static::query();
 	}
 
 	/**
 	 * @return \k\db\Query
 	 */
-	public static function getQuery() {
+	public static function query() {
 		return static::getDefaultQuery();
 	}
 

@@ -48,6 +48,9 @@ class Profiler {
 	 * @return array
 	 */
 	public function devToolbarCallback() {
+		if($this->lastTime === 0) {
+			return 'not started';
+		}
 		$arr = array();
 		$data = $this->getProfile();
 		$time = 0;

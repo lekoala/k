@@ -8,7 +8,7 @@ namespace k\db\orm;
 trait Log {
 	
 	public static function getTableLog() {
-		return static::getTable() . 'log';
+		return static::getTableName() . 'log';
 	}
 	
 	public static function createTableLog($execute = true) {
@@ -16,7 +16,7 @@ trait Log {
 		$ttable = static::getTableLog();
 		$fields = array(
 			'id',
-			$table . '_id',
+			static::getForForeignKey(),
 			'message',
 			'created_at'
 		);

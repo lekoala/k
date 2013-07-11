@@ -22,6 +22,7 @@ use \Exception;
  * - Connections registry
  * 
  * @link https://github.com/troelskn/pdoext/blob/master/lib/pdoext/connection.inc.php
+ * @link https://github.com/fightbulc/easy_pdo/blob/master/src/easypdo.php
  * @author lekoala
  */
 class Pdo extends NativePdo {
@@ -353,7 +354,10 @@ class Pdo extends NativePdo {
 		return $this;
 	}
 
-	public function getDbtype() {
+	public function getDbtype($name = null) {
+		if ($name) {
+			return $this->dbtype === $name;
+		}
 		return $this->dbtype;
 	}
 
@@ -569,7 +573,7 @@ class Pdo extends NativePdo {
 			$fields = implode(',', $fields);
 		}
 		$sql = 'SELECT ' . $fields . ' FROM ' . $table . '';
-		$this->injectWhere($sql, $where, $params);
+		$sql .= $this->createWhereClause($where, $params);
 		if (!empty($orderBy)) {
 			if (is_array($orderBy)) {
 				$orderBy = implode(',', $orderBy);
@@ -598,7 +602,10 @@ class Pdo extends NativePdo {
 	 * @return int The id of the record
 	 */
 	public function insert($table, array $data) {
-		$params = array();
+		if (empty($data)) {
+			return false;
+		}
+		$params = $keys = $values = [];
 		foreach ($data as $k => $v) {
 			$keys[] = $k;
 			$values[] = ':' . $k;
@@ -612,7 +619,11 @@ class Pdo extends NativePdo {
 		$stmt->closeCursor();
 		$stmt = null;
 		if ($result) {
-			return $this->lastInsertId();
+			$sequence = null;
+			if ($this->getDbtype('pgsql')) {
+				$sequence = "{$table}_id_seq";
+			}
+			$result = $this->lastInsertId($sequence);
 		}
 		return $result;
 	}
@@ -627,6 +638,9 @@ class Pdo extends NativePdo {
 	 * @return bool
 	 */
 	public function update($table, array $data, $where = null, $params = array()) {
+		if (empty($data)) {
+			return false;
+		}
 		$sql = 'UPDATE ' . $table . " SET \n";
 		self::toNamedParams($where, $params);
 		foreach ($data as $k => $v) {
@@ -638,7 +652,7 @@ class Pdo extends NativePdo {
 			$params[$placeholder] = $v;
 		}
 		$sql = rtrim($sql, ', ');
-		$this->injectWhere($sql, $where, $params);
+		$sql .= $this->createWhereClause($where, $params);
 		$stmt = $this->prepare($sql);
 		$result = $stmt->execute($params);
 		$stmt->closeCursor();
@@ -656,7 +670,7 @@ class Pdo extends NativePdo {
 	 */
 	public function delete($table, $where = null, $params = array()) {
 		$sql = 'DELETE FROM ' . $table . '';
-		$this->injectWhere($sql, $where, $params);
+		$sql .= $this->createWhereClause($where, $params);
 		$stmt = $this->prepare($sql);
 		$result = $stmt->execute($params);
 		$stmt->closeCursor();
@@ -691,8 +705,7 @@ class Pdo extends NativePdo {
 	 */
 	public function count($table, $where = null, $params = array()) {
 		$sql = 'SELECT COUNT(*) FROM ' . $table . '';
-		$this->inject_where($sql, $where, $params);
-		$sql = $this->translate($sql);
+		$sql .= $this->createWhereClause($where, $params);
 		$stmt = $this->prepare($sql);
 		$stmt->execute($params);
 		$results = $stmt->fetchColumn();
@@ -719,13 +732,32 @@ HAVING ( COUNT(*) > 1 )";
 		return array();
 	}
 
+	/**
+	 * @param string $table
+	 * @param string $field
+	 * @return int
+	 */
+	public function min($table, $field = 'id') {
+		$sql = "SELECT MIN($field) FROM $table";
+		$results = $this->query($sql);
+		if ($results) {
+			$results = $results->fetchColumn(0);
+		}
+		return ($results) ? $results : 0;
+	}
+
+	/**
+	 * @param string $table
+	 * @param string $field
+	 * @return int
+	 */
 	public function max($table, $field = 'id') {
 		$sql = "SELECT MAX($field) FROM $table";
 		$results = $this->query($sql);
 		if ($results) {
-			return $results->fetchColumn(0);
+			$results = $results->fetchColumn(0);
 		}
-		return 0;
+		return ($results) ? $results : 0;
 	}
 
 	/* table operations */
@@ -737,7 +769,7 @@ HAVING ( COUNT(*) > 1 )";
 	 * @return int
 	 */
 	public function dropTable($table, $execute = true) {
-		$sql = 'DROP TABLE IF EXISTS ' . $table . '';
+		$sql = 'DROP TABLE IF EXISTS ' . $table . ';';
 		if ($execute) {
 			$this->exec($sql);
 		}
@@ -824,7 +856,7 @@ HAVING ( COUNT(*) > 1 )";
 		}
 
 		//primary key
-		if ($dbtype != 'sqlite' || !empty($pkFields)) {
+		if (!($dbtype == 'sqlite' && strpos($sql, 'PRIMARY KEY') !== false)) {
 			if (!empty($pkFields)) {
 				$sql .= "\t" . 'PRIMARY KEY (' . implode(',', $pkFields) . ')' . ",\n";
 			}
@@ -838,7 +870,7 @@ HAVING ( COUNT(*) > 1 )";
 
 		$sql = rtrim($sql, ",\n");
 
-		$sql .= "\n)";
+		$sql .= "\n);";
 
 		if ($execute) {
 			$this->exec($sql);
@@ -927,7 +959,7 @@ HAVING ( COUNT(*) > 1 )";
 			$sql .= "DROP COLUMN " . $field . ",\n";
 		}
 
-		$sql = rtrim($sql, ",\n");
+		$sql = rtrim($sql, ",\n") . ';';
 
 		if ($execute) {
 			$this->exec($sql);
@@ -1416,13 +1448,14 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 	}
 
 	/**
-	 * Inject where clause at the end of a sql statement
+	 * Create where clause
 	 * 
-	 * @param string $sql
 	 * @param string|array $where
+	 * @param string|array $params
 	 * @return string
 	 */
-	protected function injectWhere(&$sql, &$where, &$params) {
+	protected function createWhereClause(&$where, &$params) {
+		$sql = '';
 		if (is_array($where)) {
 			$pdo = $this;
 			array_walk($where, function (&$item, $key) use (&$params, $pdo) {
@@ -1483,8 +1516,7 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 					$color = 'deeppink';
 				}
 				$text = '<span style="color:' . $color . '">[' . $tb->formatTime($t) . ']</span> ' . $text;
-			}
-			else {
+			} else {
 				$text = '<span style="color:deeppink">[error]</span> ' . $text;
 			}
 			$arr[] = $text;
@@ -1571,7 +1603,7 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 		$dbtype = $this->getDbtype();
 
 		$rules = array(
-			'zipcode' => 'VARCHAR(20)',
+			'zipcode|postalcode|postcode' => 'VARCHAR(20)',
 			'_?ip$' => 'VARCHAR(45)', //ipv6 storage
 			'^lang_code|country_code$' => 'VARCHAR(2)',
 			'_?price$' => 'DECIMAL(10,2) UNSIGNED',
@@ -1591,7 +1623,7 @@ AND REFERENCED_TABLE_SCHEMA = DATABASE()";
 		$type = 'VARCHAR(255)';
 
 		//guess by name
-		if (empty($pkFields) && $name == 'id') {
+		if ($name == 'id' && (empty($pkFields) || $pkFields == ['id'])) {
 			if ($dbtype == 'sqlite') {
 				$type = 'INTEGER PRIMARY KEY AUTOINCREMENT';
 			} else {

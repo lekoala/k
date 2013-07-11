@@ -672,7 +672,7 @@ class OrmOld implements JsonSerializable {
 	public function exists($db = false) {
 		$pkFields = static::getPrimaryKeys();
 		if ($db) {
-			return static::count($this->pkAsArray());
+			return static::count($this->primaryKeysAsArray());
 		}
 		foreach ($pkFields as $field) {
 			if ($this->$field != '') {
@@ -686,7 +686,7 @@ class OrmOld implements JsonSerializable {
 	 * Get primary key as array
 	 * @return array
 	 */
-	protected function pkAsArray() {
+	protected function primaryKeysAsArray() {
 		$arr = array();
 		foreach (static::getPrimaryKeys() as $field) {
 			$arr[$field] = $this->$field;
@@ -729,7 +729,7 @@ class OrmOld implements JsonSerializable {
 			if (empty($changed)) {
 				return true;
 			}
-			$res = static::update($changed, $this->pkAsArray());
+			$res = static::update($changed, $this->primaryKeysAsArray());
 		} else {
 			$inserted = array();
 			foreach ($data as $k => $v) {
@@ -767,7 +767,7 @@ class OrmOld implements JsonSerializable {
 			if ($res === false) {
 				return false;
 			}
-			$res = static::delete($this->pkAsArray());
+			$res = static::delete($this->primaryKeysAsArray());
 			$this->onPostRemove();
 			return $res;
 		}
@@ -810,7 +810,7 @@ class OrmOld implements JsonSerializable {
 	}
 
 	public function __toString() {
-		return get_called_class() . json_encode($this->pkAsArray());
+		return get_called_class() . json_encode($this->primaryKeysAsArray());
 	}
 
 	/**

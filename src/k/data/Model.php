@@ -211,9 +211,8 @@ class Model implements JsonSerializable, ArrayAccess {
 		static $traits;
 
 		if ($traits === null) {
-			$ref = static::getReflectedClass();
-			$ts = $ref->getTraitNames();
-			$traits = array();
+			$traits = [];
+			$ts = class_uses(get_called_class());
 			foreach ($ts as $trait) {
 				$name = explode('\\', $trait);
 				$name = end($name);
@@ -283,6 +282,32 @@ class Model implements JsonSerializable, ArrayAccess {
 		$validator = new Validator($this->getData(), $rules);
 		$validator->validate(true);
 	}
+	
+	/**
+	 * Format a string depending on its type
+	 * 
+	 * @param string $format
+	 * @param mixed $value
+	 * @param string $name
+	 * @return string
+	 */
+	protected function format($format, $value, $name = null) {
+		$type = 'string';
+		if($name && isset(static::$_types[$name])) {
+			$type = static::$_types[$name];
+		}
+		switch($type) {
+			case 'date':
+			case 'dateIso':
+				return date($format,strtotime($value));
+				break;
+			default:
+				if(is_array($value)) {
+					return vsprintf($format, $value);
+				}
+				return sprintf($format,$value);
+		}
+	}
 
 	/**
 	 * Verify is model has a field or a virtual field
@@ -324,7 +349,9 @@ class Model implements JsonSerializable, ArrayAccess {
 			if($defaults) {
 				$v = isset($defaults[$name]) ? $defaults[$name] : null;
 			}
-			
+		}
+		if($format !== null) {
+			$v = $this->format($format,$v,$name);
 		}
 		return $v;
 	}

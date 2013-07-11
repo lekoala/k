@@ -354,7 +354,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 				$this->addField($f);
 			}
 		}
-		if(empty($this->fields)) {
+		if (empty($this->fields)) {
 			$this->fields[] = $this->tableOrAlias() . '.*';
 		}
 		$this->fields[] = $field;
@@ -396,7 +396,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function where($key = null, $value = '', $operator = null) {
 		//pass null to reset where
 		if ($key === null) {
-			$this->params = array();	
+			$this->params = array();
 			$this->where = array();
 			return $this;
 		}
@@ -986,7 +986,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$results = $this->query();
 		if ($results) {
 			if ($fetchArgument) {
-				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument);
+				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument, [$this]);
 			} else {
 				$this->fetchedData = $results->fetchAll($fetchType);
 			}
@@ -994,9 +994,6 @@ class Query implements Iterator, ArrayAccess, Countable {
 			$results = null;
 		} else {
 			$this->fetchedData = array();
-		}
-		if($fetchArgument && $this->isOrmClass($fetchArgument)) {
-			$fetchArgument::addRecordCache($this);
 		}
 		if ($this->collectionClass) {
 			$class = $this->collectionClass;
@@ -1124,6 +1121,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function fetch($fetchType = null, $fetchArgument = null) {
 		$results = $this->query();
 		if ($this->fetchClass && $fetchType === null) {
+			$fetchType = PDO::FETCH_CLASS;
 			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass);
 		}
 		if ($fetchType === null) {

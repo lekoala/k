@@ -7,8 +7,6 @@ namespace k\db\orm;
  */
 trait AccessToken {
 	
-	public static $fieldsAccessToken = array(
-		'token' => 'VARCHAR(255)',
-	);
-
+	public $token;
+	
 }

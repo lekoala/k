@@ -27,6 +27,12 @@ class Date extends DateTime {
 	const SECONDS_MINUTE = 60;
 	
 	/**
+	 * Format
+	 */
+	const FORMAT_EPOCH = 'U';
+	const FORMAT_DOW = 'l';
+	
+	/**
 	 * Regex validation pattern
 	 */
 	const PATTERN_YYMMDD = '/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/';
@@ -34,17 +40,83 @@ class Date extends DateTime {
 	const PATTERN_ISO = '/^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/';
 
 	/**
+	 * Remember the format we have given
+	 * @var string 
+	 */
+	protected $format;
+	
+	/**
 	 * @param string $dateTime
 	 * @param string $timezone
 	 */
 	public function __construct($dateTime = 'now', $timezone = 'UTC') {
-		parent::__construct($dateTime, new \DateTimeZone($timezone));
+		$this->setFormat(date_parse($dateTime));
+		parent::__construct($dateTime, $this->convertTimeZone($timezone));
 
+		return $this;
+	}
+	
+	/**
+	 * Get Format
+	 * 
+	 * @return string
+	 */
+	public function getFormat() {
+		if($this->format === null) {
+			$this->format = \DateTime::ISO8601;
+		}
+		return $this->format;
+	}
+	
+	/**
+	 * Set format to use
+	 * 
+	 * @param string|array $format
+	 * @return string
+	 */
+	public function setFormat($format) {
+		//or maybe use regex preg_match('/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/',$date)
+		if(is_array($format)) {
+			$keys = ['year' => 'Y','month' => '-m','day' => '-d','hour' => ' H','minute' => ':i','second' => ':s'];
+			$f = '';
+			foreach($keys as $k => $token) {
+				if($format[$k] !== false) {
+					$f .= $token;
+				}
+			}
+			$format = trim($f,'- ');
+		}
+		$this->format = $format;
+		return $format;
+	}
+
+	/**
+	 * @param $timezone
+	 * @return \DateTimeZone
+	 */
+	protected function convertTimeZone($timezone) {
+		if (is_string($timezone)) {
+			return new \DateTimeZone($timezone);
+		}
+		if ($timezone instanceof \DateTimeZone) {
+			return $timezone;
+		}
+		throw new \InvalidArgumentException('Unexpected value ' . $timezone);
+	}
+
+	/**
+	 * Set timezone (allow string)
+	 * 
+	 * @param \DateTimeZone $timezone
+	 * @return \Date
+	 */
+	public function setTimezone($timezone) {
+		parent::setTimezone($this->convertTimeZone($timezone));
 		return $this;
 	}
 
 	/**
-	 * Return Date in ISO8601 format
+	 * Return Date in default format
 	 *
 	 * @return String
 	 */
@@ -53,12 +125,13 @@ class Date extends DateTime {
 	}
 
 	/**
+	 * Format a string
 	 * @param srring $format
 	 * @return string
 	 */
-	public function format($format = NULL) {
-		if ($format === NULL) {
-			$format = \DateTime::ISO8601;
+	public function format($format = null) {
+		if ($format === null) {
+			$format = $this->getFormat();
 		}
 
 		return parent::format($format);
