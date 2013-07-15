@@ -28,11 +28,11 @@ class App {
 	protected $actionName;
 	protected $controller;
 	protected $controllerName;
-	protected $config = array(
+	protected $config = [
 		'debug' => 1,
 		'large_file_limit' => 9216,
-		'modules' => array('main')
-	);
+		'modules' => ['main']
+	];
 	//
 	// classes
 	//
@@ -89,6 +89,7 @@ class App {
 		if (!$dir) {
 			$dir = $this->getDir();
 		}
+		$this->dir = $dir;
 
 		//config
 		$c = $dir . '/config.php';
@@ -207,7 +208,7 @@ class App {
 
 	public function getProfiler() {
 		if ($this->profiler === null) {
-			$this->profiler = new Profiler();
+			$this->profiler = new dev\Profiler();
 		}
 		return $this->profiler;
 	}
@@ -750,7 +751,7 @@ class App {
 		if (!$this->config('debug')) {
 			return;
 		}
-		$o = new DevToolbar();
+		$o = new dev\Toolbar();
 		$o->track($this);
 		$o->track($this->getProfiler());
 		$o->track($this->getDb());

@@ -9,19 +9,24 @@ namespace k\db\orm;
  */
 trait Password {
 
-	public static $fieldsPassword = array(
-		'password' => 'VARCHAR(255)',
-	);
+	public $password;
 
 	public function set_password($password) {
 		$value = password_hash($password,PASSWORD_BCRYPT);
-		$this->data['password'] = $value;
+		$this->password = $value;
 		return $this;
 	}
 
+	/**
+	 * Generate a password
+	 * 
+	 * @param int $length
+	 * @param string $chars
+	 * @return string
+	 */
 	public function generatePassword($length = 10, $chars = 'abcdefghjkpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXY3456789') {
 		$password = substr(str_shuffle($chars), 0, $length);
-		$this->password = $password;
+		$this->set_password($password);
 		return $password;
 	}
 

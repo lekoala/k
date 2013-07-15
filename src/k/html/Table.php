@@ -22,7 +22,7 @@ class Table extends HtmlWriter {
 
 	protected static $instances = 0;
 	protected static $scriptInserted = false;
-	protected $identifier;
+	protected $identifier = 'id';
 	protected $selectable;
 	protected $selectableActions;
 	protected $headers;

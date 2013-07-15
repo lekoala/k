@@ -10,3 +10,6 @@ composer.lock
 .DS_Store
 config.local.php
 [Tt]humbs.db
+*.swp
+/examples/cache
+/examples/data

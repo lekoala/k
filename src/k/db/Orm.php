@@ -2,12 +2,9 @@
 
 namespace k\db;
 
-use \ReflectionClass;
 use \Exception;
-use \JsonSerializable;
 use \InvalidArgumentException;
-use \ArrayAccess;
-use \Iterator;
+use \RuntimeException;
 
 /**
  * Orm class
@@ -26,61 +23,17 @@ use \Iterator;
  *
  * @author LeKoala
  */
-class Orm implements JsonSerializable, ArrayAccess, Iterator {
-	//relations
+class Orm extends \k\data\Model {
 
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
 	const MANY_MANY = 'manyMany';
-	//validations
-	const V_REQUIRED = 'required';
-	const V_NOT_BLANK = 'notblank';
-	const V_MIN_LENGTH = 'minlength';
-	const V_MAX_LENGTH = 'maxlength';
-	const V_RANGELENGTH = 'rangelength'; // array
-	const V_MIN = 'min';
-	const V_MAX = 'max';
-	const V_RANGE = 'range'; //array
-	const V_REGEXP = 'regexp'; //pattern
-	const V_EQUAL_TO = 'equalto'; //another field
-	const V_MIN_CHECK = 'mincheck'; //array(array('f1','f2','f3'),2);
-	const V_MAX_CHECK = 'maxcheck';
-	const V_REMOTE = 'remote'; //url
-	const V_MINWORDS = 'minwords';
-	const V_MAXWORDS = 'maxwords';
-	const V_RANGEWORDS = 'rangewords'; //array
-	const V_GREATERTHAN = 'greaterthan'; //field
-	const V_LESSTHAN = 'lessthan'; //field
-	const V_BEFOREDATE = 'beforedate';
-	const V_AFTERDATE = 'afterdate';
-	const V_INLIST = 'inlist'; //csv
-	const V_LUHN = 'luhn'; //bool
-	const V_AMERICANDATE = 'americandate'; //bool
-	//type constraints
-	const V_EMAIL = 'email';
-	const V_URL = 'url';
-	const V_URL_STRICT = 'urlstrict';
-	const V_DIGITS = 'digits';
-	const V_NUMBER = 'number';
-	const V_ALPHANUM = 'alphanum';
-	const V_DATE_ISO = 'dateISo';
-	const V_PHONE = 'phone';
-	//extra validators
-	const V_MOMENT = 'moment'; //format to validate against
 
 	/**
-	 * Store field data
-	 * 
+	 * Store original array
 	 * @var array
 	 */
-	protected $data = array();
-
-	/**
-	 * Store original field data
-	 * 
-	 * @var array
-	 */
-	protected $original = null;
+	protected $_original = array();
 
 	/**
 	 * Cache resolved objects for the current instance
@@ -88,365 +41,117 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * 
 	 * @var array
 	 */
-	protected $cache = array();
+	protected $_cache = array();
 
 	/**
-	 * Query used to fetch the model
-	 * 
-	 * @var query
+	 * Parent query
+	 * @var Query
 	 */
-	protected $query;
+	protected $_query;
+
+	/**
+	 * Pending actions that need to be accomplished once the object has an id
+	 * @var array 
+	 */
+	protected $_pending = array();
+
+	/**
+	 * Map model types to sql
+	 * 
+	 * @var array
+	 */
+	protected static $_typesMap = [
+		self::IP => 'VARCHAR(45)',
+		self::EMAIL => 'VARCHAR(255)',
+		self::URL => 'VARCHAR(255)',
+		self::DIGITS => 'INT',
+		self::NUMBER => 'FLOAT',
+		self::NUMERIC => 'FLOAT',
+		self::INTEGER => 'INT',
+		self::SLUG => 'VARCHAR(255)',
+		self::ALPHA => 'VARCHAR(255)',
+		self::ALPHANUM => 'VARCHAR(255)',
+		self::DATE_ISO => 'DATETIME',
+		self::DATE => 'DATE',
+		self::TIME => 'TIME',
+		self::PHONE => 'VARCHAR',
+		self::LUHN => 'VARCHAR(255)',
+	];
 
 	/**
 	 * Connection name
 	 * @var string
 	 */
-	protected static $connection = 'default';
-
-	/**
-	 * Enforce field definition like ['id','name','desc' => 'text'];
-	 * Leave it to null to be freestyle
-	 * 
-	 * @var null|array 
-	 */
-	protected static $fields = null;
-
-	/**
-	 * Specify custom sql fields to add when requesting the model
-	 * 
-	 * Example: [
-	 *  'name' => "CONCAT(firstname,' ',lastname)"
-	 * ]
-	 * @var type 
-	 */
-	protected static $sqlFields = [];
+	protected static $_connection = 'default';
 
 	/**
 	 * Store has-one relations.
 	 * 
 	 * Relations are defined as an array like ['Name','OtherName' => 'Class']
+	 * Conventions is that you use singular name
 	 * 
 	 * @var array 
 	 */
-	protected static $hasOne = array();
+	protected static $_hasOne = [];
 
 	/**
-	 * Store has-many
+	 * Store has-many relations.
+	 * 
+	 * Relations are defined as an array like ['Name','OtherName' => 'Class']
+	 * Conventions is that you use plural name
 	 * 
 	 * @var array 
 	 */
-	protected static $hasMany = array();
+	protected static $_hasMany = [];
 
 	/**
-	 * Store many-many relations
+	 * Store has-one relations.
 	 * 
-	 * @var array
+	 * Relations are defined as an array like ['Name','OtherName' => 'Class']
+	 * Conventions is that you use plural name
+	 * 
+	 * Define extra fields through an array instead of just a class like this
+	 * ['OtherName' => ['Class', 'some', 'extra', 'field' => 'VARCHAR']]
+	 * 
+	 * @var array 
 	 */
-	protected static $manyMany = array();
-
-	/**
-	 * Store many-many extra fields like ['relation' => ['my','extra' => 'datetime', 'field' => 'text']]
-	 * @var	array
-	 */
-	protected static $manyManyExtra = array();
+	protected static $_manyMany = [];
 
 	/**
 	 * Base folder to use for file storage
+	 * 
 	 * @var string
 	 */
-	protected static $storage;
+	protected static $_storage;
 
 	/**
-	 * Store validation rules
-	 * @var array 
-	 */
-	protected static $validation = array();
-
-	/**
-	 * Default additionnal fields to export with toArray()
-	 * @var array
-	 */
-	protected static $exportableFields = array();
-	
-	public static $classPrefix = 'Model_';
-	public static $collectionSuffix;
-
-	public function __construct($o = null) {
-		if ($o !== null) {
-			if (is_array($o)) {
-				$this->data = $data;
-			} else if ($o instanceof Query) {
-				$this->query = $o;
-			}
-		}
-		//null object should have fields by defaults
-		//TODO: maybe refactor to avoid to do this for normal objects?
-		foreach (static::getFields() as $name) {
-			if (!isset($this->data[$name])) {
-				$this->data[$name] = null;
-			}
-		}
-		//store original
-		$this->original = $this->data;
-	}
-
-	public function __get($name) {
-		return $this->getField($name);
-	}
-
-	public function __set($name, $value) {
-		//the class is not yet initialized, just inject data into it
-		if ($this->original === null) {
-			$this->data[$name] = $value;
-			return;
-		}
-		return $this->setField($name, $value);
-	}
-
-	/**
-	 * Get a property or a virtual property.
+	 * Prefix to add/remove before the model objects before mapping them to tables
+	 * Can be a prefix like Model_ or a namespace like models\\
 	 * 
-	 * $o->getField('firstname') -> data['firstname']
-	 * $o->getField('virtual') => get_virtual
-	 * $o->getField('Employee') => getRelated('Employee')
-	 * $o->getField('Employee.name') => getRelated('Employee')->name
-	 * 
-	 * @param string $name
-	 * @return string
+	 * @var string
 	 */
-	public function getField($name) {
-		//virtual field
-		$method = 'get_' . $name;
-		if (method_exists($this, $method)) {
-			return $this->$method();
-		}
-		//field
-		if (array_key_exists($name, $this->data)) {
-			return $this->data[$name];
-		}
-		//relation
-		if (strpos($name, '.') !== false) {
-			$parts = explode('.', $name);
-			$part = array_shift($parts);
-			if (static::isRelated($part)) {
-				$o = $this->getRelated($part);
-				if (!$o) {
-					return null;
-				}
-				return $o->getField(implode('.', $parts));
-			}
-		}
-		return $this->getRelated($name);
-	}
+	protected static $_classPrefix = 'Model_';
 
 	/**
-	 * Set a property or a virtual property
+	 * Automatic prefetch
 	 * 
-	 * @param string $name
-	 * @param mixed $value
-	 * @return \k\db\Orm
+	 * @var boolean
 	 */
-	public function setField($name, $value) {
-		//conversion
-		if (is_object($value)) {
-			if (is_subclass_of($value, '\\k\\sql\\Orm')) {
-				$object = $value;
-				if ($object->exists()) {
-					$value = $value->getId();
-				}
-			} else {
-				switch (get_class($value)) {
-					case 'K\File':
-						$folder = static::getBaseFolder();
-						while (true) {
-							$filename = uniqid($name) . '.' . $value->getExtension();
-							if (!file_exists($folder . '/' . $filename))
-								break;
-						}
-						$value->rename($folder . '/' . $filename);
-						$value = $filename;
-						break;
-					default:
-						$value = (string) $value;
-						break;
-				}
-			}
-		} elseif (is_array($value)) {
-			$value = implode(',', $value);
-		}
-		//virtual property setter
-		$method = 'set_' . $name;
-		if (method_exists($this, $method)) {
-			$this->$method($value);
-			return true;
-		}
-		//field
-		if (array_key_exists($name, $this->data)) {
-			$this->data[$name] = $value;
-			return true;
-		}
-		//relation
-//			if (in_array($name, static::getManyExtraFields())) {
-//				$this->$name = $value;
-//			} else {
-//		$name = str_replace('_id', '', $name); //we might try to set this because of a join
-//		if (static::isRelated($name) && isset($object)) {
-//			return $this->addRelated($object);
-//		}
-//			}
-		return false;
-	}
+	protected static $_prefetch = true;
 
-	/**
-	 * Check if the field exists or is available as a virtual field
-	 * @param type $name
-	 * @return boolean
-	 */
-	public function hasField($name) {
-		if (array_key_exists($name, $this->data)) {
-			return true;
-		}
-		if (static::$fields && array_key_exists($name, static::getFields())) {
-			return true;
-		}
-		$method = 'get_' . $name;
-		if (method_exists($this, $method)) {
-			return true;
-		}
-		if (strpos($name, '.') !== false) {
-			return true;
-		}
-		if (static::isRelated($name)) {
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Populate object
-	 * 
-	 * @param array $data
-	 * @param bool $withValue Only set property with a value
-	 * @param bool $noOverwrite Do not overwrite property with a value
-	 */
-	public function populate(array $data = null, $withValue = false, $noOverwrite = false) {
-		if ($data === null) {
-			$data = array_merge($_GET, $_POST);
-			if (isset($data[static::getTableName()])) {
-				$data = $data[static::getTableName()];
-			}
-		}
-		foreach ($data as $k => $v) {
-			if ($this->hasField($k)) {
-				if ($withValue && empty($v)) {
-					continue;
-				}
-				if ($noOverwrite && !empty($this->$k)) {
-					continue;
-				}
-				$this->$k = $v;
-			}
-		}
-	}
-
-	/**
-	 * Export object to an array
-	 * 
-	 * @param string|array $fields Fields to export
-	 * @return array
-	 */
-	public function toArray($fields = null) {
-		$data = $this->data;
-		$arr = array();
-		if (is_string($fields)) {
-			$fields = explode(',', $fields);
-		}
-		foreach ($data as $k => $v) {
-			if (!empty($fields) && !in_array($k, $fields)) {
-				continue;
-			}
-			$arr[$k] = $this->getField($k);
-		}
-		return $arr;
-	}
-
-	public function getQuery() {
-		return $this->query;
-	}
-
-	public function setQuery(query $query) {
-		$this->query = $query;
-		return $this;
-	}
-
-	/**
-	 * Get all traits applied to this object
-	 * 
-	 * @staticvar array $traits
-	 * @return array
-	 */
-	public static function getTraits() {
-		static $traits;
-
-		if ($traits === null) {
-			$ref = new ReflectionClass(get_called_class());
-			$ts = $ref->getTraitNames();
-			$traits = array();
-			foreach ($ts as $trait) {
-				$name = explode('\\', $trait);
-				$name = end($name);
-				$traits[$trait] = $name;
-			}
-		}
-
-		return $traits;
-	}
-
-	/**
-	 * Enum list values based on class constants. Constants MUST_LOOK_LIKE_THIS
-	 * 
-	 * @staticvar array $constants
-	 * @param string $name
-	 * @return array
-	 */
-	public static function enum($name) {
-		static $constants;
-
-		$name = strtoupper($name);
-
-		if ($constants === null) {
-			$ref = new ReflectionClass(get_called_class());
-			$constants = $ref->getConstants();
-		}
-
-		$enum = array();
-		foreach ($constants as $key => $value) {
-			if (strpos($key, $name) === 0) {
-				$key = strtolower(str_replace($name . '_', '', $key));
-				$enum[$key] = $value;
-			}
-		}
-		return $enum;
-	}
-
-	/**
-	 * Convert the object in array for json
-	 * 
-	 * @return array
-	 */
-	public function jsonSerialize() {
-		return $this->toArray(static::$exportableFields);
-	}
+	/* --- class methods --- */
 
 	/**
 	 * Create a fake record in the db
+	 * 
+	 * For more advanced fake records, use a library like Faker
 	 * 
 	 * @param bool $save
 	 * @return \k\db\Orm
 	 */
 	public static function createFake($save = true) {
 		$o = new static();
-		$fields = static::getFields();
+		$fields = static::getFields(false);
 		$pkFields = static::getPrimaryKeys();
 		$fkFields = static::getForeignKeys();
 
@@ -470,6 +175,9 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 				}
 			} elseif (strpos($type, 'VARCHAR') !== false) {
 				$len = preg_replace("/[^0-9,.]/", "", $type);
+				if (!is_numeric($len)) {
+					$len = 45;
+				}
 				$value = substr($value, 0, $len);
 			} elseif (strpos($type, 'DECIMAL') !== false || strpos($type, 'FLOAT') !== false) {
 				$value = rand(0, 100) . '.' . rand(0, 100);
@@ -501,108 +209,22 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
-	 * Get a property as a class that has a create method
-	 * 
-	 * @param string $name
-	 * @param string $class
-	 * @return Object
-	 */
-	public function getAs($name, $class) {
-		if (isset($this->cache[$name])) {
-			return $this->cache[$name];
-		}
-		$this->cache[$name] = $class::create($this->getField($name));
-		return $this->cache[$name];
-	}
-
-	/**
-	 * Get a property as a date
-	 * @param string $name
-	 * @return \k\Date
-	 */
-	public function getAsDate($name) {
-		return static::getAs($name, '\k\type\Date');
-	}
-
-	/**
-	 * Get a property as file. File is stored in base_folder/property_value
-	 * @param string $name
-	 * @return K\File
-	 */
-	public function getAsFile($name) {
-		$path = static::getBaseFolder() . '/' . $this->getField($name);
-		return static::getAs($path, 'File');
-	}
-
-	/**
 	 * Get base storage folder
+	 * 
 	 * @param bool $create
 	 * @return string
 	 */
 	public static function getBaseFolder($create = false) {
-		$folder = static::$storage . '/' . static::getTableName();
+		$folder = static::getStorage() . '/' . static::getTableName();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
 		return $folder;
-	}
-
-	/**
-	 * Get instance storage folder
-	 * @param bool $create
-	 * @return string
-	 */
-	public function getFolder($create = false) {
-		$folder = static::getBaseFolder() . '/' . $this->getId();
-
-		if ($create && !is_dir($folder)) {
-			mkdir($folder);
-		}
-		return $folder;
-	}
-
-	/**
-	 * Get sub folder
-	 * 
-	 * @param string $folder
-	 * @param bool $create
-	 * @return string
-	 */
-	public function getSubFolder($folder, $create = false) {
-		$folder = $this->getFolder() . '/' . $folder;
-		if ($create && !is_dir($folder)) {
-			mkdir($folder, 0777, true);
-		}
-		return $folder;
-	}
-
-	public function getCache($name = null, $default = null) {
-		if (!$name) {
-			return $this->cache;
-		}
-		if (isset($this->cache[$name])) {
-			return $this->cache[$name];
-		}
-		return $default;
-	}
-
-	public function setCache($name = null, $value = null) {
-		$this->cache[$name] = $value;
-		return $this;
-	}
-
-	/**
-	 * Shortcut for getRelated
-	 * @param string $name
-	 * @param array $arguments
-	 * @return array
-	 */
-	public function __call($name, $arguments) {
-		return $this->getRelated($name);
 	}
 
 	/**
 	 * Inject records for this table in an array of records
+	 * 
 	 * @param array $array
 	 * @param string $relation
 	 */
@@ -635,6 +257,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			}
 			$ids[] = $key;
 		}
+		$ids = array_unique($ids);
 		if (empty($ids)) {
 			return;
 		}
@@ -708,6 +331,858 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
+	 * Filter data to insert
+	 * - remove empty values yet keep values like 0
+	 * - remove fields that don't exist on this table
+	 * - transform objects into saveable data
+	 * 
+	 * @param array $data
+	 * @return array
+	 */
+	protected static function filterData($data) {
+		if (!is_array($data)) {
+			return $data;
+		}
+		$data = array_filter($data, 'strlen'); //do not insert empty values
+		$fields = static::getFields();
+		foreach ($data as $k => $v) {
+			if (!in_array($k, $fields)) {
+				unset($data[$k]);
+			}
+		}
+		return $data;
+	}
+
+	/**
+	 * Execute or store a callback depending on record existence
+	 * 
+	 * @param Callable $cb
+	 * @param boolean $exists
+	 */
+	protected function pendingCallback($cb, $exists = false) {
+		if ($this->exists($exists)) {
+			$cb();
+		} else {
+			$this->_pending[] = $cb;
+		}
+	}
+
+	/**
+	 * Convert an object to a storable value
+	 * 
+	 * @param Object $v
+	 * @param string $name
+	 * @return string
+	 */
+	protected function convertToStorableValue($v, $name = null) {
+		if (is_string($v)) {
+			return $v;
+		}
+		//we don't store array for orm
+		if (is_array($v)) {
+			return implode(',', $v);
+		}
+		if (is_object($v)) {
+			if ($v instanceof Orm) {
+				$v = $v->getId();
+			} elseif ($v instanceof \k\File) {
+				$this->pendingCallback(function() use ($v, $name) {
+							$this->attachFile($v, $name);
+						});
+				$v = $v->getBasename();
+			} elseif ($v instanceof \k\Date) {
+				$v = $v->format(); //date remember the format (datetime,date or time)
+			} else {
+				$v = (string) $v;
+			}
+		}
+
+		return $v;
+	}
+
+	/**
+	 * Attach a file to the object instance
+	 * 
+	 * The object must have an id to do so
+	 * 
+	 * @param \k\File|string $file
+	 * @param string $name Field to attach
+	 * @return boolean
+	 */
+	public function attachFile($file, $name = null) {
+		if (is_string($file)) {
+			$file = new \k\File($file);
+		}
+		$folder = $this->getFolder(true);
+		$fileFolder = $file->getPath();
+		$res = true;
+		if ($folder != $fileFolder) {
+			$res = $file->move($folder);
+		}
+		if ($res && $name) {
+			$this->$name = $file->getBasename();
+		}
+		return $res;
+	}
+
+	/**
+	 * @param array|string $where
+	 * @param array $params
+	 * @return int 
+	 */
+	public static function count($where = null, $params = array()) {
+		$table = static::getTableName();
+		return static::getPdo()->count($table, $where, $params);
+	}
+
+	/**
+	 * @param int $field
+	 * @return int 
+	 */
+	public static function min($field = 'id') {
+		$table = static::getTableName();
+		return static::getPdo()->min($table, $field);
+	}
+
+	/**
+	 * @param int $field
+	 * @return int 
+	 */
+	public static function max($field = 'id') {
+		$table = static::getTableName();
+		return static::getPdo()->max($table, $field);
+	}
+
+	/**
+	 * @param array|string $where
+	 * @param array|string $orderBy
+	 * @param array|string $limit
+	 * @param array|string $fields
+	 * @param array $params
+	 * @return array 
+	 */
+	public static function select($where = null, $orderBy = null, $limit = null, $fields = '*', $params = array()) {
+		$table = static::getTableName();
+		static::onBeforeSelect($where, $orderBy, $limit, $fields, $params);
+		$data = static::getPdo()->select($table, $where, $orderBy, $limit, $fields, $params);
+		static::onAfterSelect($data);
+		return $data;
+	}
+
+	/**
+	 * Insert data
+	 * 
+	 * @param array $data
+	 * @return int The id of the record
+	 */
+	public static function insert($data) {
+		$data = static::filterData($data);
+		$table = static::getTableName();
+		static::onBeforeInsert($data);
+		$res = static::getPdo()->insert($table, $data);
+		static::onAfterInsert($res, $data);
+		return $res;
+	}
+
+	/**
+	 * Update data
+	 * 
+	 * @param array $data
+	 * @param array|string $where
+	 * @param array $params
+	 * @return bool
+	 */
+	public static function update($data, $where = null, $params = array()) {
+		$data = static::filterData($data);
+		$table = static::getTableName();
+		static::onBeforeUpdate($data);
+		$res = static::getPdo()->update($table, $data, $where, $params);
+		static::onAfterUpdate($res, $data, $where, $params);
+		return $res;
+	}
+
+	/**
+	 * Delete data
+	 * 
+	 * @param array|string $where
+	 * @param array $params
+	 * @return bool
+	 */
+	public static function delete($where, $params = array()) {
+		$table = static::getTableName();
+		static::onBeforeDelete($where, $params);
+		$res = static::getPdo()->delete($table, $where, $params);
+		static::onAfterDelete($res, $where, $params);
+		return $res;
+	}
+
+	/**
+	 * Get pdo instance for this Orm
+	 * 
+	 * The pdo is based on the $_connection variable
+	 * 
+	 * @return Pdo
+	 */
+	public static function getPdo() {
+		return Pdo::get(static::getConnection());
+	}
+
+	/**
+	 * Get connection
+	 * 
+	 * @return string
+	 */
+	public static function getConnection() {
+		return static::$_connection;
+	}
+
+	/**
+	 * Set connection
+	 * 
+	 * @param string $connection
+	 */
+	public static function setConnection($connection) {
+		static::$_connection = $connection;
+	}
+
+	/**
+	 * Get storage folder
+	 * 
+	 * @return string
+	 */
+	public static function getStorage() {
+		return static::$_storage;
+	}
+
+	/**
+	 * Set storage folder
+	 * 
+	 * @param string $storage
+	 */
+	public static function setStorage($storage) {
+		static::$_storage = $storage;
+	}
+
+	/**
+	 * Get class prefix
+	 * 
+	 * @return string
+	 */
+	public static function getClassPrefix() {
+		return static::$_classPrefix;
+	}
+
+	/**
+	 * Set class prefix
+	 * 
+	 * @param string $prefix
+	 */
+	public static function setClassPrefix($prefix) {
+		static::$_classPrefix = $prefix;
+	}
+
+	/**
+	 * Convert {PREFIX}MyClass to my_class
+	 * 
+	 * @return string
+	 */
+	public static function getTableName() {
+		return strtolower(static::getModelName());
+	}
+
+	/**
+	 * Get model name without the prefix
+	 * 
+	 * @return string
+	 */
+	public static function getModelName() {
+		$name = str_replace(static::getClassPrefix(), '', get_called_class());
+		return $name;
+	}
+
+	/**
+	 * Given a table, find what class is supposed to handle it
+	 * 
+	 * @param string $table
+	 */
+	public static function getClassForTable($table = null) {
+		if ($table === null) {
+			$table = static::getTableName();
+		}
+		return static::getClassPrefix() . str_replace(' ', '', ucwords(str_replace('_', ' ', $table)));
+	}
+
+	/**
+	 * Get many table
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	public static function getManyManyTable($name) {
+		foreach ($this->getManyManyRelations() as $relation => $class) {
+			if ($name == $relation) {
+				return static::getTableName() . '_' . $class::getTableName();
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Provide basic english singularization for most common cases
+	 * 
+	 * @param string $word
+	 * @return string
+	 */
+	protected static function singularize($word) {
+		$rules = array(
+			'ies' => 'y',
+			'ss' => 'sss',
+			's' => ''
+		);
+
+		foreach ($rules as $r => $rpl) {
+			$word = preg_replace('/' . $r . '$/', $rpl, $word);
+		}
+
+		return $word;
+	}
+
+	/**
+	 * Build relation array
+	 * 
+	 * Set class as singular
+	 * 
+	 * @param array $arr Fields definition
+	 * @return array
+	 */
+	protected static function buildRelationsArray($arr) {
+		$relations = array();
+
+		foreach ($arr as $name => $class) {
+			//if no table was specfied, use the name of the relation
+			if (is_int($name)) {
+				$name = $class;
+				$class = ucfirst(static::singularize($name));
+			}
+			if (static::getClassPrefix()) {
+				$class = static::getClassPrefix() . $class;
+			}
+			$relations[$name] = $class;
+		}
+		return $relations;
+	}
+
+	/**
+	 * Check if a relation exists
+	 * 
+	 * @param string $name
+	 * @return string|boolean
+	 */
+	public static function isRelated($name) {
+		if (in_array($name, static::getHasOneRelations(true))) {
+			return self::HAS_ONE;
+		}
+		if (in_array($name, static::getHasManyRelations(true))) {
+			return self::HAS_MANY;
+		}
+		if (in_array($name, static::getManyManyRelations(true))) {
+			return self::MANY_MANY;
+		}
+		return false;
+	}
+
+	/**
+	 * Get all relations
+	 * 
+	 * @staticvar null $relations
+	 * @param bool $keys
+	 * @return array
+	 */
+	public static function getAllRelations($keys = false) {
+		static $relations = null;
+
+		if ($relations === null) {
+			$relations = array_merge(static::getHasOneRelations(), static::getHasManyRelations(), static::getManyManyRelations());
+		}
+
+		if ($keys) {
+			return array_keys($relations);
+		}
+
+		return $relations;
+	}
+
+	/**
+	 * Get has-one relations
+	 * @param bool $keys
+	 * @return array
+	 */
+	public static function getHasOneRelations($keys = false) {
+		static $relations = null;
+
+		if ($relations === null) {
+			$relations = static::buildRelationsArray(static::$_hasOne);
+		}
+
+		if ($keys) {
+			return array_keys($relations);
+		}
+
+		return $relations;
+	}
+
+	/**
+	 * Get has-many relations
+	 * @param bool $keys
+	 * @return array
+	 */
+	public static function getHasManyRelations($keys = false) {
+		static $relations = null;
+
+		if ($relations === null) {
+			$relations = static::buildRelationsArray(static::$_hasMany);
+		}
+
+		if ($keys) {
+			return array_keys($relations);
+		}
+
+		return $relations;
+	}
+
+	/**
+	 * Get many-many relations
+	 * @param bool $keys
+	 * @return array
+	 */
+	public static function getManyManyRelations($keys = false) {
+		static $relations = null;
+
+		if ($relations === null) {
+			$relations = static::buildRelationsArray(static::$_manyMany);
+		}
+
+		if ($keys) {
+			return array_keys($relations);
+		}
+
+		return $relations;
+	}
+
+	/**
+	 * Get all extra fields that could be defined through a manyMany relation
+	 * 
+	 * @return array
+	 */
+	public static function getManyExtraFields($relation) {
+		$extra = null;
+
+		if ($extra === null) {
+			$extra = array();
+			foreach (static::$_manyManyExtra as $relation => $fields) {
+				$extra[$relation] = static::buildFieldsArray($fields);
+			}
+		}
+
+		if (isset($extra[$relation])) {
+			return $extra[$relation];
+		}
+		return array();
+	}
+
+	/**
+	 * Get many-many primary keys
+	 * @param string $class
+	 * @return array
+	 */
+	public static function getManyManyKeys($class) {
+		return array(
+			static::getTable() . '_' . static::getPrimaryKey(),
+			$class::getTable() . '_' . $class::getPrimaryKey()
+		);
+	}
+
+	/**
+	 * Get fields. By default only return keys.
+	 * 
+	 * @staticvar array $fields
+	 * @return array
+	 */
+	public static function getFields($keys = true) {
+		static $fields;
+
+		if ($fields === null) {
+			$fields = static::buildFieldsArray(static::getDeclaredPublicProperties());
+
+			//make sure has-one fields exist
+			$hasOneFields = static::getHasOneRelations();
+			foreach ($hasOneFields as $name => $class) {
+				$field = $class::getForForeignKey($name);
+				if (!isset($fields[$field])) {
+					$types = $class::getFields(false);
+					$fields[$field] = 'INT';
+//					$fields[$field] = $types[$field];
+				}
+			}
+
+			//add extensions fields
+			foreach (static::getTraits() as $t => $name) {
+				$p = 'types' . $name;
+				if (method_exists($t, $p)) {
+					$fields = array_merge($fields, $t::$p());
+				}
+			}
+		}
+
+		if ($keys) {
+			return array_keys($fields);
+		}
+
+		return $fields;
+	}
+
+	/**
+	 * Get an array of fields => rules
+	 * 
+	 * @return array
+	 */
+	public static function getRules() {
+		$rules = parent::getRules();
+
+		//validations rules based on type
+		$nameRules = array(
+			//length
+			'zipcode' => ['rangelength' => [4, 20]],
+			'lang_code|country_code' => ['rangelength' => '[2,2]'],
+			//numbers
+			'id' => 'digits',
+			'_?price$' => 'number',
+			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => 'digits',
+			'_?(lat|lng|lon|latitude|longitude)$' => 'digits',
+			//dates
+			'_?(datetime|at)$' => 'dateIso',
+			'_?(date|birthdate|birthday)$' => ['regexp' => '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$'],
+			'_?time$' => ['regexp' => '^(?:(?:([01]?\d|2[0-3]):)?([0-5]?\d):)?([0-5]?\d)$'],
+			//types
+			'_?email$' => 'email',
+			'_?url$' => 'url',
+		);
+
+		$fields = static::getFields(false);
+		foreach ($fields as $field => $type) {
+			if (isset($rules[$field])) {
+				continue;
+			}
+			//guess by name
+			foreach ($nameRules as $r => $v) {
+				if (preg_match('/' . $r . '/', $field)) {
+					$rules[$field] = $v;
+					break;
+				}
+			}
+		}
+
+		return $rules;
+	}
+
+	/**
+	 * Build fields array from definition
+	 * 
+	 * @param array $arr
+	 * @return array
+	 */
+	protected static function buildFieldsArray($arr) {
+		$fields = array();
+		$types = static::getTypes();
+		foreach ($arr as $name => $type) {
+			if (is_int($name)) {
+				$name = $type;
+				$type = '';
+			}
+			if (empty($type)) {
+				if (isset($types[$name]) && isset(static::$_typesMap[$name])) {
+					$type = static::$_typesMap[$name];
+				} else {
+					$type = static::getPdo()->guessType($name);
+				}
+			}
+			$fields[$name] = $type;
+		}
+		return $fields;
+	}
+
+	public static function getPrimaryKey() {
+		$pkFields = static::getPrimaryKeys();
+		if (count($pkFields) !== 1) {
+			throw new Exception('This method only support table with one primary key in ' . get_called_class());
+		}
+
+		return $pkFields[0];
+	}
+
+	/**
+	 * Get primary keys
+	 * @staticvar array $pkFields
+	 * @param bool $asArray
+	 * @return array
+	 */
+	public static function getPrimaryKeys() {
+		static $pkFields;
+
+		if ($pkFields === null) {
+			$pkFields = array();
+			$fields = static::getFields();
+			if (in_array('id', $fields)) {
+				$pkFields[] = 'id';
+			} else {
+				$fkFields = static::getForeignKeys();
+				foreach ($fields as $field) {
+					//link table
+					if (in_array($field, $fkFields)) {
+						$pkFields[] = $field;
+					} else {
+						//at least one pk
+						if (empty($fields)) {
+							$pkFields[] = $field;
+						}
+						break; //break
+					}
+				}
+			}
+		}
+
+		return $pkFields;
+	}
+
+	/**
+	 * Create a field name to be used as a foreign key field for this table
+	 * @param string $relation
+	 * @return string
+	 * @throws Exception
+	 */
+	public static function getForForeignKey($name = null) {
+		$rel = static::getTableName();
+		if ($name && $name != static::getModelName()) {
+			$rel = strtolower($name);
+		}
+		return $rel . '_' . static::getPrimaryKey();
+	}
+
+	/**
+	 * Get foreign keys based on naming conventions. No query is done on the db.
+	 * The foreign key fields must follow the class_field or [rel]_field convention
+	 * @staticvar array $fkFields
+	 * @return array
+	 */
+	public static function getForeignKeys() {
+		static $fkFields;
+
+		if ($fkFields === null) {
+			$fkFields = array();
+			$fields = static::getHasOneRelations();
+			foreach ($fields as $relation => $class) {
+				if (is_int($relation)) {
+					$relation = $class;
+				}
+				$pk = $class::getPrimaryKey();
+				$field = strtolower($relation) . '_' . $pk;
+				$table = $class::getTableName();
+				$fkFields[$field] = $table . '(' . $pk . ')';
+			}
+		}
+
+		return $fkFields;
+	}
+
+	/**
+	 * Default sort
+	 * @staticvar string $sort
+	 * @return string
+	 */
+	public static function getDefaultSort() {
+		static $sort;
+
+		if (empty($sort)) {
+			$pk = static::getPrimaryKeys();
+			array_walk($pk, function(&$item) {
+						$item = $item . ' ASC';
+					});
+			$first = '';
+			if ($this->has('sort_order')) {
+				$first = 'sort_order ASC,';
+			}
+			$sort = $first . implode(',', $pk);
+		}
+		return $sort;
+	}
+
+	/**
+	 * Default filtering options
+	 * @return string
+	 */
+	public static function getDefaultWhere() {
+		return array();
+	}
+
+	public static function createTable($execute = true) {
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$fields = static::getFields();
+		$pkFields = static::getPrimaryKeys();
+		$fkFields = static::getForeignKeys();
+		$res = $pdo->createTable($table, $fields, $pkFields, $fkFields, $execute);
+
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'createTable' . $name;
+			if (method_exists($t, $p)) {
+				$res .= "\n" . static::$p($execute);
+			}
+		}
+
+		return $res;
+	}
+
+	public static function dropTable($execute = true) {
+		$res = '';
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'dropTable' . $name;
+			if (method_exists($t, $p)) {
+				$res .= "\n" . static::$p($execute);
+			}
+		}
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$res .= $pdo->dropTable($table, $execute);
+		return $res;
+	}
+
+	public static function alterTable($execute = true) {
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$fields = static::getFields();
+		$pkFields = static::getPrimaryKeys();
+		$fkFields = static::getForeignKeys();
+
+		$cols = array_keys($pdo->listColumns($table));
+
+		$removeFields = array_diff($cols, $fields);
+		$addFields = array_diff($fields, $cols);
+
+		if (empty($removeFields) && empty($addFields)) {
+			return;
+		}
+
+		return $pdo->alterTable($table, $addFields, $removeFields, $execute);
+	}
+
+	/**
+	 * Create or update table
+	 * 
+	 * @param boolean $execute
+	 * @return string
+	 */
+	public static function syncTable($execute = true) {
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		try {
+			$res = $pdo->query("SELECT 1 FROM " . $table);
+			$exists = true;
+		} catch (PdoException $e) {
+			$exists = false;
+		}
+
+		if ($exists) {
+			return static::alterTable($execute);
+		} else {
+			return static::createTable($execute);
+		}
+	}
+
+	/**
+	 * Helper function to help autocomplete
+	 * 
+	 * foreach($users as $user) {
+	 * 	$user = User::inst($user);
+	 * }
+	 * @param static $obj
+	 * @return Orm
+	 */
+	public static function inst($obj = null) {
+		if ($obj) {
+			return $obj;
+		}
+		return new static();
+	}
+
+	public static function onBeforeSelect(&$where, &$orderBy, &$limit, &$fields, &$params) {
+		
+	}
+
+	public static function onAfterSelect(&$data) {
+		
+	}
+
+	public static function onBeforeInsert(&$data, &$params = null) {
+		
+	}
+
+	public static function onAfterInsert(&$res, $data, $params = null) {
+		
+	}
+
+	public static function onBeforeUpdate(&$data, &$where = null, &$params = null) {
+		
+	}
+
+	public static function onAfterUpdate(&$res, $data, $where = null, $params = null) {
+		
+	}
+
+	public static function onBeforeDelete(&$where = null, &$params = null) {
+		
+	}
+
+	public static function onAfterDelete(&$res, $where = null, $params = null) {
+		
+	}
+
+	/* --- instance methods --- */
+
+	/**
+	 * Get a property as a class that has a create method
+	 * 
+	 * @param string $name
+	 * @param string $class
+	 * @return Object
+	 */
+	public function getAs($name, $class) {
+		if (isset($this->_cache[$name])) {
+			return $this->_cache[$name];
+		}
+		$this->_cache[$name] = $class::create($this->getField($name));
+		return $this->_cache[$name];
+	}
+
+	/**
+	 * Get a property as a date
+	 * @param string $name
+	 * @return \k\Date
+	 */
+	public function getAsDate($name) {
+		return static::getAs($name, '\k\type\Date');
+	}
+
+	/**
+	 * Get a property as file. File is stored in base_folder/property_value
+	 * @param string $name
+	 * @return K\File
+	 */
+	public function getAsFile($name) {
+		$path = static::getBaseFolder() . '/' . $this->getField($name);
+		return static::getAs($path, 'File');
+	}
+
+	/**
 	 * Get related objects
 	 * @param string $name
 	 * @param string $type
@@ -729,8 +1204,9 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			$relations = static::getAllRelations();
 			$class = $relations[$name];
 		}
-		if ($this->query) {
-			$this->query->prefetch($name, $class);
+		//if we have an associated query, we can smart prefetch other records
+		if ($this->getQuery()) {
+			$this->getQuery()->prefetch($name, $class);
 			//record will be cached by prefetch if exists
 			$data = $this->getCache($name);
 			if (!$data) {
@@ -797,7 +1273,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			case 'hasOne':
 				$field = $class::getForForeignKey($relation);
 				$this->$field = $o->getId();
-				$this->cache[$field] = $o;
+				$this->_cache[$field] = $o;
 				return $this->save();
 				break;
 			case 'hasMany':
@@ -860,7 +1336,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * @return \k\db\Orm
 	 */
 	public function emptyCache() {
-		$this->cache = array();
+		$this->_cache = array();
 		return $this;
 	}
 
@@ -872,7 +1348,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	public function exists($db = false) {
 		$pkFields = static::getPrimaryKeys();
 		if ($db) {
-			return static::count($this->pkAsArray());
+			return static::count($this->primaryKeysAsArray());
 		}
 		foreach ($pkFields as $field) {
 			if ($this->$field != '') {
@@ -886,7 +1362,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	 * Get primary key as array
 	 * @return array
 	 */
-	protected function pkAsArray() {
+	protected function primaryKeysAsArray() {
 		$arr = array();
 		foreach (static::getPrimaryKeys() as $field) {
 			$arr[$field] = $this->$field;
@@ -894,12 +1370,43 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $arr;
 	}
 
-	protected function onPreSave(&$changed, $operation) {
+	protected function onPreSave() {
 		//implement in subclass, return false to cancel
 	}
 
 	protected function onPostSave($result) {
 		//implement in subclass
+	}
+
+	/**
+	 * @param Object $obj
+	 */
+	public function merge($obj) {
+		foreach ($obj as $k => $v) {
+			$this->$k = $v;
+		}
+	}
+
+	/**
+	 * Load a record
+	 * 
+	 * @param int $id
+	 * @throws \InvalidArgumentException
+	 */
+	public function load($id) {
+		if (empty($id)) {
+			throw new \InvalidArgumentException('Id is empty');
+		}
+		$pdo = static::getPdo();
+		$table = static::getTableName();
+		$pk = static::getPrimaryKey();
+
+		$sql = 'SELECT * FROM ' . $table . ' WHERE ' . $pk . ' = :' . $pk;
+		$stmt = $pdo->prepare($sql);
+		$stmt->setFetchMode(\PDO::FETCH_INTO, $this);
+		$stmt->execute([$pk => $id]);
+		$stmt->fetch();
+		$this->_original = $this->getData();
 	}
 
 	/**
@@ -910,7 +1417,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		//save cached objects too
 		foreach ($this->getCache() as $name => $o) {
 			if (is_object($o)) {
-				if (is_subclass_of($o, '\\k\\db\\Orm')) {
+				if ($o instanceof Orm) {
 					$o->save();
 					$class = get_class($o);
 					$field = $class::getForForeignKey();
@@ -919,50 +1426,74 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			}
 		}
 
-		$data = $this->toArray();
+		//call hooks, cancel if return false
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'onPreSave' . $name;
+			if (method_exists($t, $p)) {
+				$res = $this->$p();
+				if ($res === false) {
+					return false;
+				}
+			}
+		}
+		$res = $this->onPreSave();
+		if ($res === false) {
+			return false;
+		}
 
-		if ($this->exists()) {
-			$changed = array();
-			foreach ($this->getOriginal() as $k => $v) {
-				if ($this->$k != $v) {
-					$changed[$k] = $this->$k;
+		$exists = $this->exists();
+
+		$data = $this->getData();
+		foreach ($data as $k => $v) {
+			$data[$k] = $this->convertToStorableValue($v, $k);
+		}
+
+		if ($exists) {
+			//keep only changed fields
+			$original = $this->getOriginal();
+			if (!empty($original)) {
+				$changed = array();
+				foreach ($original as $k => $v) {
+					if ($data[$k] != $v) {
+						$changed[$k] = $this->$k;
+					}
 				}
-			}
-			if (empty($changed)) {
-				return true;
-			}
-			$res = $this->onPreSave($changed, 'update');
-			if ($res === false) {
-				return $res;
-			}
-			$res = static::update($changed, $this->pkAsArray());
-		} else {
-			$inserted = array();
-			foreach ($data as $k => $v) {
-				if (!empty($v)) {
-					$inserted[$k] = $v;
-				}
-			}
-			if (empty($inserted)) {
-				return false;
-			}
-			$res = $this->onPreSave($changed, 'insert');
-			if ($res === false) {
-				return $res;
-			}
-			$res = static::insert($inserted);
-			if ($res && property_exists($this, 'id')) {
-				$this->id = $res;
+				$data = $changed;
 			}
 		}
 
-		$this->onPostSave($res);
+		if ($exists) {
+			$result = static::update($data, $this->primaryKeysAsArray());
+		} else {
+			$result = static::insert($data);
+			if ($result) {
+				if ($this->has('id')) {
+					$this->id = $result;
+				}
+				//now that we have an id, we can run pending tasks like attaching files
+				foreach ($this->_pending as $p) {
+					$p();
+				}
+			}
+		}
+		$this->_original = $this->getData();
 
-		return $res;
+		//call hooks, cancel if return false
+		foreach (static::getTraits() as $t => $name) {
+			$p = 'onPostSave' . $name;
+			if (method_exists($t, $p)) {
+				$res = $this->$p();
+			}
+		}
+
+		$this->onPostSave($result);
+		
+		return $result;
 	}
 
 	/**
 	 * Handle direct primary keys as params in where
+	 * 
 	 * @param int|array $where
 	 * @return type
 	 * @throws Exception
@@ -994,56 +1525,12 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 		return $where;
 	}
 
-	/**
-	 * Do not try to insert or update fields that don't exist
-	 * @param array $data
-	 * @return array
-	 */
-	protected static function filterData($data) {
-		$fields = static::getFields();
-		foreach ($data as $k => $v) {
-			if (!in_array($k, $fields)) {
-				unset($data[$k]);
-			}
-		}
-		return $data;
-	}
-
-	/**
-	 * @param array $data
-	 * @return int The id of the record
-	 */
-	public static function insert($data) {
-		$data = static::filterData($data);
-		return static::getTable()->insert($data);
-	}
-
-	/**
-	 * @param array $data
-	 * @param array|string $where
-	 * @param array $params
-	 * @return bool
-	 */
-	public static function update($data, $where = null, $params = array()) {
-		$data = static::filterData($data);
-		return static::getTable()->update($data, $where, $params);
-	}
-
 	public function onPreRemove() {
 		//implement in subclass, return false to cancel
 	}
 
 	public function onPostRemove($result) {
 		//implement in subclass
-	}
-
-	/**
-	 * @param array|string $where
-	 * @param array $params
-	 * @return bool
-	 */
-	public static function delete($where, $params = array()) {
-		return static::getTable()->delete($where, $params);
 	}
 
 	/**
@@ -1056,7 +1543,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 			if ($res === false) {
 				return false;
 			}
-			$res = static::delete($this->pkAsArray());
+			$res = static::delete($this->primaryKeysAsArray());
 			$this->onPostRemove($res);
 			return $res;
 		}
@@ -1072,7 +1559,7 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	public function __toString() {
-		return get_called_class() . json_encode($this->pkAsArray());
+		return get_called_class() . json_encode($this->primaryKeysAsArray());
 	}
 
 	/**
@@ -1108,37 +1595,255 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
-	 * Get pdo instance for this Orm
-	 * 
-	 * @return Pdo
+	 * This constructor is called AFTER properties are injected
+	 * @param int $id
 	 */
-	public static function getPdo() {
-		return Pdo::get(static::$connection);
+	public function __construct($id = null) {
+		if ($id !== null) {
+			if (is_object($id)) {
+				if ($id instanceof Query) {
+					$this->setQuery($id);
+				}
+				$id = null;
+			}
+		}
+		if ($id !== null) {
+			$this->load($id);
+		} else {
+			$this->_original = $this->getData();
+		}
 	}
 
-	public static function getConnection() {
-		return static::$connection;
+	/**
+	 * Shortcut for getRelated
+	 * @param string $name
+	 * @param array $arguments
+	 * @return array
+	 */
+	public function __call($name, $arguments) {
+		return $this->getRelated($name);
 	}
 
-	public static function setConnection($connection) {
-		static::$connection = $connection;
+	/**
+	 * Get instance storage folder
+	 * @param bool $create
+	 * @return string
+	 */
+	public function getFolder($create = false) {
+		$folder = static::getBaseFolder() . '/' . $this->getId(true);
+
+		if ($create && !is_dir($folder)) {
+			mkdir($folder);
+		}
+		return $folder;
 	}
 
-	public static function getStorage() {
-		return static::$storage;
+	/**
+	 * Get sub folder
+	 * 
+	 * @param string $folder
+	 * @param bool $create
+	 * @return string
+	 */
+	public function getSubFolder($folder, $create = false) {
+		$folder = $this->getFolder() . '/' . $folder;
+		if ($create && !is_dir($folder)) {
+			mkdir($folder, 0777, true);
+		}
+		return $folder;
 	}
 
-	public static function setStorage($storage) {
-		static::$storage = $storage;
+	/**
+	 * Get parent query
+	 * 
+	 * @return Query
+	 */
+	public function getQuery() {
+		return $this->_query;
 	}
 
+	/**
+	 * Set parent query. Useful to prefetch data
+	 * 
+	 * @param Query $query
+	 */
+	public function setQuery($query) {
+		$this->_query = $query;
+	}
+
+	/**
+	 * Get a value from cache
+	 * 
+	 * @param string $name
+	 * @param mixed $default
+	 * @return mixed
+	 */
+	public function getCache($name = null, $default = null) {
+		if (!$name) {
+			return $this->_cache;
+		}
+		if (isset($this->_cache[$name])) {
+			return $this->_cache[$name];
+		}
+		return $default;
+	}
+
+	/**
+	 * Set a cache value
+	 * 
+	 * @param string $name
+	 * @param mixed  $value
+	 * @return \k\db\Orm
+	 */
+	public function setCache($name = null, $value = null) {
+		$this->_cache[$name] = $value;
+		return $this;
+	}
+
+	/**
+	 * Get a property or a virtual property.
+	 * 
+	 * $o->get('firstname') -> $this->firstname
+	 * $o->get('virtual') => get_virtual
+	 * $o->get('Employee') => getRelated('Employee')
+	 * $o->get('Employee.name') => getRelated('Employee')->name
+	 * 
+	 * @param string $name
+	 * @return string
+	 */
+	public function get($name, $format = null) {
+		//relation
+		if (strpos($name, '.') !== false) {
+			$parts = explode('.', $name);
+			$part = array_shift($parts);
+			if (static::isRelated($part)) {
+				$o = $this->getRelated($part);
+				if (!$o) {
+					return null;
+				}
+				return $o->get(implode('.', $parts));
+			}
+		}
+		return parent::get($name);
+	}
+
+	/**
+	 * Set a property or a virtual property
+	 * 
+	 * @param string $name
+	 * @param mixed $value
+	 * @return \k\db\Orm
+	 */
+	public function set($name, $value) {
+		$value = $this->convertToStorableValue($value, $name);
+		return parent::set($name, $value);
+	}
+
+	/**
+	 * Additionnal checks on relations
+	 * 
+	 * @param string $name
+	 * @return boolean
+	 */
+	public function has($name) {
+		if (parent::has($name)) {
+			return true;
+		}
+		//if we have a dot through array access, suppose we know what we do
+		if (strpos($name, '.') !== false) {
+			return true;
+		}
+		if (static::isRelated($name)) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Populate object
+	 * 
+	 * @param array $data
+	 * @param bool $withValue Only set property with a value
+	 * @param bool $noOverwrite Do not overwrite property with a value
+	 */
+	public function populate(array $data = null, $withValue = false, $noOverwrite = false) {
+		if ($data === null) {
+			$data = array_merge($_GET, $_POST);
+			if (isset($data[static::getTableName()])) {
+				$data = $data[static::getTableName()];
+			}
+		}
+		foreach ($data as $k => $v) {
+			if ($this->hasField($k)) {
+				if ($withValue && empty($v)) {
+					continue;
+				}
+				if ($noOverwrite && !empty($this->$k)) {
+					continue;
+				}
+				$this->$k = $v;
+			}
+		}
+	}
+
+	/**
+	 * Get id for a table with a single primary key
+	 * 
+	 * @param boolean $mustExist
+	 * @return boolean
+	 * @throws Exception
+	 */
+	public function getId($mustExist = false) {
+		$pkField = static::getPrimaryKey();
+		$value = $this->$pkField;
+		if (empty($value) && $mustExist) {
+			throw new RuntimeException('This record does not have an id yet');
+		}
+		return $value;
+	}
+
+	/**
+	 * Get title (useful for labels in dropdown for instance)
+	 * 
+	 * @return string
+	 */
+	public function get_title() {
+		$potentials = ['title', 'name', 'username'];
+		foreach ($potentials as $p) {
+			if (property_exists($this, $p)) {
+				return $this->$p;
+			}
+		}
+		return $this->getId();
+	}
+
+	/**
+	 * Get original
+	 * 
+	 * @return array|boolean
+	 */
+	public function getOriginal() {
+		if ($this->_original !== null) {
+			return $this->_original;
+		}
+		$id = $this->getId();
+		if (isset(static::$_recordCache[$id])) {
+			return static::$_recordCache[$id];
+		}
+		return false;
+	}
+
+	/* --- factories --- */
+
+	/**
+	 * Alias getTable
+	 * @return \k\db\Table
+	 */
 	public function t($name = null) {
 		return static::getTable($name);
 	}
 
 	/**
-	 * Get table instance
-	 * 
 	 * @return \k\db\Table
 	 */
 	public static function getTable($name = null) {
@@ -1149,600 +1854,27 @@ class Orm implements JsonSerializable, ArrayAccess, Iterator {
 	}
 
 	/**
-	 * Convert {PREFIX}MyClass to my_class
-	 * 
-	 * @return string
+	 * Alias query
+	 * @return \k\db\Query
 	 */
-	public static function getTableName() {
-		return strtolower(static::getModelName());
-	}
-	
-	/**
-	 * Given a table, find what class is supposed to handle it
-	 * 
-	 * @param string $table
-	 */
-	public static function getClassForTable($table = null) {
-		if($table === null) {
-			$table = static::getTableName();
-		}
-		return self::$classPrefix . str_replace(' ', '',ucwords(str_replace('_',' ',$table)));
-	}
-	
-	/**
-	 * Get model name without the prefix
-	 * 
-	 * @return string
-	 */
-	public static function getModelName() {
-		$name = str_replace(self::$classPrefix, '', get_called_class());
-		return $name;
-	}
-
-	/**
-	 * Get many table
-	 * 
-	 * 
-	 * @param string $name
-	 * @return string
-	 */
-	public function getManyManyTable($name) {
-		foreach ($this->getManyManyRelations() as $relation => $class) {
-			if ($name == $relation) {
-				return static::getTableName() . '_' . $class::getTableName();
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Provide basic english singularization for most common cases
-	 * 
-	 * @param string $word
-	 * @return string
-	 */
-	protected static function singularize($word) {
-		$rules = array(
-			'ies' => 'y',
-			'ss' => 'sss',
-			's' => ''
-		);
-
-		foreach ($rules as $r => $rpl) {
-			$word = preg_replace('/' . $r . '$/', $rpl, $word);
-		}
-
-		return $word;
-	}
-
-	/**
-	 * Build relation array
-	 * 
-	 * Set class as singular
-	 * 
-	 * @param array $arr Fields definition
-	 * @return array
-	 */
-	protected static function buildRelationsArray($arr) {
-		$relations = array();
-
-		foreach ($arr as $name => $class) {
-			//if no table was specfied, use the name of the relation
-			if (is_int($name)) {
-				$name = $class;
-				$class = ucfirst(static::singularize($name));
-			}
-			if (self::$classPrefix) {
-				$class = self::$classPrefix . $class;
-			}
-			$relations[$name] = $class;
-		}
-		return $relations;
-	}
-
-	/**
-	 * Check if a relation exists
-	 * 
-	 * @param string $name
-	 * @return string|boolean
-	 */
-	public static function isRelated($name) {
-		if (in_array($name, static::getHasOneRelations(true))) {
-			return self::HAS_ONE;
-		}
-		if (in_array($name, static::getHasManyRelations(true))) {
-			return self::HAS_MANY;
-		}
-		if (in_array($name, static::getManyManyRelations(true))) {
-			return self::MANY_MANY;
-		}
-		return false;
-	}
-
-	/**
-	 * Get all relations
-	 * 
-	 * @staticvar null $relations
-	 * @param bool $keys
-	 * @return array
-	 */
-	public static function getAllRelations($keys = false) {
-		static $relations = null;
-
-		if ($relations === null) {
-			$relations = array_merge(static::getHasOneRelations(), static::getHasManyRelations(), static::getManyManyRelations());
-		}
-
-		if ($keys) {
-			return array_keys($relations);
-		}
-
-		return $relations;
-	}
-
-	/**
-	 * Get has-one relations
-	 * @param bool $keys
-	 * @return array
-	 */
-	public static function getHasOneRelations($keys = false) {
-		static $relations = null;
-
-		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$hasOne);
-		}
-
-		if ($keys) {
-			return array_keys($relations);
-		}
-
-		return $relations;
-	}
-
-	/**
-	 * Get has-many relations
-	 * @param bool $keys
-	 * @return array
-	 */
-	public static function getHasManyRelations($keys = false) {
-		static $relations = null;
-
-		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$hasMany);
-		}
-
-		if ($keys) {
-			return array_keys($relations);
-		}
-
-		return $relations;
-	}
-
-	/**
-	 * Get many-many relations
-	 * @param bool $keys
-	 * @return array
-	 */
-	public static function getManyManyRelations($keys = false) {
-		static $relations = null;
-
-		if ($relations === null) {
-			$relations = static::buildRelationsArray(static::$manyMany);
-		}
-
-		if ($keys) {
-			return array_keys($relations);
-		}
-
-		return $relations;
-	}
-
-	/**
-	 * Get all extra fields that could be defined through a manyMany relation
-	 * 
-	 * @return array
-	 */
-	public static function getManyExtraFields($relation) {
-		$extra = null;
-
-		if ($extra === null) {
-			$extra = array();
-			foreach (static::$manyManyExtra as $relation => $fields) {
-				$extra[$relation] = static::buildFieldsArray($fields);
-			}
-		}
-
-		if (isset($extra[$relation])) {
-			return $extra[$relation];
-		}
-		return array();
-	}
-
-	/**
-	 * Get many-many primary keys
-	 * @param string $class
-	 * @return array
-	 */
-	public static function getManyManyKeys($class) {
-		return array(
-			static::getTable() . '_' . static::getPrimaryKey(),
-			$class::getTable() . '_' . $class::getPrimaryKey()
-		);
-	}
-
-	/**
-	 * Get fields. By default only return keys.
-	 * 
-	 * @staticvar array $fields
-	 * @return array
-	 */
-	public static function getFields($keys = true) {
-		static $fields;
-
-		if ($fields === null) {
-			$fields = static::buildFieldsArray(static::$fields);
-
-			//make sure has-one fields exist
-			$hasOneFields = static::getHasOneRelations();
-			foreach ($hasOneFields as $name => $class) {
-				$field = $class::getForForeignKey($name);
-				if (!isset($fields[$field])) {
-					$types = $class::getFields(false);
-					$fields[$field] = 'INT';
-//					$fields[$field] = $types[$field];
-				}
-			}
-
-			//add extensions fields
-			foreach (static::getTraits() as $t => $name) {
-				$p = 'fields' . $name;
-				if (property_exists($t, $p)) {
-					$fields = array_merge($fields, $t::$$p);
-				}
-			}
-		}
-
-		if ($keys) {
-			return array_keys($fields);
-		}
-
-		return $fields;
-	}
-
-	/**
-	 * Get an array of fields => rules
-	 * 
-	 * @return array
-	 */
-	public static function getValidation() {
-		$validations = static::$validation;
-
-		//validations rules based on type
-		$nameRules = array(
-			//length
-			'zipcode' => [self::V_MIN_LENGTH => 4, self::V_MAX_LENGTH => 20],
-			'lang_code|country_code' => [self::V_RANGELENGTH => '[2,2]'],
-			//numbers
-			'id' => self::V_DIGITS,
-			'_?price$' => self::V_NUMBER,
-			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => self::V_DIGITS,
-			'_?(lat|lng|lon|latitude|longitude)$' => self::V_NUMBER,
-			//dates
-			'_?(datetime|at)$' => [self::V_MOMENT => 'YYYY-MM-DD HH:mm:ss'],
-			'_?(date|birthdate|birthday)$' => [self::V_MOMENT => 'YYYY-MM-DD'],
-			'_?time$' => [self::V_MOMENT => 'HH:mm:ss'],
-			//types
-			'_?email$' => self::V_EMAIL,
-			'_?url$' => self::V_URL,
-		);
-
-		$fields = static::getFields(false);
-		foreach ($fields as $field => $type) {
-			if(isset($validations[$field])) {
-				continue;
-			}
-			//guess by name
-			foreach ($nameRules as $r => $v) {
-				if (preg_match('/' . $r . '/', $field)) {
-					$validations[$field] = $v;
-					break;
-				}
-			}
-		}
-		
-		$rules = [];
-		//make sure rules is an array
-		foreach ($validations as $field => $rule) {
-			if (is_string($rule)) {
-				$rule = [$rule => true];
-			}
-			$rules[$field] = $rule;
-		}
-		
-		return $rules;
-	}
-
-	/**
-	 * Sql fields
-	 * @return array
-	 */
-	public static function getSqlFields() {
-		return static::$sqlFields;
-	}
-
-	/**
-	 * Build fields array from definition
-	 * 
-	 * @param array $arr
-	 * @return array
-	 */
-	protected static function buildFieldsArray($arr) {
-		$fields = array();
-		foreach ($arr as $name => $type) {
-			if (is_int($name)) {
-				$name = $type;
-				$type = '';
-			}
-			if (empty($type)) {
-				$type = static::getPdo()->guessType($name);
-			}
-			$fields[$name] = $type;
-		}
-		return $fields;
-	}
-
-	public function getId($mustExist = false) {
-		$pkField = static::getPrimaryKey();
-		$value = $this->$pkField;
-		if (empty($value) && $mustExist) {
-			throw new Exception('This record does not have an id yet in ' . get_called_class());
-		}
-		return $value;
-	}
-
-	public function getLabel() {
-		if ($this->hasField('name')) {
-			return $this->getField('name');
-		}
-		if ($this->hasField('title')) {
-			return $this->getField('title');
-		}
-		if ($this->hasField('username')) {
-			return $this->getField('username');
-		}
-		return $this->getId();
-	}
-
-	public function getOriginal() {
-		return $this->original;
-	}
-
-	public static function getPrimaryKey() {
-		$pkFields = static::getPrimaryKeys();
-		if (count($pkFields) !== 1) {
-			throw new Exception('This method only support table with one primary key in ' . get_called_class());
-		}
-
-		return $pkFields[0];
-	}
-
-	/**
-	 * Get primary keys
-	 * @staticvar array $pkFields
-	 * @param bool $asArray
-	 * @return array
-	 */
-	public static function getPrimaryKeys() {
-		static $pkFields;
-
-		if ($pkFields === null) {
-			$pkFields = array();
-			$fields = array_keys(static::getFields());
-			if (in_array('id', $fields)) {
-				$pkFields[] = 'id';
-			} else {
-				$fkFields = static::getForeignKeys();
-				foreach ($fields as $field) {
-					//link table
-					if (in_array($field, $fkFields)) {
-						$pkFields[] = $field;
-					} else {
-						//at least one pk
-						if (empty($fields)) {
-							$pkFields[] = $field;
-						}
-						break; //break
-					}
-				}
-			}
-		}
-
-		return $pkFields;
-	}
-
-	/**
-	 * Create a field name to be used as a foreign key field for this table
-	 * @param string $relation
-	 * @return string
-	 * @throws Exception
-	 */
-	public static function getForForeignKey($name = null) {
-		$rel = static::getTableName();
-		if ($name) {
-			$rel = strtolower($name);
-		}
-		return $rel . '_' . static::getPrimaryKey();
-	}
-
-	/**
-	 * Get foreign keys based on naming conventions. No query is done on the db.
-	 * The foreign key fields must follow the class_field or [rel]_field convention
-	 * @staticvar array $fkFields
-	 * @return array
-	 */
-	public static function getForeignKeys() {
-		static $fkFields;
-
-		if ($fkFields === null) {
-			$fkFields = array();
-			$fields = static::getHasOneRelations();
-			foreach ($fields as $relation => $class) {
-				if (is_int($relation)) {
-					$relation = $class;
-				}
-				$pk = $class::getPrimaryKey();
-				$field = strtolower($relation) . '_' . $pk;
-				$table = $class::getTableName();
-				$fkFields[$field] = $table . '(' . $pk . ')';
-			}
-		}
-
-		return $fkFields;
-	}
-
-	/**
-	 * Default sort
-	 * @staticvar string $sort
-	 * @return string
-	 */
-	public static function getDefaultSort() {
-		static $sort;
-
-		if (empty($sort)) {
-			$pk = static::getPrimaryKeys();
-			array_walk($pk, function(&$item) {
-						$item = $item . ' ASC';
-					});
-			$sort = implode(',', $pk);
-		}
-		return $sort;
-	}
-
-	/**
-	 * Default filtering options
-	 * @return string
-	 */
-	public static function getDefaultWhere() {
-		return array();
-	}
-
-	public static function syncTable() {
-		$pdo = static::getPdo();
-		$table = static::getTableName();
-		try {
-			$res = $pdo->query("SELECT 1 FROM " . $table);
-			$exists = true;
-		} catch (PdoException $e) {
-			$exists = false;
-		}
-		$fieldsDef = static::getFields(false);
-		$fields = array_keys($fieldsDef);
-
-		if ($exists) {
-			$cols = array_keys($pdo->listColumns($table));
-
-			$removeFields = array_diff($cols, $fields);
-			$addFields = array_diff($fields, $cols);
-
-			if (empty($removeFields) && empty($addFields)) {
-				return;
-			}
-
-			return $pdo->alterTable($table, $addFields, $removeFields);
-		} else {
-			$pkFields = static::getPrimaryKeys();
-			$fkFields = static::getForeignKeys();
-			return $pdo->createTable($table, $fields, $pkFields, $fkFields);
-		}
-	}
-
-	public static function onBeforeSelect(&$where, &$orderBy, &$limit, &$fields, &$params) {
-		
-	}
-
-	public static function onAfterSelect(&$data) {
-		
-	}
-
-	public static function onBeforeInsert(&$data, &$params = null) {
-		
-	}
-
-	public static function onAfterInsert(&$res, $data, $params = null) {
-		
-	}
-
-	public static function onBeforeUpdate(&$data, &$where = null, &$params = null) {
-		
-	}
-
-	public static function onAfterUpdate(&$res, $data, $where = null, $params = null) {
-		
-	}
-
-	public static function onBeforeDelete(&$data, &$where = null, &$params = null) {
-		
-	}
-
-	public static function onAfterDelete(&$res, $data, $where = null, $params = null) {
-		
-	}
-
 	public static function q() {
 		return static::query();
 	}
 
+	/**
+	 * @return \k\db\Query
+	 */
 	public static function query() {
+		return static::getDefaultQuery();
+	}
+
+	/**
+	 * @return \k\db\Query
+	 */
+	public static function getDefaultQuery() {
 		$q = new Query(static::getPdo());
 		$q->from(static::getTableName())->fields(static::getTableName() . '.*')->fetchAs(get_called_class());
 		return $q;
-	}
-
-	/* array access */
-
-	public function offsetSet($offset, $value) {
-		$this->setField($offset, $value);
-	}
-
-	public function offsetExists($offset) {
-		return $this->hasField($offset);
-	}
-
-	public function offsetUnset($offset) {
-		if ($this->hasField($offset)) {
-			$this->setField($offset, null);
-		}
-	}
-
-	public function offsetGet($offset) {
-		return $this->getField($offset);
-	}
-
-	/* iterator */
-
-	public function rewind() {
-		reset($this->data);
-	}
-
-	public function current() {
-		$var = current($this->data);
-		return $var;
-	}
-
-	public function key() {
-		$var = key($this->data);
-		return $var;
-	}
-
-	public function next() {
-		$var = next($this->data);
-		return $var;
-	}
-
-	public function valid() {
-		$key = key($this->data);
-		$var = ($key !== null && $key !== false);
-		return $var;
 	}
 
 }

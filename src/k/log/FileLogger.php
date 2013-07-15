@@ -16,7 +16,7 @@ class FileLogger extends LoggerAbstract {
 	protected $file;
 
 	public function __construct($file) {
-		$this->setFile($$file);
+		$this->setFile($file);
 	}
 	
 	public function getFile() {
@@ -24,8 +24,11 @@ class FileLogger extends LoggerAbstract {
 	}
 
 	public function setFile($file) {
+		if(!is_file($file)) {
+			file_put_contents($file,'');
+		}
 		if(!is_writable($file)) {
-			throw new InvalidArgumentException($file);
+			throw new InvalidArgumentException("File '$file' is not writable'");
 		}
 		$this->file = $file;
 		return $this;

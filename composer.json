@@ -1,11 +1,11 @@
 {
 	"name": "lekoala/k",
 	"description": "K framework",
-	"version":"1",
+	"version": "1",
 	"license": "MIT",
 	"keywords": [
 		"php",
-		"php 5.3",
+		"php 5.4",
 		"framework"
 	],
 	"authors": [
@@ -20,10 +20,12 @@
 	},
 	"require": {
 		"php": ">=5.4",
-		"psr/log" : "*"
-	},
-	"suggest" : {
+		"psr/log": "*",
 		"ircmaxell/password-compat": "*",
-		"psr/log" : "*"
+		"rhumsaa/array_column": "~1.1"
+	},
+	"suggest": {
+		"fzaninotto/faker": "*",
+		"triplepoint/php-units-of-measure": "*"
 	}
 }

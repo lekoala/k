@@ -5,11 +5,11 @@ namespace k\log;
 use \InvalidArgumentException;
 
 /**
- * LogAbstract
+ * psr-3 compatible logger
  *
  * @author lekoala
  */
-abstract class LoggerAbstract implements \Psr\Log\LoggerInterface {
+abstract class LoggerAbstract implements Psr\Log\LoggerInterface {
 	const EMERGENCY = 'emergency';
 	const ALERT = 'alert';
 	const CRITICAL = 'critical';

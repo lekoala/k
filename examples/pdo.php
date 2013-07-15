@@ -1,14 +1,13 @@
 <?php
-define('SRC_PATH',realpath('../src'));
-require SRC_PATH . '/K/init.php';
-\K\DebugBar::init(array(
-	'trackedObjects' => array('K\Pdo')
-));
 
-//$db = new \K\Pdo('mysql:user:psss@host:8888;dbname=mydb;param=value;otherparam=othervalue');
-$db = new \K\Pdo('mysql:root:root;host=localhost;dbname=framework');
-//$db = new \K\Pdo(\K\Pdo::SQLITE_MEMORY);
-//$db = new \K\Pdo('sqlite:' . __DIR__ . '/data/sqlitedb.db');
+require '_bootstrap.php';
+
+//$db = new \k\db\Pdo(\k\db\Pdo::SQLITE_MEMORY);
+$db = new \k\db\Pdo('mysql:root:root;host=localhost;dbname=framework');
+
+$toolbar = new k\dev\Toolbar();
+$toolbar->track($db);
+
 //build schema
 echo '<pre>';
 echo $db->dropTable('user');
@@ -19,18 +18,13 @@ echo '<hr/>';
 
 echo $db->createTable('usertype',array('id','name'));
 echo '<br/>';
-echo $db->createTable('lang',array('code','name'),array(),array('code'));
+echo $db->createTable('lang',array('code','name'),array('code'));
 echo '<br>';
-echo $db->createTable('user',array('username','usertype_id','password','useless'),array('usertype_id' => 'usertype(id)'),array('username'));
+echo $db->createTable('user',array('id','username','usertype_id','password','useless'),array('username'),array('usertype_id' => 'usertype(id)'));
 echo '<br/>';
 echo $db->alterTable('user',array('created_at','lang_code'),array('useless'));
 echo '<br/>';
-try {
-	echo $db->addForeignKeys('user', array('lang_code' => 'lang(code)'));
-}
-catch(Exception $e) {
-	echo 'Add foreign key ' . $e->getMessage() .  '<br/>';
-}
+echo $db->alterKeys('user', array('lang_code' => 'lang(code)'), array('usertype_id' => 'usertype(id)'));
 //insert stuff
 $db->insert('usertype', array(
 	'name' => 'admin'
@@ -63,8 +57,6 @@ $db->update('user',array(
 ));
 //pass params
 $db->update('user', array('username' => 'my masta user'), "username LIKE ?", array('%admin%'));
-
-$db->createTableLike('user');
 
 echo 'Table list<br/>';
 print_r($db->listTables());

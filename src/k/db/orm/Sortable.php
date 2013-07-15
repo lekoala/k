@@ -6,28 +6,8 @@ namespace k\db\orm;
  * Sortable
  */
 trait Sortable {
-
-	public static $fieldsSortable = array(
-		'sort_order' => 'INT'
-	);
-
-	/**
-	 * Default sort
-	 * @staticvar string $sort
-	 * @return string
-	 */
-	public static function getDefaultSort() {
-		static $sort;
-
-		if (empty($sort)) {
-			$pk = static::getPrimaryKeys();
-			array_walk($pk, function(&$item) {
-						$item = $item . ' ASC';
-					});
-			$sort = 'sort_order ASC,' . implode(',', $pk);
-		}
-		return $sort;
-	}
+	
+	public $sort_order;
 
 	public static function getByOrder($order) {
 		if ($order == 'last') {
@@ -35,7 +15,7 @@ trait Sortable {
 		} elseif ($order == 'first') {
 			$order = static::min('sort_order');
 		}
-		return static::get()->where('sort_order', $order)->fetchOne();
+		return static::query()->where('sort_order', $order)->fetchOne();
 	}
 	
 	public static function updateSortOrder($array) {
@@ -62,7 +42,7 @@ trait Sortable {
 	}
 
 	public function moveUp() {
-		$next = static::get()->where_gt('sort_order', $this->sort_order)->orderBy('sort_order ASC')->fetchOne();
+		$next = static::query()->whereGt('sort_order', $this->sort_order)->orderBy('sort_order ASC')->fetchOne();
 		$order = $this->sort_order;
 		$this->sort_order = $next->sort_order;
 		$next->sort_order = $order;
@@ -72,7 +52,7 @@ trait Sortable {
 
 	public function moveDown() {
 		return static::getPdo()->query('UPDATE ' . static::getTable() . ' SET sort_order = sort_order + 1 WHERE sort_order < ' . $this->sort_order);
-		$prev = static::get()->where_lt('sort_order', $this->sort_order)->orderBy('sort_order DESC')->fetchOne();
+		$prev = static::query()->whereLt('sort_order', $this->sort_order)->orderBy('sort_order DESC')->fetchOne();
 		$order = $this->sort_order;
 		$this->sort_order = $prev->sort_order;
 		$prev->sort_order = $order;

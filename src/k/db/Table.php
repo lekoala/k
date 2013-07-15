@@ -25,7 +25,7 @@ class Table {
 		$this->setName($name);
 		$this->setPdo($pdo);
 	}
-	
+
 	public function getName() {
 		return $this->name;
 	}
@@ -66,7 +66,19 @@ class Table {
 		$q->from($this->getName())->fields($this->getName() . '.*');
 		return $q;
 	}
-	
+
+	/**
+	 * @param array|string $where
+	 * @param array|string $orderBy
+	 * @param array|string $limit
+	 * @param array|string $fields
+	 * @param array $params
+	 * @return array 
+	 */
+	public function select($where = null, $orderBy = null, $limit = null, $fields = '*', $params = array()) {
+		return $this->getPdo()->select($this->getName(), $where, $orderBy, $limit, $fields, $params);
+	}
+
 	/**
 	 * @param array $data
 	 * @return int The id of the record
@@ -118,7 +130,7 @@ class Table {
 	public static function max($field = 'id') {
 		return $this->getPdo()->max($this->getName(), $field);
 	}
-	
+
 	/* table helpers */
 
 	/**
@@ -171,12 +183,11 @@ class Table {
 		$pdo = static::getPdo();
 		$table = static::getTable();
 
-		$fields = 
-
-		$tableCols = $pdo->listColumns($table);
+		$fields =
+				$tableCols = $pdo->listColumns($table);
 		$tableFields = array_map(function($i) {
-			return $i['name'];
-		}, $tableCols);
+					return $i['name'];
+				}, $tableCols);
 
 		$addedFields = array_diff($fields, $tableFields);
 		$removedFields = array_diff($tableFields, $fields);
@@ -187,8 +198,8 @@ class Table {
 		return $pdo->alterTable($table, $addedFields, $removeFields, $execute);
 	}
 
-	
 	public function __toString() {
 		return $this->getName();
 	}
+
 }
