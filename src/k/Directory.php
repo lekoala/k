@@ -7,6 +7,8 @@ use \FilesystemIterator;
 /**
  * Directory
  *
+ * @link https://github.com/Kappa-app/FileSystem/blob/master/src/Kappa/FileSystem/Directory.php
+ * 
  * @author lekoala
  */
 class Directory extends FilesystemIterator {

@@ -1,5 +1,5 @@
 <?php
-namespace k\html\form;
+namespace k\form;
 
 class File extends Input {
 
@@ -14,7 +14,7 @@ class File extends Input {
 
 	public function setForm($form) {
 		parent::setForm($form);
-		return $this->form->setEnctype(1);
+		return $this->form->setEnctype('multipart/form-data');
 	}
 
 }

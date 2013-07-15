@@ -12,6 +12,7 @@ use \InvalidArgumentException;
  * @link http://www.php.net/manual/en/class.splfileinfo.php
  * @link http://flourishlib.com/docs/fFile
  * @link https://github.com/onemightyroar/php-filemanager/blob/master/src/OneMightyRoar/PhpFileManager/FileObject.php
+ * @link https://github.com/Kappa-app/FileSystem/blob/master/src/Kappa/FileSystem/File.php
  * 
  * @author lekoala
  */

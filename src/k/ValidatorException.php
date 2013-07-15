@@ -1,6 +1,6 @@
 <?php
 
-namespace k\data;
+namespace k;
 
 use \RuntimeException;
 use \Exception;
@@ -8,7 +8,7 @@ use \Exception;
 /**
  * Validation Class
  */
-class ValidationException extends RuntimeException {
+class ValidatorException extends RuntimeException {
 
 	protected $errors;
 

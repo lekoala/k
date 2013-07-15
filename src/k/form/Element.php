@@ -1,6 +1,6 @@
 <?php
 
-namespace k\html\form;
+namespace k\form;
 
 use \Exception;
 
@@ -8,23 +8,23 @@ use \Exception;
 /**
  * Base element that can contain any html
  * 
- * @method \k\html\form\Element content()
- * @method \k\html\form\Element tag()
- * @method \k\html\form\Element attributes()
- * @method \k\html\form\Element form()
- * @method \k\html\Form input()
- * @method \k\html\Form fieldset()
- * @method \k\html\Form checkbox()
- * @method \k\html\Form password()
- * @method \k\html\Form radio()
- * @method \k\html\Form select()
- * @method \k\html\Form div()
- * @method \k\html\Form add()
+ * @method \k\form\Element content()
+ * @method \k\form\Element tag()
+ * @method \k\form\Element attributes()
+ * @method \k\form\Element form()
+ * @method \k\form input()
+ * @method \k\form fieldset()
+ * @method \k\form checkbox()
+ * @method \k\form password()
+ * @method \k\form radio()
+ * @method \k\form select()
+ * @method \k\form div()
+ * @method \k\form add()
  */
 class Element {
 
 	/**
-	 * @var \k\html\Form
+	 * @var \k\form
 	 */
 	protected $form;
 	protected $content;
@@ -32,7 +32,7 @@ class Element {
 	protected $attributes = [];
 	protected $group;
 
-	public function __construct($content = null, \k\html\Form $form = null) {
+	public function __construct($content = null, Form $form = null) {
 		$this->content = $content;
 		if ($form) {
 			$this->form = $form;
@@ -43,7 +43,7 @@ class Element {
 		return $this->form;
 	}
 
-	public function setForm(\k\html\Form $form) {
+	public function setForm(Form $form) {
 		$this->form = $form;
 		return $this;
 	}
@@ -94,6 +94,7 @@ class Element {
 		$this->attributes[$name] = $value;
 		return $this;
 	}
+
 
 	public function attribute($name, $value = false) {
 		if ($value !== false) {
@@ -174,7 +175,7 @@ class Element {
 
 	/**
 	 * Allows you to call a method directly on the parent form
-	 * @return \k\html\form\Element
+	 * @return \k\form\Element
 	 */
 	public function __call($name, $arguments) {
 		if (property_exists($this, $name)) {

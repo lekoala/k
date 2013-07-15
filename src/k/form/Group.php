@@ -1,5 +1,5 @@
 <?php
-namespace k\html\form;
+namespace k\form;
 
 /**
  * Base group class
@@ -25,7 +25,7 @@ class Group extends Element {
 	
 	/**
 	 * Allows you to call a method directly on the parent form
-	 * @return \k\html\form\Element
+	 * @return \k\form\Element
 	 */
 	public function __call($name, $arguments) {
 		if (property_exists($this, $name)) {
