@@ -2,8 +2,8 @@
 
 require '_bootstrap.php';
 
-//$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
-$pdo = new \k\db\Pdo('mysql:root:root;host=localhost;dbname=framework');
+$pdo = new k\db\Pdo(k\db\Pdo::SQLITE_MEMORY);
+//$pdo = new \k\db\Pdo('mysql:root:root;host=localhost;dbname=framework');
 $prof = new k\dev\Profiler();
 //$prof->start();
 $tb = new k\dev\Toolbar(true);
