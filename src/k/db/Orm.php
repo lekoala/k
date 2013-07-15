@@ -23,7 +23,7 @@ use \RuntimeException;
  *
  * @author LeKoala
  */
-class Orm extends \k\data\Model {
+class Orm extends \k\Model {
 
 	const HAS_ONE = 'hasOne';
 	const HAS_MANY = 'hasMany';
@@ -1630,7 +1630,7 @@ class Orm extends \k\data\Model {
 	 * @return string
 	 */
 	public function getFolder($create = false) {
-		$folder = static::getBaseFolder() . '/' . $this->getId(true);
+		$folder = static::getBaseFolder($create) . '/' . $this->getId(true);
 
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
