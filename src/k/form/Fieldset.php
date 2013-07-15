@@ -1,20 +1,42 @@
 <?php
+
 namespace k\form;
 
 /**
- * @method Fieldset legend()
  */
-class Fieldset extends Group {
+class Fieldset extends Element {
 
-	protected $tag = 'fieldset';
+	protected $tagName = 'fieldset';
 	protected $legend;
-	protected $autoclose = true;
-	
-	public function renderElement() {
+
+	public function legend($v = null) {
+		if ($v === null) {
+			return $this->getLegend();
+		}
+		return $this->setLegend($v);
+	}
+
+	public function getLegend() {
+		return $this->legend;
+	}
+
+	public function setLegend($v) {
+		$this->legend = $v;
+		return $this;
+	}
+
+	public function renderLegend() {
+		if (!$this->legend) {
+			return '';
+		}
+		return '<legend>' . $this->legend . '</legend>';
+	}
+
+	public function renderHtml() {
 		$legend = $this->legend;
 		if ($legend) {
 			$this->form->t($legend);
-			$legend = '<legend>'  . $legend . '</legend>';
+			$legend = '<legend>' . $legend . '</legend>';
 		}
 		return "<fieldset>\n" . $legend;
 	}

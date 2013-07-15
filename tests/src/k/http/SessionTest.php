@@ -82,9 +82,9 @@ class SessionTest extends \TestCase {
 			'arr' => array()
 		);
 		
-		$this->object->add('arr','key');
+		$this->object->addElement('arr','key');
 		$this->assertEquals(array('key'),$_SESSION['arr']);
-		$this->object->add('arr','key2');
+		$this->object->addElement('arr','key2');
 		$this->assertEquals(array('key','key2'),$_SESSION['arr']);
 	}
 

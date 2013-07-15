@@ -3,9 +3,12 @@
 namespace k\form;
 
 use \Closure;
+use \ArrayAccess;
 
 /**
- * Chainable form builder
+ * Form builder
+ * 
+ * Use twitter bootstrap html
  * 
  * @method Input class()
  * @method Input type()
@@ -24,24 +27,56 @@ use \Closure;
  * @method Textarea cols()
  * @method Textarea readonly()
  * 
+ * @link http://twitter.github.io/bootstrap/base-css.html#forms
  * @link http://anahkiasen.github.io/former/
  * @link https://github.com/zendframework/zf2/blob/master/library/Zend/Form/Form.php
  */
-class Form extends \k\html\Tag {
+class Form extends Element implements ArrayAccess {
 
 	const FORM_SEARCH = 'search';
 	const FORM_INLINE = 'inline';
 	const FORM_HORIZONTAL = 'horizontal';
 	const ENCTYPE_MULTIPART_FORM_DATA = 'multipart/form-data';
 
-	protected $action;
+	protected $tagName = 'form';
+	protected $attributes = [
+		'action' => '',
+		'method' => 'POST'
+	];
 	protected $actions = [];
-	protected $method = 'POST';
 	protected $elements = [];
+	protected $legend;
+	protected $form; //for subforms
 	protected $wrap = true;
 	protected $layout = 'horizontal';
 	protected $translations;
-	protected $groups = [];
+	protected static $defaultClass = 'form';
+	protected static $largeOptionsLimit = 20;
+	
+	public function __construct(Form $form = null) {
+		parent::__construct($form);
+		$this->init();
+		if(isset($_POST['submit-' . $this->getId()])) {
+			$this->onSave();
+		}
+	}
+	
+	protected function init() {
+		
+	}
+	
+	protected function onSave() {
+		
+	}
+
+	public function getTranslations() {
+		return $this->translations;
+	}
+
+	public function setTranslations($value) {
+		$this->translations = $value;
+		return $this;
+	}
 
 	public function t(&$label, &$dest = null) {
 		if (isset($this->translations[$label])) {
@@ -53,6 +88,22 @@ class Form extends \k\html\Tag {
 			return true;
 		}
 		return false;
+	}
+
+	public function legend($v = null) {
+		if ($v === null) {
+			return $this->getLegend();
+		}
+		return $this->setLegend($v);
+	}
+
+	public function getLegend() {
+		return $this->legend;
+	}
+
+	public function setLegend($v) {
+		$this->legend = $v;
+		return $this;
 	}
 
 	public function getLayout() {
@@ -75,42 +126,40 @@ class Form extends \k\html\Tag {
 		return $this->setAttribute('enctype', $v);
 	}
 
-	public function getWrap() {
-		return $this->wrap;
-	}
-
-	public function setWrap($value) {
-		$this->wrap = $value;
-		return $this;
-	}
-
-	public function getTranslations() {
-		return $this->translations;
-	}
-
-	public function setTranslations($value) {
-		$this->translations = $value;
-		return $this;
-	}
-
-	public function find($name, $el = null) {
-		if ($el === null) {
-			$el = $this->elements;
+	public function find($name, $elements = null) {
+		if ($elements === null) {
+			$elements = $this->elements;
 		}
-		if (is_array($el)) {
-			foreach ($el as $element) {
-				if ($element instanceof Group) {
-					$ret = $this->find($name, $element->getElements());
-					if ($ret) {
-						return $ret;
-					}
-				} else {
-					if (!method_exists($element, 'getName')) {
-						continue;
-					}
-					if ($name == $element->getName()) {
-						return $element;
-					}
+		foreach ($elements as $element) {
+			//recursive for groups
+			if ($element instanceof Form) {
+				$ret = $this->find($name, $element->getElements());
+				if ($ret) {
+					return $ret;
+				}
+			}
+			if (!method_exists($element, 'getName')) {
+				continue;
+			}
+			if ($name == $element->getName()) {
+				return $element;
+			}
+		}
+		return false;
+	}
+
+	public function findForm($name, $elements = null) {
+		if ($elements === null) {
+			$elements = $this->elements;
+		}
+		foreach ($this->elements as $element) {
+			if ($element instanceof Form) {
+				if ($element->getName($name)) {
+					return $element;
+				}
+				$ret = $this->findForm($name, $element->getElements());
+				if ($ret) {
+					return $ret;
 				}
 			}
 		}
@@ -156,26 +205,39 @@ class Form extends \k\html\Tag {
 		}
 
 		if (is_array($el)) {
-			foreach ($el as $element) {
-				if ($element instanceof Group) {
+			foreach ($el as $name => $element) {
+				if ($element instanceof Form) {
 					$this->populate($data, $element->getElements());
 				} else {
-					if (!method_exists($element, 'getName')) {
-						continue;
-					}
 					$name = $element->getName();
-
-					if ($data && isset($data[$name])) {
-						$element->value($data[$name]);
+					
+					$dataVal = $this->getValueFromArray($data, $name);
+					$postVal = $this->getValueFromArray($_POST, $name);
+					
+					if ($dataVal) {
+						$element->setValue($dataVal);
 					}
-					if (isset($_POST[$name])) {
-						$element->value($_POST[$name]);
+					if ($postVal) {
+						$element->setValue($postVal);
 					}
 				}
 			}
 		}
 
 		return $this;
+	}
+	
+	protected function getValueFromArray($array,$index,$default = null) {
+		$loc = &$array;
+		foreach (explode('[', $index) as $step) {
+			$step = rtrim($step,']');
+			if (isset($loc[$step])) {
+				$loc = &$loc[$step];
+			} else {
+				return $default;
+			}
+		}
+		return $loc;
 	}
 
 	public function dumpTranslationsArray() {
@@ -186,16 +248,10 @@ class Form extends \k\html\Tag {
 			}
 			$name = $element->getName();
 			$translations[$name] = $name;
-			if ($element instanceof FormAddress) {
-				$translations['street'] = 'street';
-				$translations['number'] = 'number';
-				$translations['zip'] = 'zip';
-				$translations['city'] = 'city';
-			}
 			if (method_exists($element, 'getOptions')) {
 				$opts = $element->getOptions();
 				//skip large arr
-				if (count($opts) > 20) {
+				if (count($opts) > self::$largeOptionsLimit) {
 					continue;
 				}
 				foreach ($opts as $i => $o) {
@@ -222,8 +278,10 @@ class Form extends \k\html\Tag {
 	 * @return Input
 	 */
 	public function input($name, $label = null) {
-		$element = new Input($name);
-		return $this->add($element, $label);
+		$element = new Input();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -232,8 +290,10 @@ class Form extends \k\html\Tag {
 	 * @return Password
 	 */
 	public function password($name, $label = null) {
-		$element = new Password($name);
-		return $this->add($element, $label);
+		$element = new Password();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -245,9 +305,11 @@ class Form extends \k\html\Tag {
 		if (empty($name)) {
 			$name = 'email';
 		}
-		$element = new Input($name);
-		$element->type('email');
-		return $this->add($element, $label);
+		$element = new Input();
+		$element->setName($name);
+		$element->setLabel($label);
+		$element->setType('email');
+		return $this->addElement($element);
 	}
 
 	/**
@@ -256,8 +318,10 @@ class Form extends \k\html\Tag {
 	 * @return Textarea
 	 */
 	public function textarea($name, $label = null) {
-		$element = new Textarea($name);
-		return $this->add($element, $label);
+		$element = new Textarea();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -266,8 +330,10 @@ class Form extends \k\html\Tag {
 	 * @return File
 	 */
 	public function file($name, $label = null) {
-		$element = new File($name);
-		return $this->add($element, $label);
+		$element = new File();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -276,8 +342,10 @@ class Form extends \k\html\Tag {
 	 * @return File
 	 */
 	public function upload($name, $label = null) {
-		$element = new Upload($name);
-		return $this->add($element, $label);
+		$element = new Upload();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -286,8 +354,10 @@ class Form extends \k\html\Tag {
 	 * @return Select
 	 */
 	public function select($name, $label = null) {
-		$element = new Select($name);
-		return $this->add($element, $label);
+		$element = new Select();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -296,8 +366,10 @@ class Form extends \k\html\Tag {
 	 * @return Checkbox
 	 */
 	public function checkbox($name, $label = null) {
-		$element = new Checkbox($name);
-		return $this->add($element, $label);
+		$element = new Checkbox();
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -307,7 +379,9 @@ class Form extends \k\html\Tag {
 	 */
 	public function radio($name, $label = null) {
 		$element = new Radio($name);
-		return $this->add($element, $label);
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
@@ -317,20 +391,36 @@ class Form extends \k\html\Tag {
 	 */
 	public function multicheckbox($name, $label = null) {
 		$element = new Multicheckbox($name);
-		return $this->add($element, $label);
+		$element->setName($name);
+		$element->setLabel($label);
+		return $this->addElement($element);
 	}
 
 	/**
 	 * @param string $name
-	 * @param string $label
+	 * @param string $content
 	 * @return Button
 	 */
-	public function button($label, $class = null) {
+	public function button($content, $class = null) {
 		$element = new Button();
 		if ($class) {
-			$element->class('btn-' . $class);
+			$element->addClass('btn-' . $class);
 		}
-		return $this->add($element, $label);
+		$element->setContent($content);
+		return $this->addAction($element, $content);
+	}
+
+	/**
+	 * @param string $name
+	 * @param string $content
+	 * @return Button
+	 */
+	public function submit($content = 'Submit') {
+		$element = new Button();
+		$element->setName('submit-' . $this->getId());
+		$element->setType('submit');
+		$element->setContent($content);
+		return $this->addAction($element);
 	}
 
 	/**
@@ -345,61 +435,7 @@ class Form extends \k\html\Tag {
 			$name = 'address_' . $name;
 		}
 		$element = new Address($name);
-		return $this->add($element, $label);
-	}
-
-	/**
-	 * @param string $name
-	 * @param string $label
-	 * @return Button
-	 */
-	public function submit($label = 'Submit') {
-		$element = new Button();
-		$element->type('submit');
-		$element->label($label);
-		return $this->add($element);
-	}
-
-	protected function executeGroupCallback(Group $el, $closure = null) {
-		$el = $this->add($el);
-		array_push($this->groups, $el);
-		if ($closure === true) {
-			$el->autoclose(true);
-			$closure = null;
-		}
-		if ($closure === null) {
-			return $el;
-		}
-		if (is_callable($closure)) {
-			$closure = $closure->bindTo($el, $el);
-			$closure();
-		}
-		array_pop($this->groups);
-		return $el;
-	}
-
-	/**
-	 * Close any number of opened groups
-	 * @param int $i
-	 * @return \k\form
-	 */
-	public function close($i = 1) {
-		if (empty($this->groups)) {
-			return $this;
-		}
-		$autoclose = true;
-		while ($autoclose) {
-			$last = end($this->groups);
-			if ($last && $last->autoclose()) {
-				array_pop($this->groups);
-			} else {
-				$autoclose = false;
-			}
-		}
-		while ($i--) {
-			array_pop($this->groups);
-		}
-		return $this;
+		return $this->addElement($element);
 	}
 
 	/**
@@ -409,107 +445,158 @@ class Form extends \k\html\Tag {
 	 */
 	public function fieldset($legend = null, $closure = null) {
 		$element = new Fieldset();
-
 		if (is_array($legend)) {
 			$element->setAttributes($legend);
 		} elseif ($legend) {
-			$element->legend($legend);
+			$element->setLegend($legend);
 		}
 		return $this->executeGroupCallback($element, $closure);
 	}
 
 	/**
 	 * @param string $element
-	 * @param string $label
+	 * @param string $name
 	 * @return Element
 	 */
-	public function add($element, $label = null) {
+	public function addElement($element, $name = null) {
 		if (is_string($element)) {
-			$element = new Element($element);
+			$element = new Element();
+			$element->setContent($element);
+		}
+		if ($name) {
+			$element->setName($name);
+		} else {
+			$name = $element->getName();
 		}
 		$element->setForm($this);
-		if ($label) {
-			$element->label($label);
-		}
-		//if we have groups and we add a new group, check for autoclose
-		if (!empty($this->groups) && $element instanceof Group) {
-			$last = end($this->groups);
-			if ($last->autoclose()) {
-				array_pop($this->groups);
-			}
-		}
-		if (!empty($this->groups)) {
-			$last = end($this->groups);
-			$last->addElement($element);
-		} else {
-			$this->elements[] = $element;
-		}
+		$this->elements[$name] = $element;
 		return $element;
 	}
 
-	public function renderElement($element) {
+	public function hasElement($element) {
+		if (!is_string($element)) {
+			$element = $element->getName();
+		}
+		if (empty($element)) {
+			return false;
+		}
+		return isset($this->elements[$element]);
+	}
+
+	public function removeElement($element) {
+		if (!is_string($element)) {
+			$element = $element->getName();
+		}
+		if ($this->hasElement($element)) {
+			unset($this->elements[$element]);
+		}
+	}
+
+	public function getElement($element) {
+		return isset($this->elements[$element]) ? $this->elements[$element] : null;
+	}
+
+	public function addAction($element, $name = null) {
+		if (is_string($element)) {
+			$element = new Button($element);
+			$element->setName($name);
+		}
+		$element->setForm($this);
+		$this->actions[$name] = $element;
+		return $element;
+	}
+
+	public function hasAction($action) {
+		if (!is_string($action)) {
+			$action = $action->getName();
+		}
+		if (empty($action)) {
+			return false;
+		}
+		return isset($this->elements[$action]);
+	}
+
+	public function removeAction($action) {
+		if (!is_string($action)) {
+			$action = $action->getName();
+		}
+		if ($this->hasElement($action)) {
+			unset($this->actions[$action]);
+		}
+	}
+
+	public function getElements() {
+		return $this->elements;
+	}
+
+	public function renderActions() {
+		if (empty($this->actions)) {
+			$this->submit();
+		}
 		$html = '';
-		if ($element instanceof Input) {
-			if ($this->getWrap()) {
-				$html .= '<div class="control-group">';
-			}
-			$html .= $element->renderElement();
-			if ($this->getWrap()) {
-				$html .= '</div>';
-			}
-		} elseif ($element instanceof Group) {
-			$html .= $element->renderElement();
-			$els = $element->getElements();
-			if (!empty($els)) {
-				foreach ($els as $el) {
-					$html .= $this->renderElement($el);
-				}
-			}
-			$html .= $element->renderCloseTag();
-		} else {
-			$html .= (string) $element;
+		foreach ($this->actions as $name => $action) {
+			$html .= $action->render() . "\n";
 		}
-		$html .= "\n";
-
-
 		return $html;
 	}
 
-	protected function getScript() {
-		
-	}
-
-	protected function renderTag($tag, $atts = [], $close = false) {
-		$html = '<' . $tag;
-		$atts = array_filter($atts);
-		foreach ($atts as $k => $v) {
-			$atts[$k] = $k . '="' . $v . '"';
+	public function openTag($close = false) {
+		if (self::$defaultClass) {
+			$this->addClass(self::$defaultClass);
 		}
-		$html .= ' ' . implode(' ', array_values($atts));
-		if ($close) {
-			$html .= '/';
-		}
-		$html .= '>';
-		return $html;
-	}
-
-	public function renderHtml() {
 		if ($this->layout) {
 			$this->addClass('form-' . $this->layout);
 		}
-		
-		$atts = array(
-			'action' => $this->action,
-			'method' => $this->method,
-			'class' => $class,
-			'id' => $this->getId()
-		);
-		$atts = array_merge($atts, $this->attributes);
-		$html = $this->renderTag('form', $atts);
-		foreach ($this->elements as $element) {
-			$html .= $this->renderElement($element);
+		return parent::openTag($close);
+	}
+
+	public function renderLegend() {
+		if (!$this->legend) {
+			return '';
 		}
+		return '<legend>' . $this->legend . '</legend>';
+	}
+
+	public function renderHtml() {
+		$html = $this->openTag();
+		//legend
+		$html .= $this->renderLegend();
+		//elements
+		foreach ($this->elements as $name => $element) {
+			$html .= $element->render() . "\n";
+		}
+		//actions
+		if (empty($this->actions)) {
+			$this->submit();
+		}
+		$html .= '<div class="form-actions">';
+		$html .= $this->renderActions();
+		$html .= '</div>';
+		$html .= $this->closeTag();
 		return $html;
 	}
+
+	public function __get($name) {
+		return $this->getElement($name);
+	}
+
+	/* --- ArrayAccess --- */
+
+	public function offsetSet($offset, $value) {
+		return $this->addElement($offset, $value);
+	}
+
+	public function offsetExists($offset) {
+		return $this->hasElement($offset);
+	}
+
+	public function offsetUnset($offset) {
+		return $this->removeElement($offset, null);
+	}
+
+	public function offsetGet($offset) {
+		return $this->getElement($offset);
+	}
+
 }
 

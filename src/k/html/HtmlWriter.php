@@ -10,7 +10,6 @@ use \Exception;
  * @author lekoala
  */
 abstract class HtmlWriter {
-	/* html generations and formatting */
 
 	abstract function renderHtml();
 
@@ -23,7 +22,7 @@ abstract class HtmlWriter {
 	 */
 	public function render($format = false) {
 		$this->html = $this->renderHtml();
-		if($format) {
+		if ($format) {
 			$this->html = $this->formatXml($this->html);
 		}
 		if ($this->getScript()) {
@@ -36,7 +35,7 @@ abstract class HtmlWriter {
 		try {
 			return $this->render();
 		} catch (\Exception $e) {
-			return $e->getMessage();
+			return $e->getMessage() . ' in file ' . $e->getFile() . ' at line ' . $e->getLine();
 		}
 	}
 
@@ -99,7 +98,7 @@ abstract class HtmlWriter {
 	 */
 	protected function tag($tag, $value = null, $attributes = array()) {
 		$attr = $str = '';
-		
+
 		//allow attr as 1nd element
 		if (is_array($tag)) {
 			$attributes = $tag;
@@ -122,9 +121,9 @@ abstract class HtmlWriter {
 			$value = $attributes['value'];
 			unset($attributes['value']);
 		}
-		
+
 		//comments support
-		if(isset($attributes['comments'])) {
+		if (isset($attributes['comments'])) {
 			$str = $attributes['comments'];
 			unset($attributes['comments']);
 		}

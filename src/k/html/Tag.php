@@ -7,22 +7,39 @@ namespace k\html;
  *
  * @author lekoala
  */
-abstract class Tag extends HtmlWriter {
+class Tag extends HtmlWriter {
 
 	protected $tagName;
-	protected $class = [];
 	protected $attributes = [];
+	protected $content;
 
-	public function openTag() {
+	public function getTagName() {
+		return $this->tagName;
+	}
+
+	public function setTagName($v) {
+		$this->tagName = $v;
+		return $this;
+	}
+
+	public function openTag($close = false) {
 		$html = "<{$this->tagName}";
 		if (!empty($this->attributes)) {
-			$html .= $this->renderAttributes();
+			$html .= ' ' . $this->renderAttributes();
 		}
+		if ($close) {
+			$html .= '/';
+		}
+		$html .= '>';
 		return $html;
 	}
 
 	public function closeTag() {
 		return "</{$this->tagName}>";
+	}
+
+	public function renderTag($content = null) {
+		return $this->openTag() . $content . $this->closeTag();
 	}
 
 	public function getId() {
@@ -66,29 +83,47 @@ abstract class Tag extends HtmlWriter {
 		return $this->setAttribute($k, $v);
 	}
 
-	protected function renderAttributes($close = false) {
+	public function renderHtml() {
+		return $this->renderTag($this->content);
+	}
+
+	protected function renderAttributes() {
+		return $this->_renderAttributes($this->attributes);
+	}
+
+	protected function _renderAttributes($attributes) {
 		$html = '';
-		$atts = array_filter($this->attributes);
+		$atts = array_filter($attributes);
 		foreach ($atts as $k => $v) {
+			if (empty($v)) {
+				continue;
+			}
 			if (is_array($v)) {
-				$v = implode(' ', $v);
+				$glue = ';';
+				if (in_array($k, ['class'])) {
+					$glue = ' ';
+				}
+				$v = implode($glue, $v);
+			}
+			if ($k == 'selected' || $k == 'checked' || $k == 'multiple') {
+				if ($v) {
+					$v = $k;
+				}
 			}
 			$atts[$k] = $k . '="' . $v . '"';
 		}
-		$html .= ' ' . implode(' ', array_values($atts));
-		if ($close) {
-			$html .= '/';
-		}
-		$html .= '>';
-		return $html;
+		return implode(' ', array_values($atts));
 	}
 
 	public function hasAttribute($k) {
 		return isset($this->attributes[$k]);
 	}
 
-	public function getAttribute($k) {
-		return isset($this->attributes[$k]) ? $this->attributes[$k] : null;
+	public function getAttribute($k, $default = null) {
+		if (isset($this->attributes[$k])) {
+			return $this->attributes[$k];
+		}
+		return $default;
 	}
 
 	public function setAttribute($k, $v) {
@@ -111,31 +146,76 @@ abstract class Tag extends HtmlWriter {
 		return $this;
 	}
 
-	public function hasClass($k) {
-		return in_array($k, $this->class);
+	public function hasClass($k = null) {
+		if ($k === null) {
+			return $this->hasAttribute('class');
+		}
+		return in_array($k, $this->getClass('class'));
+	}
+
+	public function getClass($arr = false) {
+		$class = $this->getAttribute('class', []);
+		if ($arr) {
+			return $class;
+		}
+		return implode(' ', $class);
 	}
 
 	public function setClass($v) {
 		if (!is_array($v)) {
 			$v = [$v];
 		}
-		$this->class = $v;
-		return $this;
+		return $this->setAttribute('class', $v);
 	}
 
 	public function addClass($v) {
 		if (!is_array($v)) {
 			$v = [$v];
 		}
-		$this->class = array_merge($this->class, $v);
-		return $this;
+		return $this->setAttribute('class', array_merge($this->getClass(true), $v));
 	}
 
 	public function removeClass($v) {
 		if (!is_array($v)) {
 			$v = [$v];
 		}
-		$this->class = array_diff($this->class, $v);
+		return $this->setAttribute('class', array_diff($this->getClass(true), $v));
+	}
+
+	public function hasStyle($k = null) {
+		if ($k == null) {
+			return $this->hasAttribute('style');
+		}
+		return in_array($k, $this->getAttribute('style'));
+	}
+
+	public function getStyle($arr = false) {
+		$Style = $this->getAttribute('style', []);
+		if ($arr) {
+			return $Style;
+		}
+		return implode(';', $Style);
+	}
+
+	public function setStyle($v) {
+		if (!is_array($v)) {
+			$v = [$v];
+		}
+		return $this->setAttribute('style', $v);
+	}
+
+	public function addStyle($v) {
+		if (!is_array($v)) {
+			$v = [$v];
+		}
+		return $this->setAttribute('style', array_merge($this->getStyle(true), $v));
+	}
+
+	public function removeStyle($v) {
+		if (!is_array($v)) {
+			$v = [$v];
+		}
+		return $this->setAttribute('style', array_diff($this->getStyle(true), $v));
 	}
 
 }

@@ -142,7 +142,7 @@ class Date extends DateTime {
 	 * @param int $value
 	 * @return Date
 	 */
-	public function add($type = 'day', $value = 1) {
+	public function addElement($type = 'day', $value = 1) {
 		parent::modify('+' . $value . ' ' . $type);
 
 		return $this;

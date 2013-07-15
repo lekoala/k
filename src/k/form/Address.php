@@ -1,8 +1,17 @@
 <?php
 namespace k\form;
 
-class Address extends Input {
+class Address extends Form {
 
+	public function __construct($content = null, Form $form = null) {
+		$this->input('street')->size(50);
+		$this->input('street_no')->size(6);
+		$this->input('zip')->size(6);
+		$this->input('city')->size(50);
+		
+		return parent::__construct($content, $form);
+	}
+	
 	public function renderField() {
 		$html = '';
 

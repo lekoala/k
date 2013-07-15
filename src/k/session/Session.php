@@ -120,7 +120,7 @@ class Session {
 	 * @param string $value
 	 * @return string
 	 */
-	public function add($key, $value) {
+	public function addElement($key, $value) {
 		$v = $this->get($key);
 		if (!is_array($v)) {
 			$v = array();

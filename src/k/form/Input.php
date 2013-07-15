@@ -1,80 +1,124 @@
 <?php
+
 namespace k\form;
 
 /**
- * Base input. Split label and field generation for easy extension.
+ * Base input with a value that can be populated and grouped
  */
 class Input extends Element {
 
-	protected $tag = 'input';
-	protected $type = 'text';
-	protected $name;
+	protected $tagName = 'input';
+	protected $attributes = [
+		'type' => 'text'
+	];
 	protected $label;
-	protected $class;
-	protected $options;
-	protected $value;
 	protected $defaultValue;
-	protected $size;
 	protected $append;
 	protected $prepend;
 	protected $help;
 	protected $helpInline;
 	protected $placeholder;
 	protected $disabled;
-	protected $groups = array();
+	protected $wrap = true;
 
-	public function __construct($text = null, \Form $form = null) {
-		if (strpos($text, '*') !== false) {
-			$text = str_replace('*', '', $text);
-			$this->class = 'required';
+	protected function renderAttributes() {
+		//size without width
+		if ($this->hasAttribute('size')) {
+			$this->addStyle('width:auto');
 		}
-		$this->name = $this->label = $text;
-		//Default label based on name
-		$this->label = trim(ucwords(str_replace(array('-', '_', '[', ']'), ' ', $this->label)));
-		parent::__construct($text, $form);
+		return parent::renderAttributes();
+	}
+
+	public function getId() {
+		static $count = [];
+		if (!$this->hasAttribute('id')) {
+			$name = str_replace(']','',str_replace('[', '-', $this->getName()));
+			if (isset($count[$name])) {
+				$count[$name] = $count[$name]++;
+				$name .= '-' . $count[$name];
+			} else {
+				$count[$name] = 1;
+			}
+			if (empty($name)) {
+				$name = '-' . $name;
+			}
+			$this->setId('input-' . $name);
+		}
+		return $this->getAttribute('id');
 	}
 	
-	public function getGroups() {
-		return $this->groups;
-	}
-	
-	public function setGroups($groups) {
-		$this->groups = $groups;
+	public function placeholder($v) {
+		$this->placeholder = $v;
 		return $this;
 	}
 
-	public function getName($groups = true) {
-		$name = $this->name;
-		if(!empty($this->groups) && $groups) {
-			$name = $this->groups[0];
-			for($i = 1; $i < count($this->groups); $i++) {
-				$name .= '[' . $this->groups[$i] . ']';
-			}
-			$name .= '[' . $this->name . ']';
-		}
-		return $name;
-	}
-
-	public function getValue() {
-		$value = $this->defaultValue;
-		if ($this->value) {
-			$value = $this->value;
-		}
-		return $value;
-	}
-
-	public function addClass($class) {
-		if (!empty($this->class)) {
-			$this->class .= ' ' . $class;
-		} else {
-			$this->class = $class;
-		}
+	public function preprend($v) {
+		$this->prepend = $v;
+		return $this;
 	}
 	
-	public function value($value = null) {
-		if($value !== null) {
-			$this->value = $value;
+	public function append($v) {
+		$this->append = $v;
+		return $this;
+	}
+	
+	public function size($v) {
+		return $this->setAttribute('size', $v);
+	}
+
+	public function type($v = null) {
+		if ($v === null) {
+			return $this->getType();
 		}
+		return $this->setType($v);
+	}
+
+	public function getType() {
+		return $this->getAttribute('type');
+	}
+
+	public function setType($v) {
+		return $this->setAttribute('type', $v);
+	}
+
+	public function label($value = null) {
+		if ($value === null) {
+			return $this->getLabel();
+		}
+		return $this->setLabel($value);
+	}
+
+	public function getLabel() {
+		if (empty($this->label)) {
+			$this->label = trim(ucwords(str_replace(array('-', '_', '[', ']'), ' ', $this->getName())));
+		}
+		return $this->label;
+	}
+
+	public function setLabel($v) {
+		if(empty($v)) {
+			return $this;
+		}
+		$this->label = $v;
+		return $this;
+	}
+
+	public function value($value = null) {
+		if ($value === null) {
+			return $this->getValue();
+		}
+		return $this->setValue($value);
+	}
+
+	public function getValue($default = null) {
+		if ($default === null) {
+			$default = $this->defaultValue;
+		}
+		return $this->getAttribute('value', $default);
+	}
+
+	public function setValue($v) {
+		return $this->setAttribute('value', $v);
 	}
 
 	public function help($value = null, $inline = true) {
@@ -87,75 +131,38 @@ class Input extends Element {
 	}
 
 	protected function renderLabel() {
-		if (empty($this->label)) {
+		if (!strlen($this->getLabel())) {
 			return '';
 		}
 		$class = '';
-		if ($this->form->getWrap()) {
+		if ($this->getWrap()) {
 			$class = 'control-label';
 		}
-		$this->form->t($this->name, $this->label);
-
-		return $this->renderHtmlTag('label', array(
-					'for' => 'input-' . $this->getName(),
-					'class' => $class,
-					'text' => $this->label
-				));
-	}
-	
-	protected function getBaseAttributes() {
-		return array(
-			'type' => $this->type,
-			'name' => $this->getName(),
-			'value' => $this->getValue(),
-			'size' => $this->size,
-			'placeholder' => $this->placeholder,
-			'disabled' => $this->disabled,
-			'class' => $this->class
-		);
+		$for = $this->getId();
+		$attributes = compact('class', 'for');
+		return '<label ' . $this->_renderAttributes($attributes) . '>' . $this->label . '</label>';
 	}
 
-	protected function getElementAttributes($add = array(), $remove = array()) {
-		if (!is_array($add)) {
-			$add = array($add);
-		}
-		if (!is_array($remove)) {
-			$remove = array($remove);
-		}
-		$att = array_merge($this->getBaseAttributes(),$this->getAttributes());
-		foreach ($add as $a) {
-			$att[$a] = $this->$a;
-		}
-		foreach ($remove as $r) {
-			unset($att[$r]);
-		}
-		return $att;
-	}
-	
-	public function renderOpenTag() {
-		if (!$this->tag) {
-			return '';
-		}
-		return $this->renderHtmlTag($this->getTag(), $this->getElementAttributes());
+	public function renderContent() {
+		return $this->openTag(true);
 	}
 
-	protected function renderField() {
-		$this->form->t($this->placeholder);
-		return $this->renderHtmlTag('input',$this->getElementAttributes(),true);
-	}
-
-	public function renderElement() {
+	public function renderHtml() {
 		$html = '';
+
+		if ($this->form->getLayout() == 'horizontal') {
+			$html .= '<div class="control-group">';
+		}
 		$html .= $this->renderLabel();
-		if($this->getLayout() == 'horizontal') {
+		if ($this->form->getLayout() == 'horizontal') {
 			$html .= '<div class="controls">';
 		}
 		if ($this->prepend) {
-			$html .= '<span class="add-on">' . $this->prepend . '</span>' ;
+			$html .= '<span class="add-on">' . $this->prepend . '</span>';
 		}
-		$html .= $this->renderField();
+		$html .= $this->renderContent();
 		if ($this->append) {
-			$html .= '<span class="add-on">' . $this->append . '</span>' ;
+			$html .= '<span class="add-on">' . $this->append . '</span>';
 		}
 		if ($this->help) {
 			$this->form->t($this->help);
@@ -165,8 +172,8 @@ class Input extends Element {
 			}
 			$html .= '<span class="help-' . $type . '">' . $this->help . '</span>';
 		}
-		if($this->getLayout() == 'horizontal') {
-			$html .= '</div>';
+		if ($this->form->getLayout() == 'horizontal') {
+			$html .= '</div></div>';
 		}
 		return $html;
 	}
