@@ -1,31 +1,40 @@
 <?php
 
-define('SRC_PATH', realpath('../src'));
-require SRC_PATH . '/K/init.php';
-\K\DebugBar::init(array(
-	'trackedObjects' => array('K\Pdo','K\Log')
-));
+require '_bootstrap.php';
 
-K\Form::create()
-		//set options
-		//add fields
-		->openFieldset()->openGroup('infos')
-			->input('firstname')
-			->input('lastname')
-			->input('phone')
-			->email()
-			->address()
-		->closeFieldset()->closeGroup()
-		->openFieldset()
-			->file('document')
-			->file('image')
-		->closeFieldset()
-		->radio('choices')->options(array('Choice 1', 'Choice 2'))
-		->checkbox('terms',"I've read the terms")
-		->openGroup('mycb')
-		->multicheckbox('preferences')->options(array('This','That','There'))->class('multi')
-		->closeGroup()
-		->add('Thank you for completing this form')
-		->openActions()->submit()->button('Cancel')->closeActions()
-		->e()
-;
+class SomeObject {
+	public $id = 5;
+	public $name = 'test';
+}
+
+//a basic procedural form
+
+$form = new k\form\Form;
+$form->input('id');
+$form->input('name');
+$form->populate(new SomeObject);
+echo $form;
+echo '<hr/>';
+
+//an extension form
+
+class ContactForm extends k\form\Form {
+
+	public function __construct() {
+		$this->input('firstname');
+		$this->input('lastname');
+		$this->email();
+		$this->textarea('message');
+	}
+}
+$contactForm = new ContactForm;
+echo $contactForm;
+echo '<hr/>';
+
+//a more complex form mixed with html and the validator
+
+
+
+
+
+	

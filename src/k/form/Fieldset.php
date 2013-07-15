@@ -1,5 +1,5 @@
 <?php
-namespace k\html\form;
+namespace k\form;
 
 /**
  * @method Fieldset legend()

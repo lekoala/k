@@ -1,8 +1,8 @@
 <?php
-namespace k\html\form;
+namespace k\form;
 
 /**
- * @method \k\html\form\Radio options()
+ * @method \k\form\Radio options()
  */
 class Radio extends Input {
 

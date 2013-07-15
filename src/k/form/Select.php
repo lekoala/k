@@ -1,6 +1,6 @@
 <?php
 
-namespace k\html\form;
+namespace k\form;
 
 class Select extends Input {
 
@@ -32,7 +32,7 @@ class Select extends Input {
 	 * Automatically set if you set the value to an array
 	 * 
 	 * @param bool $multiple
-	 * @return \k\html\form\Select
+	 * @return \k\form\Select
 	 */
 	public function multiple($multiple = 'multiple') {
 		$this->multiple = $multiple;
@@ -44,7 +44,7 @@ class Select extends Input {
 	 * 
 	 * @param string|array $options Path to a file (php or csv) or array
 	 * @param bool|string $first First element
-	 * @return \k\html\form\Select
+	 * @return \k\form\Select
 	 * @throws Exception
 	 */
 	public function options($options, $first = false) {

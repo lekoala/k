@@ -2,7 +2,7 @@
 
 require '_bootstrap.php';
 
-class GraphPicture extends k\data\Model {
+class GraphPicture extends k\Model {
 	public $url;
 	public $is_silhouette;
 	public $created_at;

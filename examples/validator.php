@@ -17,7 +17,7 @@ $d = [
 ];
 
 //standalone usage
-$v = new k\data\Validator();
+$v = new k\Validator();
 
 $single = [
 	['validateRequired',$d['empty']],
@@ -43,7 +43,7 @@ $rules = [
 	'nested[email]' => 'email',
 	'nested[phone]' => 'phone'
 ];
-$v = new k\data\Validator($d,$rules);
+$v = new k\Validator($d,$rules);
 if($v->validate()) {
 	echo 'valid';
 }

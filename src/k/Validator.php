@@ -1,6 +1,6 @@
 <?php
 
-namespace k\data;
+namespace k;
 
 /**
  * Validation Class
@@ -231,7 +231,7 @@ class Validator {
 		
 		if(count($this->errors()) !== 0) {
 			if($throwException) {
-				throw new ValidationException(null,0,null,$this->errors);
+				throw new ValidatorException(null,0,null,$this->errors);
 			}
 			return false;
 		}

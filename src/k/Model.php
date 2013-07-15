@@ -1,6 +1,6 @@
 <?php
 
-namespace k\data;
+namespace k;
 
 use \JsonSerializable;
 use \ArrayAccess;

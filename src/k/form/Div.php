@@ -1,6 +1,6 @@
 <?php
 
-namespace k\html\form;
+namespace k\form;
 
 /**
  * @method Div class()
