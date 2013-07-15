@@ -40,7 +40,6 @@ class Form extends \k\html\Tag {
 	protected $elements = [];
 	protected $wrap = true;
 	protected $layout = 'horizontal';
-	protected $enctype;
 	protected $translations;
 	protected $groups = [];
 
@@ -56,27 +55,6 @@ class Form extends \k\html\Tag {
 		return false;
 	}
 
-	public function getId() {
-		static $count = 0;
-
-		if ($this->id === null) {
-			$name = str_replace('/', '-', strtolower(trim(isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : null, '/')));
-			if (++$count > 1 || empty($name)) {
-				$name .= '-' . $count;
-			}
-			if (empty($name)) {
-				$name = '-' . $name;
-			}
-			$this->id = 'form' . $name;
-		}
-		return $this->id;
-	}
-
-	public function setId($value) {
-		$this->id = $value;
-		return $this;
-	}
-
 	public function getLayout() {
 		return $this->layout;
 	}
@@ -90,12 +68,11 @@ class Form extends \k\html\Tag {
 	}
 
 	public function getEnctype() {
-		return $this->enctype;
+		return $this->getAttribute('enctype');
 	}
 
-	public function setEnctype($value) {
-		$this->enctype = $value;
-		return $this;
+	public function setEnctype($v = 'multipart/form-data') {
+		return $this->setAttribute('enctype', $v);
 	}
 
 	public function getWrap() {
