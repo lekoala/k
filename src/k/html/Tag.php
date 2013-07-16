@@ -172,7 +172,7 @@ class Tag extends HtmlWriter {
 		if (!is_array($v)) {
 			$v = [$v];
 		}
-		return $this->setAttribute('class', array_merge($this->getClass(true), $v));
+		return $this->setAttribute('class', array_unique(array_merge($this->getClass(true), $v)));
 	}
 
 	public function removeClass($v) {

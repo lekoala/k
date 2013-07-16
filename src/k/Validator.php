@@ -65,6 +65,50 @@ class Validator {
 	protected $currentKey;
 	protected static $validators = [];
 	protected $validUrlPrefixes = ['http://', 'https://', 'ftp://', 'git://'];
+	protected $errorMessages = [
+		self::ACCEPTED => '%s must be accepted',
+		self::AFTER_DATE => '%s must be after date %s',
+		self::ALPHA => '%s must contain only letters',
+		self::ALPHANUM => '%s must contain only letters and numbers',
+		self::BEFORE_DATE => '%s must be before date %s',
+		self::CONTAINS => '%s value is invalid',
+		self::DATE => '%s must be a date',
+		self::DATE_FORMAT => '%s date format is not valid',
+		self::DATE_ISO => '%s must be formatted as yyyy-mm-dd hh:ii:ss',
+		self::DIFFERENT => '%s must be different than %s',
+		self::DIGITS => '%s must contain only digits',
+		self::EMAIL => '%s must be an email',
+		self::EQUAL_TO => '%s must be equal to %s',
+		self::GREATER_THAN => '%s must be greather than %s',
+		self::INTEGER => '%s must be an integer',
+		self::IN_LIST => '%s value is invalid',
+		self::IP => '%s must be an ip',
+		self::LESS_THAN => '%s must be less than %s',
+		self::LOWER_THAN => '%s must be lower than %s',
+		self::LUHN => '%s format does not seem valid',
+		self::MAX => '%s is above maximum value',
+		self::MAX_CHECK => '%s have to much checked values',
+		self::MAX_LENGTH => '%s is above max length',
+		self::MAX_WORDS => '%s is above max words',
+		self::MIN => '%s is below min value',
+		self::MIN_CHECK => '%s have not enough checked values',
+		self::MIN_LENGTH => '%s is below min length',
+		self::MIN_WORDS => '%s is below min words',
+		self::NOT_BLANK => '%s is blank',
+		self::NUMBER => '%s is not a number',
+		self::NUMERIC => '%s is not numeric',
+		self::PHONE => '%s is not a phone',
+		self::RANGE => '%s is not within valid range',
+		self::RANGE_LENGTH => '%s is not within valid range',
+		self::REGEXP => '%s does not match the valid format',
+		self::REMOTE => '%s is not valid',
+		self::REQUIRED => '%s is required',
+		self::SLUG => '%s must be a slug',
+		self::TIME => '%s must be a time',
+		self::URL => '%s must be a valid url',
+		self::URL_ACTIVE => '%s must be a valid active url',
+		self::URL_STRICT => '%s must be a valid url'
+	];
 
 	/**
 	 *  Setup validation
@@ -246,7 +290,12 @@ class Validator {
 	 * @param array $params
 	 */
 	protected function error($name, $value, $rule, $params) {
-		$this->errors[] = compact('name', 'value', 'rule', 'params');
+		$message = $name . ' is not valid';
+		if(isset($this->errorMessages[$rule])) {
+			$p = isset($params[0]) ? $params[0] : null;
+			$message = sprintf($this->errorMessages[$rule],$name,$p);
+		}
+		$this->errors[] = compact('name', 'value', 'rule', 'params','message');
 	}
 
 	/**

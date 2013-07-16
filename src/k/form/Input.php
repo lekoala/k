@@ -151,7 +151,11 @@ class Input extends Element {
 		$html = '';
 
 		if ($this->form->getLayout() == 'horizontal') {
-			$html .= '<div class="control-group">';
+			$class = '';
+			if($this->hasClass('error')) {
+				$class =  ' error';
+			}
+			$html .= '<div class="control-group'.$class.'">';
 		}
 		$html .= $this->renderLabel();
 		if ($this->form->getLayout() == 'horizontal') {

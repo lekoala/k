@@ -18,7 +18,6 @@ class Element extends \k\html\Tag {
 	protected $attributes = [];
 	protected $wrap = false;
 	protected $groups = [];
-	protected static $defaultWrap = '<div class="control-group">__HTML__</div>';
 
 	public function __construct(Form $form = null) {
 		if ($form) {
@@ -55,15 +54,8 @@ class Element extends \k\html\Tag {
 	}
 
 	public function getWrap() {
-		if (is_bool($this->wrap) && $this->wrap) {
-			$this->wrap = static::$defaultWrap;
-		}
 		if ($this->wrap === null && $this->form) {
 			$this->wrap = $this->form->getWrap();
-		}
-		if (is_callable($this->wrap)) {
-			$wrap = $this->wrap;
-			return $wrap($this);
 		}
 		return $this->wrap;
 	}
@@ -102,9 +94,12 @@ class Element extends \k\html\Tag {
 		if ($this->tagName) {
 			$html .= $this->closeTag();
 		}
-		$wrap = $this->wrap;
-		if ($wrap === null && $this->form) {
-			$html = str_replace('__HTML__', $html, $this->form->getWrap());
+		if ($this->getWrap() === true && $this->form) {
+			$class = '';
+			if($this->hasClass('error')) {
+				$class =  ' error';
+			}
+			$html = '<div class="control-group'.$class.'">'.$html.'</div>';
 		}
 		return $html;
 	}

@@ -812,7 +812,7 @@ class Orm extends \k\Model {
 		static $fields;
 
 		if ($fields === null) {
-			$fields = static::buildFieldsArray(static::getDeclaredPublicProperties());
+			$fields = static::buildFieldsArray(static::getDeclaredProperties());
 
 			//make sure has-one fields exist
 			$hasOneFields = static::getHasOneRelations();

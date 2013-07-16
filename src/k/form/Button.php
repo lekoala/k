@@ -6,9 +6,10 @@ class Button extends Element {
 
 	protected $tagName = 'button';
 	protected $attributes = [
-		'class' => 'btn'
+		'class' => ['btn']
 	];
 	protected $icon;
+	protected $wrap = false;
 
 	public function type($v = null) {
 		if ($v === null) {

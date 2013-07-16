@@ -50,23 +50,64 @@ class Form extends Element implements ArrayAccess {
 	protected $wrap = true;
 	protected $layout = 'horizontal';
 	protected $translations;
+	protected $rules = [];
+	protected $validator;
+	protected $showErrors = false;
 	protected static $defaultClass = 'form';
 	protected static $largeOptionsLimit = 20;
-	
+
 	public function __construct(Form $form = null) {
 		parent::__construct($form);
 		$this->init();
-		if(isset($_POST['submit-' . $this->getId()])) {
-			$this->onSave();
-		}
+		$this->handleActions();
 	}
-	
+
 	protected function init() {
 		
 	}
 	
-	protected function onSave() {
-		
+	protected function getDataFromMethod() {
+		switch($this->getAttribute('method')) {
+			case 'GET':
+				return $_GET;
+				break;
+			default:
+				return $_POST;
+		}
+	}
+	
+	
+	public function getValidator() {
+		if($this->validator === null) {
+			$this->validator = new \k\Validator($this->getDataFromMethod(),$this->rules);
+		}
+		return $this->validator;
+	}
+	
+	public function isValid() {
+		if($this->getValidator()->validate()) {
+			return true;
+		}
+		return false;
+	}
+	
+	public function errors() {
+		return $this->getValidator()->errors();
+	}
+
+	public function handleActions() {
+		$data = $this->getDataFromMethod();
+		foreach ($this->actions as $name => $button) {
+			if (isset($data[$button->getName()])) {
+				$method = 'on' . ucfirst($name);
+				if($this->isValid()) {
+					$this->$method();
+				}
+				else {
+					$this->showErrors = true;
+				}
+			}
+		}
 	}
 
 	public function getTranslations() {
@@ -210,10 +251,10 @@ class Form extends Element implements ArrayAccess {
 					$this->populate($data, $element->getElements());
 				} else {
 					$name = $element->getName();
-					
+
 					$dataVal = $this->getValueFromArray($data, $name);
 					$postVal = $this->getValueFromArray($_POST, $name);
-					
+
 					if ($dataVal) {
 						$element->setValue($dataVal);
 					}
@@ -226,11 +267,11 @@ class Form extends Element implements ArrayAccess {
 
 		return $this;
 	}
-	
-	protected function getValueFromArray($array,$index,$default = null) {
+
+	protected function getValueFromArray($array, $index, $default = null) {
 		$loc = &$array;
 		foreach (explode('[', $index) as $step) {
-			$step = rtrim($step,']');
+			$step = rtrim($step, ']');
 			if (isset($loc[$step])) {
 				$loc = &$loc[$step];
 			} else {
@@ -411,16 +452,24 @@ class Form extends Element implements ArrayAccess {
 	}
 
 	/**
-	 * @param string $name
 	 * @param string $content
+	 * @param string $name
 	 * @return Button
 	 */
-	public function submit($content = 'Submit') {
+	public function submit($content = 'Submit', $name = null) {
+		if ($name === null) {
+			//the first action can match the id
+			if (empty($this->actions)) {
+				$name = 'submit';
+			} else {
+				$name = str_replace(' ', '', ucwords($content));
+			}
+		}
 		$element = new Button();
-		$element->setName('submit-' . $this->getId());
+		$element->setName('submit::' . $this->getId() . '::' . $name);
 		$element->setType('submit');
 		$element->setContent($content);
-		return $this->addAction($element);
+		return $this->addAction($element, $name);
 	}
 
 	/**
@@ -501,6 +550,11 @@ class Form extends Element implements ArrayAccess {
 			$element = new Button($element);
 			$element->setName($name);
 		}
+		if ($name) {
+			$element->setName($name);
+		} else {
+			$name = $element->getName();
+		}
 		$element->setForm($this);
 		$this->actions[$name] = $element;
 		return $element;
@@ -556,9 +610,27 @@ class Form extends Element implements ArrayAccess {
 		}
 		return '<legend>' . $this->legend . '</legend>';
 	}
+	
+	public function renderErrors($inline = false) {
+		$html = '<div class="alert alert-error"><ul>';
+		foreach($this->errors() as $err) {
+		$this->find($err['name'])->addClass('error')->help($err['message'],true);
+			$html .= '<li>' . $err['message'] . '</li>';
+		}
+		$html .= '</ul></div>';
+		if($inline) {
+			return '';
+		}
+		return $html;
+	}
 
 	public function renderHtml() {
 		$html = $this->openTag();
+		
+		//errors
+		if($this->showErrors) {
+			$html .= $this->renderErrors(true);
+		}
 		//legend
 		$html .= $this->renderLegend();
 		//elements

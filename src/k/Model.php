@@ -229,15 +229,19 @@ class Model implements JsonSerializable, ArrayAccess {
 	 * Properties added at runtime won't be visible here
 	 * 
 	 * @staticvar array $props
+	 * @param bool $skipUnderscore
 	 * @return array
 	 */
-	public static function getDeclaredPublicProperties() {
+	public static function getDeclaredProperties($skipUnderscore = true) {
 		static $props;
 
 		if (!$props) {
 			$refl = static::getReflectedClass();
-			$prop = $refl->getProperties(\ReflectionProperty::IS_PUBLIC);
+			$prop = $refl->getProperties();
 			foreach ($prop as $p) {
+				if($skipUnderscore && strpos($p->getName(), '_') === 0) {
+					continue;
+				}
 				$props[] = $p->getName();
 			}
 		}

@@ -68,7 +68,7 @@ use k\db\orm\Version;
 	public $id;
 	public $firstname;
 	public $lastname;
-	public $picture;
+	protected $picture; //you can mix public and protected properties
 	public $birthday;
 	protected static $_lang = ['translatable'];
 	protected static $_hasOne = ['Usertype', 'Requestedtype' => 'Usertype', 'Profilepic'];
@@ -82,6 +82,11 @@ use k\db\orm\Version;
 		$parts = explode(' ', $value);
 		$this->firstname = array_shift($parts);
 		$this->lastname = implode(' ', $parts);
+	}
+	
+	public function set_picture($v) {
+		echo 'We called a protected property, the virtual setter is used';
+		$this->picture = $v;
 	}
 
 }

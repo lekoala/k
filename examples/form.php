@@ -32,6 +32,11 @@
 		//an extension form
 
 		class ContactForm extends k\form\Form {
+			
+			protected $rules = [
+				'email' => ['required','email'],
+				'more[info]' => ['required']
+			];
 
 			protected function init() {
 				$this->input('firstname');
@@ -41,19 +46,24 @@
 
 				$this->input('more[info]');
 				$this->input('more[info2]');
+				
+				$this->submit('Send');
+				$this->submit('Send and return');
 			}
 			
-			protected function onSave() {
-				die('Saved');
+			protected function onSubmit() {
+				die('Send');
 			}
-
+			protected function onSendAndReturn() {
+				die('Send and return');
+			}
 		}
 
 		$contactForm = new ContactForm;
 		echo $contactForm;
 		echo '<hr/>';
 
-		//a more complex form mixed with html and the validator
+		//render fields one by one
 		$contactForm2 = new ContactForm();
 		?>
 
