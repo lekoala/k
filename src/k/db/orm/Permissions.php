@@ -9,7 +9,7 @@ namespace k\db\orm;
 trait Permissions {
 
 	public $perms;
-	
+
 	public static function getDefaultPermissions() {
 		return array(
 			'view' => 1,
@@ -22,11 +22,25 @@ trait Permissions {
 		);
 	}
 
+	public function onPreSavePermissions() {
+		//recompute permissions
+		$perms = $this->perms;
+		if (strpos($perms, ',') !== false) {
+			$perms = explode(',', $perms);
+			$this->perms = 0;
+			foreach ($perms as $perm) {
+				$this->addPermission($perm);
+			}
+		} else {
+			$this->perms = $this->_original['perms'];
+		}
+	}
+
 	public static function getPermissions() {
 		//feel free to implement something else in your model
 		return static::getDefaultPermissions();
 	}
-	
+
 	/**
 	 * Check if the permission exists
 	 * 
@@ -94,7 +108,7 @@ trait Permissions {
 		}
 		if (!is_numeric($permission)) {
 			$systemPermissions = static::getPermissions();
-			if(!isset($systemPermissions[$permission])) {
+			if (!isset($systemPermissions[$permission])) {
 				throw new \Exception('Permission ' . $permission . ' does not exists');
 			}
 			$permission = $systemPermissions[$permission];
@@ -137,8 +151,8 @@ trait Permissions {
 	 */
 	public function readPermission($permission) {
 		$systemPermissions = static::getPermissions();
-		if(!is_numeric($permission)) {
-			if(!isset($systemPermissions[$permission])) {
+		if (!is_numeric($permission)) {
+			if (!isset($systemPermissions[$permission])) {
 				throw new \Exception('Permission ' . $permission . ' does not exists');
 			}
 			return $systemPermissions[$permission];
@@ -160,10 +174,9 @@ trait Permissions {
 		$p = array();
 		foreach ($systemPermissions as $k => $v) {
 			if ($this->hasPermission($v)) {
-				if($text) {
+				if ($text) {
 					$p[] = $k;
-				}
-				else {
+				} else {
 					$p[] = $v;
 				}
 			}

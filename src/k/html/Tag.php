@@ -130,7 +130,7 @@ class Tag extends HtmlWriter {
 		$this->attributes[$k] = $v;
 		return $this;
 	}
-
+	
 	public function removeAttribute($k) {
 		if (isset($this->attributes[$k])) {
 			unset($this->attributes[$k]);
@@ -144,6 +144,16 @@ class Tag extends HtmlWriter {
 	public function setAttributes($v) {
 		$this->attributes = $v;
 		return $this;
+	}
+	
+	public function addAttributes($v) {
+		$this->attributes = array_merge($this->attributes,$v);
+	}
+	
+	public function removeAttributes($v) {
+		foreach($v as $k) {
+			$this->removeAttribute($k);
+		}
 	}
 
 	public function hasClass($k = null) {

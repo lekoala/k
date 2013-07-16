@@ -6,7 +6,8 @@ namespace k\form;
  */
 class Password extends Input {
 
-	protected $type = 'password';
-	protected $name = 'password';
+	protected $attributes = [
+		'type' => 'password'
+	];
 
 }

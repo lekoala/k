@@ -894,6 +894,9 @@ class Orm extends \k\Model {
 	protected static function buildFieldsArray($arr) {
 		$fields = array();
 		$types = static::getTypes();
+		if(!is_array($arr)) {
+			throw new Exception('Invalid fields defintion for ' . get_called_class());
+		}
 		foreach ($arr as $name => $type) {
 			if (is_int($name)) {
 				$name = $type;
@@ -1774,14 +1777,14 @@ class Orm extends \k\Model {
 			}
 		}
 		foreach ($data as $k => $v) {
-			if ($this->hasField($k)) {
+			if ($this->has($k)) {
 				if ($withValue && empty($v)) {
 					continue;
 				}
 				if ($noOverwrite && !empty($this->$k)) {
 					continue;
 				}
-				$this->$k = $v;
+				$this->set($k,$v);
 			}
 		}
 	}

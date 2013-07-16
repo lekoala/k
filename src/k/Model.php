@@ -239,6 +239,9 @@ class Model implements JsonSerializable, ArrayAccess {
 			$refl = static::getReflectedClass();
 			$prop = $refl->getProperties();
 			foreach ($prop as $p) {
+				if($p->isStatic()) {
+					continue;
+				}
 				if($skipUnderscore && strpos($p->getName(), '_') === 0) {
 					continue;
 				}
@@ -273,6 +276,20 @@ class Model implements JsonSerializable, ArrayAccess {
 		}
 		return $props;
 	}
+	
+	/**
+	 * Get validator
+	 * 
+	 * @param array $data
+	 * @param array $rules
+	 * @return \k\Validator
+	 */
+	public static function getValidator($data = null,$rules = null) {
+		if ($rules === null) {
+			$rules = static::getRules();
+		}
+		return new Validator($data,$rules);
+	}
 
 	/**
 	 * Validate the records. Throw exception if not valid
@@ -283,7 +300,8 @@ class Model implements JsonSerializable, ArrayAccess {
 		if ($rules === null) {
 			$rules = static::getRules();
 		}
-		$validator = new Validator($this->getData(), $rules);
+		$validator = static::getValidator($this->getData(),$rules);
+		$validator->setData();
 		$validator->validate(true);
 	}
 	
@@ -426,21 +444,28 @@ class Model implements JsonSerializable, ArrayAccess {
 	}
 
 	/**
-	 * Get all public properties
+	 * Get all properties
+	 * 
+	 * This allow a mix of public and protected properties on the model. The only
+	 * ignored properties are those starting with _
 	 * 
 	 * This is what you want if you want raw data. Otherwise, use getProperties()
 	 * 
 	 * @return array
 	 */
 	public function getData() {
-		$pub = [];
+		$data = [];
 		foreach ((array) $this as $k => $v) {
-			if (strpos($k, "\0") === 0) {
+//			if (strpos($k, "\0") === 0) {
+//				continue;
+//			}
+			$k = str_replace(["\0","*"],"",$k);
+			if(strpos($k, '_') === 0) {
 				continue;
 			}
-			$pub[$k] = $v;
+			$data[$k] = $v;
 		}
-		return $pub;
+		return $data;
 	}
 
 	/**

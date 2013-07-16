@@ -224,22 +224,24 @@ class Form extends Element implements ArrayAccess {
 						$o = $data->$rel();
 						$v = $o->getId();
 						$f->value($v);
-						$f->attribute('data-label', $o->getLabel());
+						$f->att('data-label', $o->getLabel());
 					}
 				}
 			}
 			//model integration
 			if ($data instanceof \k\Model) {
 				//automatically bind validation rules
-				$validations = $data::getValidation();
+				$validator = $data::getValidator();
+				$validations = $validator->getRules();
 				foreach ($validations as $field => $rules) {
 					$f = $this->find($field);
 					if ($f) {
 						foreach ($rules as $name => $v) {
-							$f->attribute('data-' . $name, $v);
+							$f->setData($name, $v);
 						}
 					}
 				}
+				$data = $data->getData();
 			} else {
 				$data = (array) $data;
 			}
@@ -255,11 +257,11 @@ class Form extends Element implements ArrayAccess {
 					$dataVal = $this->getValueFromArray($data, $name);
 					$postVal = $this->getValueFromArray($_POST, $name);
 
-					if ($dataVal) {
-						$element->setValue($dataVal);
+					if($postVal) {
+						$dataVal = $postVal;
 					}
-					if ($postVal) {
-						$element->setValue($postVal);
+					if($dataVal) {
+						$element->setValue($dataVal);
 					}
 				}
 			}

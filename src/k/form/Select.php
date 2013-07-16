@@ -4,8 +4,8 @@ namespace k\form;
 
 class Select extends Input {
 
-	protected $options = array();
-	protected $multiple;
+	protected $tagName = 'select';
+	protected $options = [];
 
 	public function addOption($k = '', $v = null) {
 		if (!$v) {
@@ -18,10 +18,10 @@ class Select extends Input {
 	public function getOptions() {
 		return $this->options;
 	}
-	
+
 	public function getName($groups = true) {
 		$name = parent::getName($groups);
-		if($this->multiple) {
+		if ($this->getAttribute('multiple')) {
 			return $name . '[]';
 		}
 		return $name;
@@ -35,7 +35,7 @@ class Select extends Input {
 	 * @return \k\form\Select
 	 */
 	public function multiple($multiple = 'multiple') {
-		$this->multiple = $multiple;
+		$this->setAttribute('multiple',$multiple);
 		return $this;
 	}
 
@@ -85,46 +85,40 @@ class Select extends Input {
 
 	protected function renderOptions() {
 		$html = '';
-		$value = $this->getValue();
-		foreach ($this->options as $k => $v) {
+		$currentValue = $this->getValue();
+		foreach ($this->options as $value => $label) {
 			$selected = 0;
-			if ($this->multiple) {
-				if (in_array($k, $value)) {
+			if ($this->getAttribute('multiple')) {
+				if ($currentValue && in_array($value, $currentValue)) {
 					$selected = 1;
 				}
 			} else {
-				if ($k == $value) {
+				if ($value == $currentValue) {
 					$selected = 1;
 				}
 			}
-
-			$this->form->t($v);
-			$tag = $this->renderHtmlTag('option', array(
-				'value' => $k,
-				'selected' => $selected
-			));
-			$html .= $tag . $v . '</option>';
+			$html .= '<option ' . $this->_renderAttributes(compact('value','selected')) . '>' . $label . "</option>\n";
 		}
 		return $html;
 	}
-	
-	protected function getBaseAttributes() {
-		$atts = parent::getBaseAttributes();
-		$atts['multiple'] = $this->multiple;
-		if(isset($atts['value'])) {
-			unset($atts['value']);
+
+	public function openTag($close = false) {
+		$this->removeAttribute('type');
+		$attributes = $this->getAttributes();
+		if(isset($attributes['value'])) {
+			unset($attributes['value']);
 		}
-		unset($atts['type']);
-		return $atts;
+		return '<select ' . $this->_renderAttributes($attributes) . '>';
 	}
 
-	protected function renderField() {
+	public function renderContent() {
 		if (is_array($this->getValue())) {
-			$this->multiple = true;
+			$this->setAttribute('multiple', true);
 		}
-		$html = $this->renderHtmlTag('select', $this->getElementAttributes());
+		
+		$html = $this->openTag();
 		$html .= $this->renderOptions();
-		$html .= '</select>';
+		$html .= $this->closeTag();
 		return $html;
 	}
 

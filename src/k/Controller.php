@@ -126,7 +126,7 @@ abstract class Controller {
 	 * @return \k\html\Form
 	 */
 	public function createForm() {
-		return new \k\html\Form();
+		return new \k\form\Form();
 	}
 	
 	protected function redirectBack() {

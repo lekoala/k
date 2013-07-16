@@ -9,9 +9,19 @@ namespace k\db\orm;
  */
 trait Password {
 
-	public $password;
+	protected $password;
+	
+	public function onPreSavePassword() {
+		$org = $this->getOriginal();
+		if($this->password != $org['password']) {
+//			$this->set_password($this->password);
+		}
+	}
 
 	public function set_password($password) {
+		if($password == '') {
+			return $this;
+		}
 		$value = password_hash($password,PASSWORD_BCRYPT);
 		$this->password = $value;
 		return $this;
