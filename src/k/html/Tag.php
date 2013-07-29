@@ -76,13 +76,6 @@ class Tag extends HtmlWriter {
 		return $this->setAttribute('data-' . $k, $v);
 	}
 
-	public function att($k, $v = null) {
-		if ($v === null) {
-			return $this->getAttribute($k);
-		}
-		return $this->setAttribute($k, $v);
-	}
-
 	public function renderHtml() {
 		return $this->renderTag($this->content);
 	}
@@ -98,12 +91,11 @@ class Tag extends HtmlWriter {
 			if (empty($v)) {
 				continue;
 			}
+			if($k == 'style') {
+				$v = $this->getStyle();
+			}
 			if (is_array($v)) {
-				$glue = ';';
-				if (in_array($k, ['class'])) {
-					$glue = ' ';
-				}
-				$v = implode($glue, $v);
+				$v = implode(' ', $v);
 			}
 			if ($k == 'selected' || $k == 'checked' || $k == 'multiple') {
 				if ($v) {
@@ -113,6 +105,13 @@ class Tag extends HtmlWriter {
 			$atts[$k] = $k . '="' . $v . '"';
 		}
 		return implode(' ', array_values($atts));
+	}
+
+	public function att($k, $v = null) {
+		if ($v === null) {
+			return $this->getAttribute($k);
+		}
+		return $this->setAttribute($k, $v);
 	}
 
 	public function hasAttribute($k) {
@@ -130,7 +129,7 @@ class Tag extends HtmlWriter {
 		$this->attributes[$k] = $v;
 		return $this;
 	}
-	
+
 	public function removeAttribute($k) {
 		if (isset($this->attributes[$k])) {
 			unset($this->attributes[$k]);
@@ -145,13 +144,13 @@ class Tag extends HtmlWriter {
 		$this->attributes = $v;
 		return $this;
 	}
-	
+
 	public function addAttributes($v) {
-		$this->attributes = array_merge($this->attributes,$v);
+		$this->attributes = array_merge($this->attributes, $v);
 	}
-	
+
 	public function removeAttributes($v) {
-		foreach($v as $k) {
+		foreach ($v as $k) {
 			$this->removeAttribute($k);
 		}
 	}
@@ -192,40 +191,41 @@ class Tag extends HtmlWriter {
 		return $this->setAttribute('class', array_diff($this->getClass(true), $v));
 	}
 
+	public function style($k, $v = null) {
+		if ($v === null) {
+			return $this->getStyle($k);
+		}
+		return $this->setStyle($k, $v);
+	}
+
 	public function hasStyle($k = null) {
 		if ($k == null) {
 			return $this->hasAttribute('style');
 		}
-		return in_array($k, $this->getAttribute('style'));
+		return array_key_exists($k, $this->getAttribute('style'));
 	}
 
 	public function getStyle($arr = false) {
-		$Style = $this->getAttribute('style', []);
+		$style = $this->getAttribute('style', []);
 		if ($arr) {
-			return $Style;
+			return $style;
 		}
-		return implode(';', $Style);
+		foreach($style as $k => $v) {
+			$style[$k] = $k . ":" . $v;
+		}
+		return implode(';', array_values($style));
 	}
 
-	public function setStyle($v) {
-		if (!is_array($v)) {
-			$v = [$v];
-		}
-		return $this->setAttribute('style', $v);
+	public function setStyle($k, $v) {
+		$style = $this->getStyle(true);
+		$style[$k] = $v;
+		return $this->setAttribute('style', $style);
 	}
 
-	public function addStyle($v) {
-		if (!is_array($v)) {
-			$v = [$v];
-		}
-		return $this->setAttribute('style', array_merge($this->getStyle(true), $v));
-	}
-
-	public function removeStyle($v) {
-		if (!is_array($v)) {
-			$v = [$v];
-		}
-		return $this->setAttribute('style', array_diff($this->getStyle(true), $v));
+	public function removeStyle($k) {
+		$style = $this->getStyle(true);
+		unset($style[$k]);
+		return $this->setAttribute('style', $style);
 	}
 
 }
