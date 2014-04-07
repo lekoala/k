@@ -224,7 +224,7 @@ class Form extends Element implements ArrayAccess {
 						$o = $data->$rel();
 						$v = $o->getId();
 						$f->value($v);
-						$f->att('data-label', $o->getLabel());
+						$f->att('data-label', $o->get_title());
 					}
 				}
 			}
@@ -237,6 +237,9 @@ class Form extends Element implements ArrayAccess {
 					$f = $this->find($field);
 					if ($f) {
 						foreach ($rules as $name => $v) {
+							if(empty($v)) {
+								$v = 1;
+							}
 							$f->setData($name, $v);
 						}
 					}

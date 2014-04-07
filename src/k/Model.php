@@ -338,6 +338,7 @@ class Model implements JsonSerializable, ArrayAccess {
 	 * @return boolean
 	 */
 	public function has($name) {
+		//also checks property added at runtime
 		if (property_exists($this, $name)) {
 			return true;
 		}
@@ -405,7 +406,22 @@ class Model implements JsonSerializable, ArrayAccess {
 	public function __set($name, $value) {
 		return $this->set($name, $value);
 	}
-
+	
+	/**
+	 * Get title (useful for labels in dropdown for instance)
+	 * 
+	 * @return string
+	 */
+	public function get_title() {
+		$potentials = ['title', 'name', 'username'];
+		foreach ($potentials as $p) {
+			if (property_exists($this, $p)) {
+				return $this->$p;
+			}
+		}
+		return (string) $this;
+	}
+	
 	/**
 	 * Get properties using virtual getters if they exists
 	 * 

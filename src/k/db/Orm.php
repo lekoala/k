@@ -855,17 +855,17 @@ class Orm extends \k\Model {
 			'zipcode' => ['rangelength' => [4, 20]],
 			'lang_code|country_code' => ['rangelength' => '[2,2]'],
 			//numbers
-			'id' => 'digits',
-			'_?price$' => 'number',
-			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => 'digits',
-			'_?(lat|lng|lon|latitude|longitude)$' => 'digits',
+			'id' => ['type' => 'digits'],
+			'_?price$' => ['type' => 'number'],
+			'_?(id|count|quantity|level|percent|number|sort_order|perms|permissions|day)$' => ['type' => 'digits'],
+			'_?(lat|lng|lon|latitude|longitude)$' => ['type' => 'digits'],
 			//dates
-			'_?(datetime|at)$' => 'dateIso',
+			'_?(datetime|at)$' => ['type' => 'dateIso'],
 			'_?(date|birthdate|birthday)$' => ['regexp' => '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$'],
 			'_?time$' => ['regexp' => '^(?:(?:([01]?\d|2[0-3]):)?([0-5]?\d):)?([0-5]?\d)$'],
 			//types
-			'_?email$' => 'email',
-			'_?url$' => 'url',
+			'_?email$' => ['type' => 'email'],
+			'_?url$' => ['type' => 'url'],
 		);
 
 		$fields = static::getFields(false);
@@ -1803,21 +1803,6 @@ class Orm extends \k\Model {
 			throw new RuntimeException('This record does not have an id yet');
 		}
 		return $value;
-	}
-
-	/**
-	 * Get title (useful for labels in dropdown for instance)
-	 * 
-	 * @return string
-	 */
-	public function get_title() {
-		$potentials = ['title', 'name', 'username'];
-		foreach ($potentials as $p) {
-			if (property_exists($this, $p)) {
-				return $this->$p;
-			}
-		}
-		return $this->getId();
 	}
 
 	/**

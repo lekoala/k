@@ -310,6 +310,18 @@ class Validator {
 	/* -- validations -- */
 
 	/**
+	 * Type validation just forwards to other validators
+	 * 
+	 * @param string $value
+	 * @param string $type
+	 * @return boolean
+	 */
+	public function validateType($value,$type) {
+		$method = 'validate' . ucfirst($type);
+		return $this->$method($value);
+	}
+	
+	/**
 	 * Required field validator
 	 * 
 	 * @param mixed $value

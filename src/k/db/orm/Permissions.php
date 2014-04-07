@@ -21,7 +21,7 @@ trait Permissions {
 			'developer' => 2 << 5
 		);
 	}
-
+	
 	public function onPreSavePermissions() {
 		//recompute permissions
 		$perms = $this->perms;
