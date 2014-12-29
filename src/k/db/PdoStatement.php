@@ -29,6 +29,10 @@ class PdoStatement extends NativePdoStatement {
 		if (!empty($params)) {
 			$keys = array();
 			foreach($params as $k => $v) {
+				//: can be omitted
+				if(strpos($k, ':') !== 0) {
+					$k = ':' . $k; 
+				}
 				$keys[] = $k;
 				$values[] = $this->pdo->quote($v);
 			}

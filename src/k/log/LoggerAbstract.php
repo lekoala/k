@@ -5,7 +5,7 @@ namespace k\log;
 use \InvalidArgumentException;
 
 /**
- * LogAbstract
+ * psr-3 compatible logger
  *
  * @author lekoala
  */

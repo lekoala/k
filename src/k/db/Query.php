@@ -27,7 +27,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	const JOIN_RIGHT = 'RIGHT';
 	const JOIN_FULL = 'FULL';
 	const JOIN_INNER = 'INNER';
-	
+
 	/**
 	 * Store defaults for reset
 	 * @var array
@@ -155,7 +155,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @var string
 	 */
 	protected $fetchClass;
-	
+
 	/**
 	 * Fetch as object
 	 * @var ArrayObject
@@ -255,10 +255,11 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function fetchAs($itemClass = null, $collectionClass = null) {
 		$this->fetchClass = $itemClass;
 		$this->collectionClass = $collectionClass;
-		
+
 		//if we have an orm model, fetch only the table fields by default
-		if (is_subclass_of($itemClass, '\\k\\db\\Orm')) {
+		if ($this->isOrmClass($itemClass)) {
 			$table = $itemClass::getTableName();
+			$table = $this->tableOrAlias($table);
 			$this->fields($table . '.*');
 		}
 		return $this;
@@ -308,7 +309,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$this->from = $table;
 		return $this;
 	}
-	
+
 	/**
 	 * Alias a table
 	 * 
@@ -316,13 +317,13 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @param string $alias
 	 */
 	public function alias($table, $alias = null) {
-		if($alias == null) {
+		if ($alias == null) {
 			$alias = $table;
 			$table = $this->from;
 		}
 		$this->aliases[$alias] = $table;
 		//update fields
-		foreach($this->fields as &$field) {
+		foreach ($this->fields as &$field) {
 			$field = str_replace($table . '.', $alias . '.', $field);
 		}
 	}
@@ -341,17 +342,20 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$this->fields = $fields;
 		return $this;
 	}
-	
+
 	/**
 	 * Add a field
 	 * 
 	 * @param string $field 
 	 */
 	public function addField($field) {
-		if(is_array($field)) {
-			foreach($field as $f) {
+		if (is_array($field)) {
+			foreach ($field as $f) {
 				$this->addField($f);
 			}
+		}
+		if (empty($this->fields)) {
+			$this->fields[] = $this->tableOrAlias() . '.*';
 		}
 		$this->fields[] = $field;
 	}
@@ -378,8 +382,8 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * 
 	 * ('field','value')
 	 * ([
-	 *	'field' => 'value',
-	 *	'otherfield' => 'othervalue')
+	 * 	'field' => 'value',
+	 * 	'otherfield' => 'othervalue')
 	 * ])
 	 * ('id',[1,2,3])
 	 * ('total',500,'>');
@@ -392,6 +396,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function where($key = null, $value = '', $operator = null) {
 		//pass null to reset where
 		if ($key === null) {
+			$this->params = array();
 			$this->where = array();
 			return $this;
 		}
@@ -401,12 +406,12 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$db = $this->getPdo();
 
 		if (is_object($value)) {
-			if ($value instanceof \k\db\Orm) {
+			if ($this->isOrmClass($value)) {
 				$value = $value->getId();
-			} elseif (method_exists($value, 'toArray()')) {
-				$value = $value->toArray();
+			} else if ($value instanceof \Traversable) {
+				$value = iterator_to_array($value);
 			} else {
-				throw new InvalidArgumentException('Can not use object of class "'.get_class($value).'" as value');
+				$value = (array) $value;
 			}
 		}
 
@@ -472,10 +477,10 @@ class Query implements Iterator, ArrayAccess, Countable {
 			return;
 		}
 		$operator = null;
-		if(is_string($value)) {
+		if (is_string($value)) {
 			$pattern = '/^([><=])*/';
-			if(preg_match($pattern, $value,$matches)) {
-				if(!empty($matches)) {
+			if (preg_match($pattern, $value, $matches)) {
+				if (!empty($matches)) {
 					$operator = $matches[0];
 					$value = preg_replace($pattern, '', $value);
 				}
@@ -486,14 +491,16 @@ class Query implements Iterator, ArrayAccess, Countable {
 
 	public function fullTextSearch($column, $text) {
 		// Multi-column
-		if(!is_array($column)) {
+		if (!is_array($column)) {
 			$column = explode('|', $column);
 		}
-		foreach($column as $col) {
+		foreach ($column as $col) {
 			$this->detectForeignKey($col);
 		}
-		$columns = array_map(function($value) { return "{$value}"; }, $column);
-		$column = "replace(concat_ws(' ', ".implode(',', $columns)."), ' ', '')";
+		$columns = array_map(function($value) {
+					return "{$value}";
+				}, $column);
+		$column = "replace(concat_ws(' ', " . implode(',', $columns) . "), ' ', '')";
 
 		// Slugify and tokenize
 		$text = strtolower($text);
@@ -507,7 +514,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$tokens = preg_split(':\\s+:', $text);
 
 		// Token limits
-		if (! count($tokens)) {
+		if (!count($tokens)) {
 			return;
 		}
 		if (count($tokens) > self::FULL_TEXT_MAX_TOKENS) {
@@ -517,17 +524,16 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$length = 0;
 		$maxLength = self::FULL_TEXT_MAX_LENGTH;
 		$tokens = array_filter($tokens, function($token) use (& $length, $maxLength) {
-			return ($length += strlen($token)) <= $maxLength;
-		});
-		
-		$text = '%'.implode('%', $tokens).'%';
+					return ($length += strlen($token)) <= $maxLength;
+				});
+
+		$text = '%' . implode('%', $tokens) . '%';
 		$param = $this->replaceByPlaceholder($text);
-		$this->where[] = sprintf("concat(%s) like {$param}",
-			implode(',', array_fill(0, count($tokens), $column))
+		$this->where[] = sprintf("concat(%s) like {$param}", implode(',', array_fill(0, count($tokens), $column))
 		);
 		return $this;
 	}
-	
+
 	/**
 	 * Replace value by placeholder
 	 * @param type $value
@@ -805,17 +811,17 @@ class Query implements Iterator, ArrayAccess, Countable {
 		if ($predicate === null) {
 			$pk = $fk = 'id';
 			$pk = $table . '_' . $pk;
-			
+
 			$primaryModel = Orm::getClassForTable($this->from);
 			$foreignModel = Orm::getClassForTable($table);
-			
-			if(class_exists($primaryModel) && is_subclass_of($primaryModel, '\\k\\db\\Orm')) {
+
+			if ($this->isOrmClass($primaryModel)) {
 				$pk = $primaryModel::getPrimaryKey();
 			}
-			if(class_exists($foreignModel) && is_subclass_of($foreignModel, '\\k\\db\\Orm')) {
+			if ($this->isOrmClass($foreignModel)) {
 				$fk = $foreignModel::getPrimaryKey();
 			}
-			
+
 			$predicate = $this->tableOrAlias() . '.' . $pk . ' = ' . $tableOrAlias . '.' . $fk;
 		}
 
@@ -827,6 +833,22 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$tableAs = $table;
 		$this->joins[] = array('type' => $type, 'table' => $table, 'predicate' => $predicate);
 		return $this;
+	}
+
+	/**
+	 * Helper function to check if we are fetching orm records
+	 * 
+	 * @param string $class
+	 * @return string
+	 */
+	protected function isOrmClass($class) {
+		if (!$class) {
+			return false;
+		}
+		if (is_object($class)) {
+			return $class instanceof \k\db\Orm;
+		}
+		return class_exists($class) && is_subclass_of($class, '\\k\\db\\Orm');
 	}
 
 	/**
@@ -964,7 +986,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		$results = $this->query();
 		if ($results) {
 			if ($fetchArgument) {
-				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument, array($this));
+				$this->fetchedData = $results->fetchAll($fetchType, $fetchArgument, [$this]);
 			} else {
 				$this->fetchedData = $results->fetchAll($fetchType);
 			}
@@ -973,7 +995,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 		} else {
 			$this->fetchedData = array();
 		}
-		if($this->collectionClass) {
+		if ($this->collectionClass) {
 			$class = $this->collectionClass;
 			$this->fetchedData = new $class($this->fetchedData);
 		}
@@ -1045,6 +1067,8 @@ class Query implements Iterator, ArrayAccess, Countable {
 	/**
 	 * Fetch two columns as associative array. Ideal for dropdowns.
 	 * 
+	 * Do not use for FETCH_KEY_PAIRS to allow object logic to be used
+	 * 
 	 * @param string $value
 	 * @param string $key
 	 * @return array
@@ -1069,8 +1093,11 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * @return array|object
 	 */
 	public function fetchOne() {
+		$limit = $this->limit;
 		$this->limit = 1;
-		return $this->fetch();
+		$res = $this->fetch();
+		$this->limit = $limit;
+		return $res;
 	}
 
 	/**
@@ -1094,6 +1121,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 	public function fetch($fetchType = null, $fetchArgument = null) {
 		$results = $this->query();
 		if ($this->fetchClass && $fetchType === null) {
+			$fetchType = PDO::FETCH_CLASS;
 			$results->setFetchMode(PDO::FETCH_CLASS, $this->fetchClass);
 		}
 		if ($fetchType === null) {
@@ -1118,9 +1146,11 @@ class Query implements Iterator, ArrayAccess, Countable {
 	 * Current table or alias
 	 * @return string
 	 */
-	protected function tableOrAlias() {
+	protected function tableOrAlias($table = null) {
 		$alias = '';
-		$table = $this->from;
+		if ($table === null) {
+			$table = $this->from;
+		}
 		foreach ($this->aliases as $keyAlias => $valueTable) {
 			if ($valueTable == $table) {
 				$alias = $keyAlias;
@@ -1156,7 +1186,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 				$table = $parts[0];
 
 				//can use relation name instead of table
-				if ($this->fetchClass && is_subclass_of($this->fetchClass, '\\k\\db\\Orm')) {
+				if ($this->isOrmClass($this->fetchClass)) {
 					$class = $this->fetchClass;
 					$relations = $class::getHasOneRelations();
 					if (isset($relations[$table])) {
@@ -1170,7 +1200,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 					$key = str_replace($table . '.', $this->aliases[$table], $key);
 					$table = $this->aliases[$table];
 				}
-				
+
 				//do not create joins when they are already there
 				foreach ($this->joins as $join) {
 					if ($join['table'] === $table) {
@@ -1180,7 +1210,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 				if ($table == $this->from) {
 					return $key;
 				}
-				
+
 				//auto join
 				$this->leftJoin($table);
 				if (empty($this->fields)) {
@@ -1222,7 +1252,7 @@ class Query implements Iterator, ArrayAccess, Countable {
 			return $injectedClass::inject($this->fetchedData, $relation);
 		}
 		$row = $this->fetchedData[0];
-		if (!$row instanceof Orm) {
+		if (!$this->isOrmClass($row)) {
 			throw new Exception('Prefetch only works for records of class Orm');
 		}
 		$class = get_class($row);
@@ -1276,11 +1306,31 @@ class Query implements Iterator, ArrayAccess, Countable {
 
 	/* --- countable --- */
 
-	public function quickcount($query = 'count(*)') {
-		$original = $this->fields;
+	/**
+	 * Quick count for a given query
+	 * 
+	 * @param string $query
+	 * @param bool $unlimited Do not limit results (useful for getting total records)
+	 * @return int
+	 */
+	public function quickcount($query = 'count(*)', $unlimited = false) {
+		//set variables and save originals
+		$fields = $this->fields;
+		$limit = $this->limit;
+
 		$this->fields = array($query);
+		if ($unlimited) {
+			$this->limit = null;
+		}
+
+		//do query
 		$res = $this->query();
-		$this->fields = $original;
+
+		//restore originals
+		$this->fields = $fields;
+		if ($unlimited) {
+			$this->limit = $limit;
+		}
 		return $res->fetchColumn();
 	}
 

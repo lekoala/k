@@ -8,46 +8,48 @@ namespace k\db\orm;
 trait Version {
 
 	public static function getTableVersion() {
-		return static::getTable() . 'version';
+		return static::getTableName() . 'version';
 	}
 
 	public static function createTableVersion($execute = true) {
+		$fields = static::getFields();
+		if (!in_array('id', $fields)) {
+			throw new \Exception('To use this trait, the table must have a field id');
+		}
 		$table = static::getTable();
 		$ttable = static::getTableVersion();
 		$fields = static::getFields();
 		$pk = static::getPrimaryKeys();
-		
+
 		array_unshift($fields, 'v_id');
 		$key = array_search('id', $fields);
 		if ($key !== false) {
 			unset($fields[$key]);
-			array_unshift($fields, $table . '_id');
-		} else {
-			//only version table with an id
-			return false;
+			array_unshift($fields, static::getForForeignKey());
 		}
 		array_unshift($pk, 'v_id');
 		$key = array_search('id', $pk);
 		if ($key !== false) {
 			unset($pk[$key]);
-			array_unshift($pk, $table . '_id');
+			array_unshift($pk, static::getForForeignKey());
 		}
-
-		return static::getPdo()->createTable($ttable, $fields, array(), $pk, $execute);
+		$fk = [];
+		return static::getPdo()->createTable($ttable, $fields, $pk, $fk, $execute);
 	}
-		
+
 	public static function dropTableVersion() {
 		return static::getPdo()->dropTable(static::getTableVersion());
 	}
-	
+
 	public static function insertVersion($data) {
 		if (!isset($data['id'])) {
 			return false;
 		}
-		$uid = static::getTable() . '_id';
-		$data[$uid] = $data['id'];
+		$fk = static::getForForeignKey();
+		$data[$fk] = $data['id'];
 		unset($data['id']);
-		$data['v_id'] = static::getPdo()->max(static::getTableVersion(), 'v_id', $uid . ' = ' . $data[$uid]);
+		$data['v_id'] = static::getPdo()->max(static::getTableVersion(), 'v_id', $fk . ' = ' . $data[$fk]);
+		$data['v_id']++;
 		return static::getPdo()->insert(static::getTableVersion(), $data);
 	}
 

@@ -26,7 +26,7 @@ class PdoLogger extends LoggerAbstract {
 		return $this->pdo;
 	}
 
-	public function setPdo(PDO $pdo) {
+	public function setPdo(\PDO $pdo) {
 		$this->pdo = $pdo;
 		return $this;
 	}
@@ -40,15 +40,20 @@ class PdoLogger extends LoggerAbstract {
 		return $this;
 	}
 
-	public function getFields() {
+	public function getData() {
 		return $this->fields;
 	}
 
-	public function setFields(array $fields) {
+	public function setData(array $fields) {
 		$this->fields = $fields;
 		return $this;
 	}
 
+	/**
+	 * Return a sample sql statement to create the table
+	 * 
+	 * @return string
+	 */
 	public function getSqlCreate() {
 		return "CREATE TABLE {$this->table} (
 			id INTEGER NOT NULL,
@@ -79,7 +84,7 @@ class PdoLogger extends LoggerAbstract {
 			$values[$f] = $v;
 		}
 
-		$stmt = $this->getPdo()->prepare("INSERT INTO " . implode(',', $keys) . " VALUES (" . implode(',', $params) . ")");
+		$stmt = $this->getPdo()->prepare("INSERT INTO {$this->table}(" . implode(',', $keys) . ") VALUES (" . implode(',', $params) . ")");
 		$stmt->execute($values);
 	}
 

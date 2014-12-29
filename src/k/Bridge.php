@@ -102,7 +102,7 @@ trait Bridge {
 		if ($this->getRequest()->accept('application/json')) {
 			return $this->getResponse()->addData('notifications', $options);
 		}
-		return $this->getSession()->add('notifications', $options);
+		return $this->getSession()->addElement('notifications', $options);
 	}
 	
 	public function deny($message = 'Forbidden') {

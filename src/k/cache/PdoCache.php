@@ -76,6 +76,11 @@ class PdoCache extends CacheAbstract {
 		return $this;
 	}
 	
+	/**
+	 * Return a sample sql statement to create the table
+	 * 
+	 * @return string
+	 */
 	public function getSqlCreate() {
 		return "CREATE TABLE {$this->table} (
 			{$this->keyField} VARCHAR(255) NOT NULL,
@@ -107,7 +112,11 @@ class PdoCache extends CacheAbstract {
 		$stmt = $this->getPdo()->prepare("SELECT {$this->valueField} FROM {$this->table} WHERE {$this->keyField} = :key AND ({$this->expireField} = 0 OR {$this->expireField} >= :time)");
 		$time = time();
 		$stmt->execute(compact('key', 'time'));
-		return $stmt->fetchColumn();
+		$res = $stmt->fetchColumn();
+		if($res) {
+			return $res;
+		}
+		return null;
 	}
 
 	protected function _set($key, $value, $ttl = 0) {

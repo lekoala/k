@@ -8,16 +8,18 @@ namespace k\db\orm;
  */
 trait Info {
 
+	protected $_infoCache;
+	
 	public static function getTableInfo() {
-		return static::getTable() . 'info';
+		return static::getTableName() . 'info';
 	}
 
 	public static function createTableInfo($execute = true) {
-		$table = static::getTable();
+		$table = static::getTableName();
 		$ttable = static::getTableInfo();
 		$fields = array(
 			'id',
-			$table . '_id',
+			static::getForForeignKey(),
 			'name',
 			'value'
 		);
@@ -29,7 +31,28 @@ trait Info {
 		return static::getPdo()->dropTable(static::getTableInfo());
 	}
 
-	public function hasInfo($name = null, $value = null) {
+	/**
+	 * Does the record have the info
+	 * 
+	 * @param string $name
+	 * @param mixed $value
+	 * @param boolean $cache
+	 * @return boolean
+	 */
+	public function hasInfo($name = null, $value = null, $cache = false) {
+		if(!$this->exists() || $cache) {
+			if($this->_infoCache !== null) {
+				if($name === null) {
+					return $this->_infoCache !== null;
+				}
+				$v = isset($this->_infoCache[$name]) ? $this->_infoCache[$name] : null;
+				if($value !== null) {
+					return $v === $value;
+				}
+				return $v !== null;
+			}
+			return false;
+		}
 		$table = static::getTable();
 		$ttable = static::getTableInfo();
 		$where = array($table . '_id' => $this->id);
@@ -42,6 +65,13 @@ trait Info {
 		return static::getPdo()->count($ttable, $where);
 	}
 
+	/**
+	 * Add an info
+	 * 
+	 * @param string $name
+	 * @param mixed $value
+	 * @return boolean
+	 */
 	public function addInfo($name, $value) {
 		$table = static::getTable();
 		$ttable = static::getTableInfo();
@@ -51,12 +81,29 @@ trait Info {
 			}
 		}
 		if (!$this->hasInfo($name, $value)) {
-			return static::getPdo()->insert($ttable, array($table . '_id' => $this->id, 'name' => $name, 'value' => $value));
+			if($this->_infoCache === null) {
+				$this->_infoCache = [];
+			}
+			$this->_infoCache[$name] = $value;
+			$this->pendingCallback(function() use ($ttable, $table, $name, $value) {
+				return static::getPdo()->insert($ttable, array($table . '_id' => $this->id, 'name' => $name, 'value' => $value));
+			});
+			
 		}
 		return true;
 	}
 
+	/**
+	 * Remove an info
+	 * 
+	 * @param string $name
+	 * @param mixed $value
+	 * @return boolean
+	 */
 	public function removeInfo($name = null, $value = null) {
+		if(!$this->exists()) {
+			return false;
+		}
 		$table = static::getTable();
 		$ttable = static::getTableInfo();
 		if (is_array($value)) {
@@ -74,23 +121,37 @@ trait Info {
 		return static::getPdo()->delete($ttable, $where);
 	}
 
-	public function getInfo($name = null) {
+	/**
+	 * Get all associated infos. Cached by default
+	 * 
+	 * @param string $name
+	 * @param boolean $cache
+	 * @return array
+	 */
+	public function getInfo($name = null, $cache = true) {
+		if(!$this->exists()) {
+			return $this->_infoCache;
+		}
+		if($cache && $this->_infoCache !== null) {
+			return $this->_infoCache;
+		}
 		$table = static::getTable();
 		$ttable = static::getTableInfo();
 		$where = array($table . '_id' => $this->id, 'name' => $name);
 		$results = static::getPdo()->select($ttable, $where);
-		$Info = array();
+		$info = array();
 		foreach ($results as $row) {
 			if ($name) {
-				$Info[] = $row['value'];
+				$info[] = $row['value'];
 			} else {
-				if (!isset($Info[$row['name']])) {
-					$Info[$row['name']] = array();
+				if (!isset($info[$row['name']])) {
+					$info[$row['name']] = array();
 				}
-				$Info[$row['name']][] = $row['value'];
+				$info[$row['name']][] = $row['value'];
 			}
 		}
-		return $Info;
+		$this->_infoCache = $info;
+		return $info;
 	}
 
 }

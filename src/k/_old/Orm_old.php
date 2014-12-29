@@ -11,7 +11,7 @@ use \JsonSerializable;
  *
  * @author tportelange
  */
-class Orm implements JsonSerializable {
+class OrmOld implements JsonSerializable {
 
 	/**
 	 * Store record properties
@@ -23,13 +23,13 @@ class Orm implements JsonSerializable {
 	 * Store original record properties to be able to make a diff when updating
 	 * @var array
 	 */
-	protected $original = null;
+	protected $_original = null;
 
 	/**
 	 * Cache resolved objects
 	 * @var array
 	 */
-	protected $cache = array();
+	protected $_cache = array();
 
 	/**
 	 * \k\Pdo instance used to query the database
@@ -41,7 +41,7 @@ class Orm implements JsonSerializable {
 	 * Store fields properties
 	 * @var array 
 	 */
-	protected static $fields = array();
+	protected static $_fields = array();
 
 	/**
 	 * Store has-one relations
@@ -65,7 +65,7 @@ class Orm implements JsonSerializable {
 	 * Folder to store items related to this class
 	 * @var string
 	 */
-	protected static $storage;
+	protected static $_storage;
 	
 	/**
 	 * Store validation rules
@@ -249,7 +249,7 @@ class Orm implements JsonSerializable {
 	 * @return string
 	 */
 	public static function getBaseFolder($create = false) {
-		$folder = static::$storage . '/' . static::getTable();
+		$folder = static::$_storage . '/' . static::getTable();
 		if ($create && !is_dir($folder)) {
 			mkdir($folder);
 		}
@@ -430,7 +430,7 @@ class Orm implements JsonSerializable {
 						$o = new $class;
 						$o->$pk = $key;
 					}
-					$record->cache[$column] = $o;
+					$record->_cache[$column] = $o;
 				}
 				break;
 			case 'has-many':
@@ -443,7 +443,7 @@ class Orm implements JsonSerializable {
 							$arr[] = $i;
 						}
 					}
-					$record->cache[$table] = $arr;
+					$record->_cache[$table] = $arr;
 				}
 				break;
 			case 'many-many':
@@ -477,7 +477,7 @@ class Orm implements JsonSerializable {
 							$arr[] = $byId[$injectedId];
 						}
 					}
-					$record->cache[$table] = $arr;
+					$record->_cache[$table] = $arr;
 				}
 				break;
 		}
@@ -672,7 +672,7 @@ class Orm implements JsonSerializable {
 	public function exists($db = false) {
 		$pkFields = static::getPrimaryKeys();
 		if ($db) {
-			return static::count($this->pkAsArray());
+			return static::count($this->primaryKeysAsArray());
 		}
 		foreach ($pkFields as $field) {
 			if ($this->$field != '') {
@@ -686,7 +686,7 @@ class Orm implements JsonSerializable {
 	 * Get primary key as array
 	 * @return array
 	 */
-	protected function pkAsArray() {
+	protected function primaryKeysAsArray() {
 		$arr = array();
 		foreach (static::getPrimaryKeys() as $field) {
 			$arr[$field] = $this->$field;
@@ -729,7 +729,7 @@ class Orm implements JsonSerializable {
 			if (empty($changed)) {
 				return true;
 			}
-			$res = static::update($changed, $this->pkAsArray());
+			$res = static::update($changed, $this->primaryKeysAsArray());
 		} else {
 			$inserted = array();
 			foreach ($data as $k => $v) {
@@ -767,7 +767,7 @@ class Orm implements JsonSerializable {
 			if ($res === false) {
 				return false;
 			}
-			$res = static::delete($this->pkAsArray());
+			$res = static::delete($this->primaryKeysAsArray());
 			$this->onPostRemove();
 			return $res;
 		}
@@ -810,7 +810,7 @@ class Orm implements JsonSerializable {
 	}
 
 	public function __toString() {
-		return get_called_class() . json_encode($this->pkAsArray());
+		return get_called_class() . json_encode($this->primaryKeysAsArray());
 	}
 
 	/**
@@ -918,11 +918,11 @@ class Orm implements JsonSerializable {
 	}
 
 	public static function getStorage() {
-		return static::$storage;
+		return static::$_storage;
 	}
 
 	public static function setStorage($storage) {
-		static::$storage = $storage;
+		static::$_storage = $storage;
 	}
 
 	/**
@@ -1010,12 +1010,12 @@ class Orm implements JsonSerializable {
 	 * @staticvar array $fields
 	 * @return array
 	 */
-	public static function getFields() {
+	public static function getData() {
 		static $fields;
 
 		if ($fields === null) {
 			$fields = array();
-			$fieldsDefinition = static::$fields;
+			$fieldsDefinition = static::$_fields;
 			foreach($fieldsDefinition as $name => $class) {
 				if(is_int($name)) {
 					$name = $class;
